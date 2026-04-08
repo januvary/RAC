@@ -1,0 +1,135 @@
+RAC
+
+---
+
+# Spec — Registros Alto Custo
+
+## Overview
+
+Desktop application for registering and managing patient medication records across four workflow types, with batch-based organization and weekly spreadsheet export. Built in Python with CustomTkinter + SQLite, mirroring the architecture of Emissor de Recibos.
+
+---
+
+## Data Model
+
+```sql
+malotes
+  id          INTEGER PRIMARY KEY
+  date        TEXT        -- stored as ISO, displayed formatted
+
+pacientes
+  id          INTEGER PRIMARY KEY
+  name        TEXT NOT NULL
+
+items_catalog
+  id          INTEGER PRIMARY KEY
+  name        TEXT NOT NULL
+
+registros
+  id          INTEGER PRIMARY KEY
+  tipo        TEXT NOT NULL   -- 'entrada' | 'renovacao' | 'retirada' | 'urgente'
+  paciente_id INTEGER REFERENCES pacientes(id)
+  malote_id     INTEGER REFERENCES malotes(id)
+  created_at  TEXT
+
+registro_items
+  id            INTEGER PRIMARY KEY
+  registro_id   INTEGER REFERENCES registros(id) ON DELETE CASCADE
+  item_id       INTEGER REFERENCES items_catalog(id)
+```
+
+---
+
+## UI Architecture
+
+### Start Screen
+
+The permanent home base. Contains:
+
+- **Active malote display** — shown prominently as a title (e.g. *"08/04/2026"* or label if set). Clicking it opens the malote switcher.
+- **Malote switcher** — dropdown showing 5 most recent malotes, sorted by most recently created. Footer options: *Ver todos* (opens full list dialog) and *Novo malote* (opens creation popup). Selecting a malote updates it globally and immediately.
+- **Four tipo buttons** — large, equal-sized, clearly labeled: Entrada, Renovação, Retirada, Urgente. Each navigates to the Entry Screen for that tipo.
+- **Search bar** — searches across registros in the active malote by patient name. Results show inline below the bar with tipo badge, patient name, and batch date (one entry per patient per malote). Clicking a result opens the Entry Screen that registro.
+- **Export button** — generates and downloads a single `.xlsx` with four tabs (one per tipo), filtered to active malote, patients sorted alphabetically. Disabled if no active malote.
+
+### Entry Screen
+
+Reached by clicking a tipo button (new record) or a search result (edit mode). Header shows the active malote as title and the tipo as subtitle.
+
+- **Patient field** — text input with live dropdown as you type, searching `pacientes` by name. Dropdown shows matches. Separate *"Novo paciente"* button adjacent to the field - saves the typed in name as a new patient if unexistent.
+- **Items list** — vertical list of selected items. Each row shows item name + remove button. *"Adicionar item"* button adds a row and selects text input, opening a lookup dropdown from `items_catalog`. 
+- **Save button** — saves registro and registro_items. If auto-return is on, navigates back to start screen. If off, clears the form for another entry of the same tipo.
+- **Auto-return toggle** — small, tucked in a corner. Default: on. Persistent across sessions via config.
+- **Back button** — returns to start screen without saving.
+
+### Malote Creation Popup
+
+Small modal triggered from malote switcher. Contains:
+- Date input — accepts loose formats (`08/04`, `08/04/26`), auto-completes to full date with current year assumed
+- Confirm and cancel buttons
+- On confirm: saves malote, sets it as active malote
+
+### New Patient Popup
+
+Small modal triggered from Entry Screen. Contains:
+- Name field (pre-filled with whatever was typed in the patient search field)
+- Confirm and cancel buttons
+- On confirm: saves patient, auto-selects in Entry Screen
+
+---
+
+## Export
+
+Single `.xlsx` file, generated on demand from Start Screen. Structure:
+
+- One tab per tipo: *Entradas*, *Renovações*, *Retiradas*, *Urgentes*
+- Filtered to active malote
+- Columns: **Nome** | **Medicamentos** (comma-separated item names)
+- Rows sorted alphabetically by patient name
+- Filename: `Malote_[malote-date]_[timestamp].xlsx`
+
+---
+
+## Configuration
+
+Saved to JSON, same pattern as Emissor:
+
+- `auto_return`: bool (default true)
+- `theme`: `"dark"` | `"light"`
+- `last_lote_id`: int — restores active malote on relaunch
+- `save_path`: str — default export destination, user downloads by default.
+
+---
+
+## File Structure
+
+```
+sistema_registros/
+  main.py
+  database.py
+  config.py
+  ui/
+    start_screen.py
+    entry_screen.py
+    lote_switcher.py
+    dialogs.py        -- novo malote, novo paciente
+    search_results.py
+  export/
+    spreadsheet.py
+  assets/
+  registros.db
+```
+
+---
+
+## Out of Scope (v1)
+
+- Other workflows mentioned but not specified
+- Items catalog management UI (seeded manually)
+- Multi-unit or networked access
+- Patient edit/delete
+- Registro deletion (soft-delete could be added later)
+
+---
+
+
