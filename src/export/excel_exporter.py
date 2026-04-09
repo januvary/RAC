@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
+from src.utils.text_utils import to_upper_normalized
 
 if TYPE_CHECKING:
     from src.database.rac_database import RACDatabase
@@ -59,8 +60,13 @@ class ExcelExporter:
             tipo_registros.sort(key=lambda r: r.get("paciente_name", ""))
 
             for reg in tipo_registros:
-                items_str = ", ".join(reg.get("items", []))
-                ws.append([reg.get("paciente_name", ""), items_str])
+                items_str = ", ".join(
+                    to_upper_normalized(i) for i in reg.get("items", [])
+                )
+                ws.append([
+                    to_upper_normalized(reg.get("paciente_name", "")),
+                    items_str,
+                ])
 
             ws.column_dimensions["A"].width = 35
             ws.column_dimensions["B"].width = 60

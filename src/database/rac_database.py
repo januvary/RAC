@@ -415,6 +415,24 @@ class RACDatabase(BaseDatabase):
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
+    def get_unique_items_for_paciente(self, paciente_id: int) -> list[dict]:
+        def _op():
+            cursor = self._get_cursor()
+            cursor.execute(
+                "SELECT DISTINCT ic.id, ic.name, ic.unidade "
+                "FROM registro_items ri "
+                "JOIN registros r ON ri.registro_id = r.id "
+                "JOIN items_catalog ic ON ri.item_id = ic.id "
+                "WHERE r.paciente_id = ? "
+                "ORDER BY ic.name COLLATE NOCASE",
+                (paciente_id,),
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+            return [dict(r) for r in rows]
+
+        return self._retry_on_transient_error(_op, operation_type="read")
+
     # ========== ITEMS CATALOG ==========
 
     def get_all_items(self) -> list[dict]:

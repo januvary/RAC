@@ -29,3 +29,14 @@ def normalize_text(text: str) -> str:
         normalized = normalized.replace(accented_char, unaccented_char)
 
     return normalized.lower()
+
+
+def to_upper_normalized(text: str) -> str:
+    if not text:
+        return ""
+
+    normalized = text
+    for accented_char, unaccented_char in _ACCENT_MAP.items():
+        normalized = normalized.replace(accented_char, unaccented_char)
+
+    return normalized.upper()

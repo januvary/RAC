@@ -24,6 +24,13 @@ TIPO_COLORS = {
     "urgente": "negative",
 }
 
+TIPO_HEX = {
+    "entrada": "#059669",
+    "renovacao": "#2563EB",
+    "retirada": "#D97706",
+    "urgente": "#DC2626",
+}
+
 TIPO_LABELS = {
     "entrada": "Entrada",
     "renovacao": "Renovação",
@@ -37,6 +44,8 @@ TIPO_ICONS = {
     "retirada": "logout",
     "urgente": "priority_high",
 }
+
+PRIMARY_COLOR = "#4F46E5"
 
 
 async def init_app():

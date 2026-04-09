@@ -10,14 +10,21 @@ import os
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-PyInstaller.__main__.run([
+icon_path = os.path.join(here, "RAC.ico")
+
+args = [
     os.path.join(here, "main.py"),
     "--name=RAC",
     "--noconfirm",
     "--console",
     f"--add-data={os.path.join(here, 'src')}:src",
     f"--add-data={os.path.join(here, 'data')}:data",
-    f"--icon={os.path.join(here, 'RAC.ico')}" if os.path.exists(os.path.join(here, 'RAC.ico')) else "",
+]
+
+if os.path.exists(icon_path):
+    args.append(f"--icon={icon_path}")
+
+args += [
     "--hidden-import=nicegui",
     "--hidden-import=nicegui.elements",
     "--hidden-import=nicegui.elements.button",
@@ -47,6 +54,7 @@ PyInstaller.__main__.run([
     "--hidden-import=src.web.app",
     "--hidden-import=src.web.pages.start_page",
     "--hidden-import=src.web.pages.entry_page",
+    "--hidden-import=src.web.styles",
     "--hidden-import=src.database.rac_database",
     "--hidden-import=src.database.definitive_catalog",
     "--hidden-import=src.state.rac_state_manager",
@@ -58,5 +66,37 @@ PyInstaller.__main__.run([
     "--hidden-import=src.utils.database_base",
     "--hidden-import=src.export.excel_exporter",
     "--collect-all=nicegui",
-    "--collect-all=customtkinter",
-])
+    "--exclude-module=pandas",
+    "--exclude-module=pandas.plotting",
+    "--exclude-module=pandas.io.clipboard",
+    "--exclude-module=pandas.io.formats.style",
+    "--exclude-module=pyarrow",
+    "--exclude-module=numpy",
+    "--exclude-module=numpy.libs",
+    "--exclude-module=uvloop",
+    "--exclude-module=psycopg",
+    "--exclude-module=psycopg_binary",
+    "--exclude-module=psycopg2",
+    "--exclude-module=cryptography",
+    "--exclude-module=PIL",
+    "--exclude-module=Pillow",
+    "--exclude-module=lxml",
+    "--exclude-module=lxml.etree",
+    "--exclude-module=lxml.objectify",
+    "--exclude-module=lxml.isoschematron",
+    "--exclude-module=customtkinter",
+    "--exclude-module=tkinter",
+    "--exclude-module=_tkinter",
+    "--exclude-module=pytest",
+    "--exclude-module=py",
+    "--exclude-module=docutils",
+    "--exclude-module=pygments",
+    "--exclude-module=pyttsx3",
+    "--exclude-module=sqlalchemy",
+    "--exclude-module=jinja2",
+    "--exclude-module=mako",
+    "--exclude-module=fsspec",
+    "--exclude-module=pydoc_data",
+]
+
+PyInstaller.__main__.run(args)
