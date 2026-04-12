@@ -4,22 +4,21 @@
 Entry Page — record creation and editing
 """
 
-from datetime import datetime
-
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QCheckBox, QDialog,
+    QPushButton, QCheckBox, QDialog,
     QSizePolicy, QFrame,
 )
 from PySide6.QtCore import Qt
 
 from src.gui.components import (
-    SectionLabel, HeadingLabel, Separator, SearchableComboBox, TipoLabel,
-    FlatButton, PositiveButton, NegativeButton, PrimaryButton,
-    DestructiveButton, ToastLabel,
+    SectionLabel, HeadingLabel, SearchableComboBox, TipoCombo,
+    MaloteLabel, FlatButton, PositiveButton, NegativeButton,
+    DestructiveButton, ToastLabel, show_toast,
 )
-from src.gui.constants import TIPO_HEX
+from src.models import Registro, RegistroItem, ItemCatalog
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
+from src.gui.styles import colors
 
 
 class EntryPage(QWidget):
@@ -28,8 +27,9 @@ class EntryPage(QWidget):
         self._mw = main_window
         self._tipo = tipo
         self._edit_id = edit_id
-        self._registro = None
+        self._registro: Registro | None = None
         self._selected_items: list[dict] = []
+        self._focus_index: int = -1
 
         if edit_id:
             self._registro = self._mw.db.get_registro_by_id(int(edit_id))
@@ -40,78 +40,87 @@ class EntryPage(QWidget):
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(32, 24, 32, 24)
+        outer.setContentsMargins(48, 32, 48, 32)
         outer.setSpacing(0)
         outer.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
 
         container = QWidget()
-        container.setMaximumWidth(560)
+        container.setMaximumWidth(720)
         container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self._build_header(layout)
-        layout.addSpacing(16)
+        layout.addSpacing(20)
 
         layout.addWidget(SectionLabel("Paciente"))
-        layout.addSpacing(6)
+        layout.addSpacing(8)
         self._build_patient_section(layout)
-        layout.addSpacing(16)
+        layout.addSpacing(20)
 
         layout.addWidget(SectionLabel("Itens"))
-        layout.addSpacing(6)
+        layout.addSpacing(8)
         self._build_items_section(layout)
-        layout.addSpacing(24)
+        layout.addSpacing(28)
 
         self._build_action_bar(layout)
 
-        outer.addWidget(container, alignment=Qt.AlignmentFlag.AlignHCenter)
+        outer.addWidget(container)
 
     def _build_header(self, layout: QVBoxLayout):
-        tipo_label = TipoLabel(self._tipo)
+        self._tipo_combo = TipoCombo(self._tipo)
+
+        if self._registro:
+            malote = self._mw.db.get_malote_by_id(self._registro.malote_id)
+            if malote:
+                self._mw.state.set_active_malote(malote)
+
+        self._malote_label = MaloteLabel(self._mw)
 
         h = QHBoxLayout()
+        h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
 
-        malote = self._mw.state.get_active_malote()
-        malote_text = _format_malote_date(malote) if malote else ""
-        malote_label = QLabel(malote_text)
-        malote_label.setStyleSheet("color: #6B7280; font-size: 12px;")
-        h.addWidget(malote_label)
+        h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignTop)
         h.addStretch()
-        h.addWidget(tipo_label)
+        h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
         layout.addLayout(h)
 
     def _build_patient_section(self, layout: QVBoxLayout):
         h = QHBoxLayout()
+        h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
 
-        pacientes = self._mw.db.search_pacientes("", limit=1000)
-        options = {str(p["id"]): p["name"] for p in pacientes}
+        self._paciente_combo = SearchableComboBox(
+            "Nome do Paciente", on_search=self._search_pacientes
+        )
 
-        self._paciente_combo = SearchableComboBox("Nome do Paciente")
-        self._paciente_combo.set_options(options)
-
-        if self._registro and self._registro.get("paciente_id"):
-            self._paciente_combo.set_current_by_data(
-                str(self._registro["paciente_id"])
+        if self._registro and self._registro.paciente_id:
+            paciente = self._mw.db.get_paciente_by_id(
+                self._registro.paciente_id
             )
+            if paciente:
+                self._paciente_combo.set_options(
+                    {str(paciente.id): paciente.name}
+                )
+                self._paciente_combo.set_current_by_data(
+                    str(paciente.id)
+                )
 
         self._paciente_combo.selection_changed.connect(self._on_paciente_selected)
         h.addWidget(self._paciente_combo)
 
-        btn_new = PrimaryButton("+ Novo")
-        btn_new.setFixedWidth(80)
-        btn_new.clicked.connect(self._create_patient_inline)
-        h.addWidget(btn_new)
-
         layout.addLayout(h)
+
+    def _search_pacientes(self, query: str) -> dict[str, str]:
+        pacientes = self._mw.db.search_pacientes(query, limit=30)
+        return {str(p.id): p.name for p in pacientes}
 
     def _build_items_section(self, layout: QVBoxLayout):
         self._items_container = QVBoxLayout()
-        self._items_container.setSpacing(6)
+        self._items_container.setSpacing(0)
         layout.addLayout(self._items_container)
 
         add_btn = FlatButton("+ Adicionar Item")
@@ -119,9 +128,9 @@ class EntryPage(QWidget):
         layout.addWidget(add_btn)
 
         if self._registro:
-            items = self._mw.db.get_items_for_registro(self._registro["id"])
+            items = self._mw.db.get_items_for_registro(self._registro.id)
             for item in items:
-                self._add_item_row(prefill=item)
+                self._add_item_row(item_id=item.item_id)
         else:
             self._add_item_row()
 
@@ -134,11 +143,17 @@ class EntryPage(QWidget):
         h.addWidget(back_btn)
         h.addStretch()
 
-        auto_return = self._mw.state.get_auto_return()
-        self._auto_switch = QCheckBox("Auto-retorno")
-        self._auto_switch.setChecked(auto_return)
+        self._docs_check = QCheckBox("Esperando documentos")
+        if self._registro and self._registro.waiting_docs:
+            self._docs_check.setChecked(True)
+        h.addWidget(self._docs_check)
+
+        h.addStretch()
+
+        self._auto_switch = QCheckBox()
+        self._auto_switch.setChecked(not self._mw.state.get_auto_return())
         self._auto_switch.stateChanged.connect(
-            lambda: self._mw.state.set_auto_return(self._auto_switch.isChecked())
+            lambda: self._mw.state.set_auto_return(not self._auto_switch.isChecked())
         )
         h.addWidget(self._auto_switch)
 
@@ -148,30 +163,30 @@ class EntryPage(QWidget):
             h.addWidget(delete_btn)
 
         save_btn = PositiveButton("Salvar")
-        save_btn.setMinimumWidth(100)
+        save_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         save_btn.clicked.connect(self._on_save)
         h.addWidget(save_btn)
 
         layout.addLayout(h)
 
-    def _add_item_row(self, prefill: dict | None = None):
+    def _add_item_row(self, item_id: int | None = None):
         all_items = self._mw.db.get_all_items()
-        item_options = {str(i["id"]): i["name"] for i in all_items}
+        item_options = {str(i.id): i.name for i in all_items}
 
         row_frame = QFrame()
         row_frame.setProperty("itemrow", True)
+        row_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row_h = QHBoxLayout(row_frame)
         row_h.setContentsMargins(6, 2, 6, 2)
         row_h.setSpacing(6)
 
-        item_data = {"id": None}
+        item_data: dict[str, int | None] = {"id": None}
 
         combo = SearchableComboBox("Buscar item...")
         combo.set_options(item_options)
-        if prefill:
-            iid = str(prefill.get("item_id", prefill.get("id")))
-            combo.set_current_by_data(iid)
-            item_data["id"] = int(iid)
+        if item_id is not None:
+            combo.set_current_by_data(str(item_id))
+            item_data["id"] = item_id
 
         combo.selection_changed.connect(
             lambda val, d=item_data: d.update({"id": int(val) if val else None})
@@ -197,7 +212,7 @@ class EntryPage(QWidget):
         frame.deleteLater()
 
     def _on_paciente_selected(self, data):
-        if not data or self._registro:
+        if not data:
             return
         try:
             paciente_id = int(data)
@@ -213,58 +228,84 @@ class EntryPage(QWidget):
                 w.setParent(None)
                 w.deleteLater()
 
-        patient_items = self._mw.db.get_unique_items_for_paciente(paciente_id)
+        patient_items = self._mw.db.get_last_items_for_paciente(paciente_id)
         if not patient_items:
             self._add_item_row()
         else:
             for item in patient_items:
-                self._add_item_row(prefill=item)
+                self._add_item_row(item_id=item.id)
 
-    def _create_patient_inline(self):
-        name = self._paciente_combo.current_text().strip()
-        if not name:
-            self._toast("Digite o nome do paciente", "warning")
+    def focus_next_field(self):
+        total_fields = 1 + self._items_container.count()
+        self._focus_index = (self._focus_index + 1) % total_fields
+
+        if self._focus_index == 0:
+            self._paciente_combo.focus_search()
             return
-        try:
-            paciente = self._mw.db.create_paciente(name)
-            pid = str(paciente["id"])
-            self._paciente_combo.add_option(pid, name)
-            self._paciente_combo.set_current_by_data(pid)
-            self._toast(f"Paciente criado: {name}", "positive")
-        except Exception as e:
-            ErrorHandler.handle_error(e, context=ErrorContext.DATABASE, show_dialog=False)
-            self._toast(f"Erro: {e}", "negative")
+
+        row_idx = self._focus_index - 1
+        if row_idx < self._items_container.count():
+            item = self._items_container.itemAt(row_idx)
+            frame = item.widget() if item else None
+            if frame:
+                combo = frame.findChild(SearchableComboBox)
+                if combo:
+                    combo.focus_search()
+                    return
+
+        self._focus_index = 0
+        self._paciente_combo.focus_search()
 
     def _on_save(self):
         pid = self._paciente_combo.current_data()
         if not pid:
-            self._toast("Selecione um paciente", "warning")
-            return
+            name = self._paciente_combo.current_text().strip()
+            if not name:
+                self._toast("Selecione ou digite o nome do paciente", "warning")
+                return
+            try:
+                paciente = self._mw.db.create_paciente(name)
+                pid = str(paciente.id)
+                self._paciente_combo.add_option(pid, name)
+                self._paciente_combo.set_current_by_data(pid)
+            except Exception as e:
+                ErrorHandler.handle_error(e, context=ErrorContext.DATABASE, show_dialog=False)
+                self._toast(f"Erro ao criar paciente: {e}", "negative")
+                return
 
         malote = self._mw.state.get_active_malote()
         if not malote:
-            self._toast("Nenhum malote ativo", "warning")
+            self._toast("Selecione um malote", "warning")
             return
+        malote_id = malote.id
 
         item_ids = [i["id"] for i in self._selected_items if i.get("id") is not None]
+        tipo = self._tipo_combo.current_tipo()
+        waiting_docs = self._docs_check.isChecked()
 
         try:
             paciente_id = int(pid)
 
             if self._registro:
-                self._mw.db.update_registro(self._registro["id"], paciente_id=paciente_id)
-                reg_id = self._registro["id"]
+                self._mw.db.update_registro(
+                    self._registro.id, tipo=tipo, paciente_id=paciente_id,
+                    malote_id=malote_id, waiting_docs=waiting_docs,
+                )
+                reg_id = self._registro.id
             else:
-                new_reg = self._mw.db.create_registro(self._tipo, paciente_id, malote["id"])
-                reg_id = new_reg["id"]
+                new_reg = self._mw.db.create_registro(
+                    tipo, paciente_id, malote_id,
+                    waiting_docs=waiting_docs,
+                )
+                reg_id = new_reg.id
 
             if item_ids:
                 self._mw.db.set_registro_items(reg_id, item_ids)
 
-            self._mw.state.notify_registro_saved({"id": reg_id, "tipo": self._tipo})
+            self._mw.state.notify_registro_saved(Registro(id=reg_id, tipo=tipo))
             self._toast("Registro salvo!", "positive")
 
-            if self._auto_switch.isChecked():
+            if not self._auto_switch.isChecked():
                 from PySide6.QtCore import QTimer
                 QTimer.singleShot(800, lambda: self._mw.navigate_to("start"))
 
@@ -284,8 +325,9 @@ class EntryPage(QWidget):
 
         layout.addWidget(HeadingLabel("Excluir este registro?"))
 
+        c = colors()
         sub = QLabel("Esta acao nao pode ser desfeita.")
-        sub.setStyleSheet("color: #6B7280; font-size: 13px;")
+        sub.setStyleSheet(f"color: {c['text_secondary']}; font-size: 13px;")
         layout.addWidget(sub)
 
         btn_row = QHBoxLayout()
@@ -301,9 +343,11 @@ class EntryPage(QWidget):
         dlg.exec()
 
     def _do_delete(self, dlg: QDialog):
+        if not self._registro:
+            return
         try:
-            self._mw.db.delete_registro(self._registro["id"])
-            self._mw.state.notify_registro_deleted(self._registro["id"])
+            self._mw.db.delete_registro(self._registro.id)
+            self._mw.state.notify_registro_deleted(self._registro.id)
             dlg.accept()
             self._toast("Registro excluido", "info")
             from PySide6.QtCore import QTimer
@@ -313,24 +357,4 @@ class EntryPage(QWidget):
             self._toast(f"Erro: {e}", "negative")
 
     def _toast(self, message: str, kind: str = "info"):
-        toast = ToastLabel(message, kind, self.window())
-        toast.adjustSize()
-        toast.setFixedWidth(min(toast.width() + 32, self.width() - 48))
-        toast.move(
-            (self.width() - toast.width()) // 2,
-            self.height() - toast.height() - 16,
-        )
-        toast.show()
-        toast.raise_()
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(3000, toast.deleteLater)
-
-
-def _format_malote_date(malote: dict | None) -> str:
-    if not malote:
-        return "?"
-    try:
-        dt = datetime.fromisoformat(malote["date"])
-        return dt.strftime("%d/%m/%Y")
-    except (ValueError, KeyError):
-        return malote.get("date", "?")
+        show_toast(message, kind, self)

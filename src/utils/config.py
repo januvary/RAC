@@ -6,7 +6,6 @@ Centralized config handling with validation and defaults
 """
 
 import json
-import customtkinter as ctk
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Any
@@ -181,19 +180,3 @@ class ConfigManager:
     def reload(self) -> None:
         self._config = None
         self._load()
-
-    def apply_theme(self) -> None:
-        try:
-            theme = self.get("theme")
-            ctk.set_appearance_mode(theme)
-            ErrorHandler.log(
-                f"Tema alterado para: {theme}",
-                level=ErrorLevel.INFO,
-                context=ErrorContext.CONFIGURATION,
-            )
-        except Exception as e:
-            ErrorHandler.handle_error(
-                e,
-                context=ErrorContext.CONFIGURATION,
-                show_dialog=False,
-            )

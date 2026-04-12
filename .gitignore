@@ -4,6 +4,7 @@ __pycache__/
 
 build/
 dist/
+build_icu/
 *.spec
 
 data/registros.db

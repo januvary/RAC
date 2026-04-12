@@ -42,6 +42,29 @@ class BaseDatabase(ABC):
     def _create_schema(self) -> None:
         pass
 
+    def _ensure_schema_version(self, current_version: int) -> int:
+        cursor = self._get_cursor()
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS _schema_meta (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        self._commit()
+        cursor.execute("SELECT value FROM _schema_meta WHERE key = 'version'")
+        row = cursor.fetchone()
+        cursor.close()
+        if row is None:
+            return 0
+        stored = int(row["value"] if isinstance(row, dict) else row[0])
+        return stored
+
+    def _set_schema_version(self, version: int) -> None:
+        cursor = self._get_cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
+            ("version", str(version)),
+        )
+        self._commit()
+        cursor.close()
+
     def _resolve_default_db_path(self) -> str:
         return resolve_db_path("database.db", create_dir=True)
 

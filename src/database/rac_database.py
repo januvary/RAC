@@ -14,9 +14,12 @@ from src.utils.paths import resolve_db_path
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
 from src.utils.text_utils import normalize_text
 from src.database.definitive_catalog import DEFINITIVE_CATALOG
+from src.models import Malote, Paciente, ItemCatalog, Registro, RegistroItem, RegistroExport
 
 
 class RACDatabase(BaseDatabase):
+    SCHEMA_VERSION = 1
+
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
             db_path = resolve_db_path("registros.db", create_dir=True)
@@ -26,6 +29,12 @@ class RACDatabase(BaseDatabase):
         return resolve_db_path("registros.db", create_dir=True)
 
     def _create_schema(self) -> None:
+        stored_version = self._ensure_schema_version(self.SCHEMA_VERSION)
+
+        if stored_version == self.SCHEMA_VERSION:
+            self._seed_catalog_if_empty()
+            return
+
         cursor = self._get_cursor()
 
         cursor.executescript(
@@ -51,7 +60,8 @@ class RACDatabase(BaseDatabase):
                 tipo TEXT NOT NULL,
                 paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
                 malote_id INTEGER NOT NULL REFERENCES malotes(id),
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                waiting_docs INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS registro_items (
@@ -76,7 +86,12 @@ class RACDatabase(BaseDatabase):
         self._commit()
         cursor.close()
 
+        self._run_migrations(stored_version)
+        self._set_schema_version(self.SCHEMA_VERSION)
         self._seed_catalog_if_empty()
+
+    def _run_migrations(self, from_version: int) -> None:
+        pass
 
     def _log_initialization_success(self) -> None:
         count = self._get_catalog_count()
@@ -114,47 +129,52 @@ class RACDatabase(BaseDatabase):
 
     # ========== MALOTE ==========
 
-    def create_malote(self, date: str) -> dict:
+    def create_malote(self, date: str) -> Malote:
         def _op():
             cursor = self._get_cursor()
+            cursor.execute("SELECT id FROM malotes WHERE date = ?", (date,))
+            existing = cursor.fetchone()
+            if existing:
+                cursor.close()
+                return Malote(id=existing["id"], date=date)
             cursor.execute("INSERT INTO malotes (date) VALUES (?)", (date,))
             self._commit()
             malote_id = cursor.lastrowid
             cursor.close()
-            return {"id": malote_id, "date": date}
+            return Malote(id=malote_id, date=date)
 
         return self._retry_on_transient_error(_op, operation_type="write")
 
-    def get_malote_by_id(self, malote_id: int) -> Optional[dict]:
+    def get_malote_by_id(self, malote_id: int) -> Optional[Malote]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute("SELECT * FROM malotes WHERE id = ?", (malote_id,))
             row = cursor.fetchone()
             cursor.close()
-            return dict(row) if row else None
+            return Malote.from_row(dict(row)) if row else None
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def get_recent_malotes(self, limit: int = 5) -> list[dict]:
+    def get_recent_malotes(self, limit: int = 5) -> list[Malote]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
-                "SELECT * FROM malotes ORDER BY id DESC LIMIT ?",
+                "SELECT * FROM malotes ORDER BY date DESC, id DESC LIMIT ?",
                 (limit,),
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [Malote.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def get_all_malotes(self) -> list[dict]:
+    def get_all_malotes(self) -> list[Malote]:
         def _op():
             cursor = self._get_cursor()
-            cursor.execute("SELECT * FROM malotes ORDER BY id DESC")
+            cursor.execute("SELECT * FROM malotes ORDER BY date DESC, id DESC")
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [Malote.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
@@ -179,28 +199,28 @@ class RACDatabase(BaseDatabase):
 
     # ========== PACIENTE ==========
 
-    def create_paciente(self, name: str) -> dict:
+    def create_paciente(self, name: str) -> Paciente:
         def _op():
             cursor = self._get_cursor()
             cursor.execute("INSERT INTO pacientes (name) VALUES (?)", (name.strip(),))
             self._commit()
             paciente_id = cursor.lastrowid
             cursor.close()
-            return {"id": paciente_id, "name": name.strip()}
+            return Paciente(id=paciente_id, name=name.strip())
 
         return self._retry_on_transient_error(_op, operation_type="write")
 
-    def get_paciente_by_id(self, paciente_id: int) -> Optional[dict]:
+    def get_paciente_by_id(self, paciente_id: int) -> Optional[Paciente]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute("SELECT * FROM pacientes WHERE id = ?", (paciente_id,))
             row = cursor.fetchone()
             cursor.close()
-            return dict(row) if row else None
+            return Paciente.from_row(dict(row)) if row else None
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def search_pacientes(self, query: str, limit: int = 10) -> list[dict]:
+    def search_pacientes(self, query: str, limit: int = 10) -> list[Paciente]:
         def _op():
             cursor = self._get_cursor()
             normalized = normalize_text(query)
@@ -210,7 +230,7 @@ class RACDatabase(BaseDatabase):
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [Paciente.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
@@ -250,29 +270,32 @@ class RACDatabase(BaseDatabase):
     # ========== REGISTRO ==========
 
     def create_registro(
-        self, tipo: str, paciente_id: int, malote_id: int
-    ) -> dict:
+        self, tipo: str, paciente_id: int, malote_id: int,
+        waiting_docs: bool = False,
+    ) -> Registro:
         def _op():
             cursor = self._get_cursor()
             now = datetime.now().isoformat()
+            wd = 1 if waiting_docs else 0
             cursor.execute(
-                "INSERT INTO registros (tipo, paciente_id, malote_id, created_at) VALUES (?, ?, ?, ?)",
-                (tipo, paciente_id, malote_id, now),
+                "INSERT INTO registros (tipo, paciente_id, malote_id, created_at, waiting_docs) VALUES (?, ?, ?, ?, ?)",
+                (tipo, paciente_id, malote_id, now, wd),
             )
             self._commit()
             registro_id = cursor.lastrowid
             cursor.close()
-            return {
-                "id": registro_id,
-                "tipo": tipo,
-                "paciente_id": paciente_id,
-                "malote_id": malote_id,
-                "created_at": now,
-            }
+            return Registro(
+                id=registro_id,
+                tipo=tipo,
+                paciente_id=paciente_id,
+                malote_id=malote_id,
+                created_at=now,
+                waiting_docs=waiting_docs,
+            )
 
         return self._retry_on_transient_error(_op, operation_type="write")
 
-    def get_registro_by_id(self, registro_id: int) -> Optional[dict]:
+    def get_registro_by_id(self, registro_id: int) -> Optional[Registro]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
@@ -285,11 +308,11 @@ class RACDatabase(BaseDatabase):
             )
             row = cursor.fetchone()
             cursor.close()
-            return dict(row) if row else None
+            return Registro.from_row(dict(row)) if row else None
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def get_registros_by_malote(self, malote_id: int) -> list[dict]:
+    def get_registros_by_malote(self, malote_id: int) -> list[Registro]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
@@ -302,13 +325,13 @@ class RACDatabase(BaseDatabase):
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [Registro.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
     def get_registros_by_malote_and_tipo(
         self, malote_id: int, tipo: str
-    ) -> list[dict]:
+    ) -> list[Registro]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
@@ -321,13 +344,20 @@ class RACDatabase(BaseDatabase):
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [Registro.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
     def update_registro(self, registro_id: int, **fields) -> bool:
-        allowed = {"tipo", "paciente_id", "malote_id"}
-        updates = {k: v for k, v in fields.items() if k in allowed}
+        allowed = {"tipo", "paciente_id", "malote_id", "waiting_docs"}
+        updates = {}
+        for k, v in fields.items():
+            if k not in allowed:
+                continue
+            if k == "waiting_docs":
+                updates[k] = 1 if v else 0
+            else:
+                updates[k] = v
 
         if not updates:
             return False
@@ -360,7 +390,7 @@ class RACDatabase(BaseDatabase):
 
     def search_registros_by_patient(
         self, malote_id: int, query: str, limit: int = 20
-    ) -> list[dict]:
+    ) -> list[Registro]:
         def _op():
             cursor = self._get_cursor()
             normalized = normalize_text(query)
@@ -376,7 +406,7 @@ class RACDatabase(BaseDatabase):
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [Registro.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
@@ -399,7 +429,7 @@ class RACDatabase(BaseDatabase):
 
         self._retry_on_transient_error(_op, operation_type="write")
 
-    def get_items_for_registro(self, registro_id: int) -> list[dict]:
+    def get_items_for_registro(self, registro_id: int) -> list[RegistroItem]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
@@ -411,15 +441,15 @@ class RACDatabase(BaseDatabase):
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [RegistroItem.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def get_unique_items_for_paciente(self, paciente_id: int) -> list[dict]:
+    def get_last_items_for_paciente(self, paciente_id: int) -> list[ItemCatalog]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
-                "SELECT DISTINCT ic.id, ic.name, ic.unidade "
+                "SELECT DISTINCT ri.item_id as id, ic.name, ic.unidade "
                 "FROM registro_items ri "
                 "JOIN registros r ON ri.registro_id = r.id "
                 "JOIN items_catalog ic ON ri.item_id = ic.id "
@@ -428,24 +458,25 @@ class RACDatabase(BaseDatabase):
                 (paciente_id,),
             )
             rows = cursor.fetchall()
+            result = [ItemCatalog.from_row(dict(row)) for row in rows]
             cursor.close()
-            return [dict(r) for r in rows]
+            return result
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
     # ========== ITEMS CATALOG ==========
 
-    def get_all_items(self) -> list[dict]:
+    def get_all_items(self) -> list[ItemCatalog]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute("SELECT * FROM items_catalog ORDER BY name COLLATE NOCASE")
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [ItemCatalog.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def search_items(self, query: str, limit: int = 10) -> list[dict]:
+    def search_items(self, query: str, limit: int = 10) -> list[ItemCatalog]:
         def _op():
             cursor = self._get_cursor()
             normalized = normalize_text(query)
@@ -455,37 +486,39 @@ class RACDatabase(BaseDatabase):
             )
             rows = cursor.fetchall()
             cursor.close()
-            return [dict(r) for r in rows]
+            return [ItemCatalog.from_row(dict(r)) for r in rows]
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
     # ========== EXPORT HELPERS ==========
 
-    def get_registros_with_items_by_malote(self, malote_id: int) -> list[dict]:
+    def get_registros_with_items_by_malote(self, malote_id: int) -> list[RegistroExport]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
-                "SELECT r.id, r.tipo, r.paciente_id, p.name as paciente_name "
+                "SELECT r.id, r.tipo, r.paciente_id, p.name as paciente_name, "
+                "ic.name as item_name "
                 "FROM registros r "
                 "JOIN pacientes p ON r.paciente_id = p.id "
-                "WHERE r.malote_id = ? "
-                "ORDER BY r.tipo, p.name COLLATE NOCASE",
+                "LEFT JOIN registro_items ri ON ri.registro_id = r.id "
+                "LEFT JOIN items_catalog ic ON ri.item_id = ic.id "
+                "WHERE r.malote_id = ? AND r.waiting_docs = 0 "
+                "ORDER BY r.tipo, p.name COLLATE NOCASE, ic.name",
                 (malote_id,),
             )
-            registros = [dict(r) for r in cursor.fetchall()]
-
-            for reg in registros:
-                cursor.execute(
-                    "SELECT ic.name "
-                    "FROM registro_items ri "
-                    "JOIN items_catalog ic ON ri.item_id = ic.id "
-                    "WHERE ri.registro_id = ? "
-                    "ORDER BY ic.name",
-                    (reg["id"],),
-                )
-                reg["items"] = [dict(r)["name"] for r in cursor.fetchall()]
-
+            rows = cursor.fetchall()
             cursor.close()
-            return registros
+
+            registros_map: dict[int, RegistroExport] = {}
+            for row in rows:
+                r = dict(row)
+                reg_id = r["id"]
+                if reg_id not in registros_map:
+                    registros_map[reg_id] = RegistroExport.from_row(r)
+                item_name = r.get("item_name")
+                if item_name:
+                    registros_map[reg_id].items.append(item_name)
+
+            return list(registros_map.values())
 
         return self._retry_on_transient_error(_op, operation_type="read")

@@ -1,0 +1,1106 @@
+[
+  {
+    "medicamento": "abatacepte",
+    "dosagem": "125 mg injetável"
+  },
+  {
+    "medicamento": "abatacepte",
+    "dosagem": "250 mg injetável"
+  },
+  {
+    "medicamento": "acetazolamida",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "acitretina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "acitretina",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "adalimumabe",
+    "dosagem": "40 mg injetável"
+  },
+  {
+    "medicamento": "alentuzumabe",
+    "dosagem": "10 mg/mL"
+  },
+  {
+    "medicamento": "alfadornase",
+    "dosagem": "2,5 mg"
+  },
+  {
+    "medicamento": "alfaelosulfase",
+    "dosagem": "1 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "alfaepoetina",
+    "dosagem": "1.000 UI injetável"
+  },
+  {
+    "medicamento": "alfaepoetina",
+    "dosagem": "10.000 UI injetável"
+  },
+  {
+    "medicamento": "alfaepoetina",
+    "dosagem": "2.000 UI injetável"
+  },
+  {
+    "medicamento": "alfaepoetina",
+    "dosagem": "3.000 UI injetável"
+  },
+  {
+    "medicamento": "alfaepoetina",
+    "dosagem": "4.000 UI injetável"
+  },
+  {
+    "medicamento": "alfagalsidase",
+    "dosagem": "1 mg/mL"
+  },
+  {
+    "medicamento": "alfaglicosidase",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "alfainterferona 2b",
+    "dosagem": "10.000.000 UI injetável"
+  },
+  {
+    "medicamento": "alfainterferona 2b",
+    "dosagem": "3.000.000 UI injetável"
+  },
+  {
+    "medicamento": "alfainterferona 2b",
+    "dosagem": "5.000.000 UI injetável"
+  },
+  {
+    "medicamento": "alfataliglicerase",
+    "dosagem": "200 UI injetável"
+  },
+  {
+    "medicamento": "alfavelaglicerase",
+    "dosagem": "400 U injetável"
+  },
+  {
+    "medicamento": "alfavestronidase",
+    "dosagem": "10 mg solução injetável"
+  },
+  {
+    "medicamento": "amantadina",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "ambrisentana",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "ambrisentana",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "atorvastatina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "atorvastatina",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "atorvastatina",
+    "dosagem": "40 mg"
+  },
+  {
+    "medicamento": "atorvastatina",
+    "dosagem": "80 mg"
+  },
+  {
+    "medicamento": "azatioprina",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "baricitinibe",
+    "dosagem": "2 mg"
+  },
+  {
+    "medicamento": "baricitinibe",
+    "dosagem": "4 mg"
+  },
+  {
+    "medicamento": "beclometasona + formoterol + glicopirrônio",
+    "dosagem": "100 µg + 6 µg + 12,5 µg solução aerossol para inalação oral"
+  },
+  {
+    "medicamento": "betainterferona",
+    "dosagem": "12.000.000 UI injetável"
+  },
+  {
+    "medicamento": "betainterferona",
+    "dosagem": "44 mcg injetável"
+  },
+  {
+    "medicamento": "bezafibrato",
+    "dosagem": "200 mg"
+  },
+  {
+    "medicamento": "bezafibrato",
+    "dosagem": "400 mg"
+  },
+  {
+    "medicamento": "bimatoprosta",
+    "dosagem": "0,3 mg/mL solução oftálmica"
+  },
+  {
+    "medicamento": "biotina",
+    "dosagem": "2,5 mg"
+  },
+  {
+    "medicamento": "bosentana",
+    "dosagem": "125 mg"
+  },
+  {
+    "medicamento": "bosentana",
+    "dosagem": "62,5 mg"
+  },
+  {
+    "medicamento": "brimonidina",
+    "dosagem": "2,0 mg/mL solução oftálmica"
+  },
+  {
+    "medicamento": "brinzolamida",
+    "dosagem": "10 mg/mL suspensão oftálmica"
+  },
+  {
+    "medicamento": "budesonida",
+    "dosagem": "400 mcg cápsula inalante"
+  },
+  {
+    "medicamento": "burosumabe",
+    "dosagem": "10 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "burosumabe",
+    "dosagem": "20 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "burosumabe",
+    "dosagem": "30 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "cabergolina",
+    "dosagem": "0,5 mg"
+  },
+  {
+    "medicamento": "calcipotriol",
+    "dosagem": "50 mcg pomada"
+  },
+  {
+    "medicamento": "calcitonina",
+    "dosagem": "200 UI spray nasal"
+  },
+  {
+    "medicamento": "calcitriol",
+    "dosagem": "0,25 mcg cápsula"
+  },
+  {
+    "medicamento": "certolizumabe pegol",
+    "dosagem": "200 mg injetável"
+  },
+  {
+    "medicamento": "ciclofosfamida",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "ciclosporina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "ciclosporina",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "ciclosporina",
+    "dosagem": "100 mg/mL solução oral"
+  },
+  {
+    "medicamento": "ciclosporina",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "ciclosporina",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "cinacalcete",
+    "dosagem": "30 mg"
+  },
+  {
+    "medicamento": "cinacalcete",
+    "dosagem": "60 mg"
+  },
+  {
+    "medicamento": "ciprofibrato",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "ciproterona",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "cladribina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "clobazam",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "clobazam",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "clobetasol",
+    "dosagem": "0,5 mg/g creme"
+  },
+  {
+    "medicamento": "clobetasol",
+    "dosagem": "0,5 mg/g solução capilar"
+  },
+  {
+    "medicamento": "clopidogrel",
+    "dosagem": "75 mg"
+  },
+  {
+    "medicamento": "cloroquina",
+    "dosagem": "150 mg"
+  },
+  {
+    "medicamento": "clozapina",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "clozapina",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "codeína",
+    "dosagem": "3 mg/mL solução oral"
+  },
+  {
+    "medicamento": "codeína",
+    "dosagem": "30 mg/mL injetável"
+  },
+  {
+    "medicamento": "danazol",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "danazol",
+    "dosagem": "200 mg"
+  },
+  {
+    "medicamento": "dapagliflozina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "deferasirox",
+    "dosagem": "125 mg"
+  },
+  {
+    "medicamento": "deferasirox",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "deferasirox",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "deferiprona",
+    "dosagem": "1000 mg"
+  },
+  {
+    "medicamento": "deferiprona",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "desferroxamina",
+    "dosagem": "500 mg injetável"
+  },
+  {
+    "medicamento": "desmopressina",
+    "dosagem": "0,1 mg solução nasal"
+  },
+  {
+    "medicamento": "desmopressina",
+    "dosagem": "0,1 mg/mL solução nasal"
+  },
+  {
+    "medicamento": "desmopressina",
+    "dosagem": "0,2 mg solução nasal"
+  },
+  {
+    "medicamento": "donepezila",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "donepezila",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "eculizumabe",
+    "dosagem": "10 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "eltrombopague olamina",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "eltrombopague olamina",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "enoxaparina sódica",
+    "dosagem": "40 mg"
+  },
+  {
+    "medicamento": "enoxaparina sódica",
+    "dosagem": "60 mg"
+  },
+  {
+    "medicamento": "entacapona",
+    "dosagem": "200 mg"
+  },
+  {
+    "medicamento": "etanercepte",
+    "dosagem": "25 mg injetável"
+  },
+  {
+    "medicamento": "etossuximida",
+    "dosagem": "50 mg/mL xarope"
+  },
+  {
+    "medicamento": "everolimo",
+    "dosagem": "0,5 mg"
+  },
+  {
+    "medicamento": "everolimo",
+    "dosagem": "0,75 mg"
+  },
+  {
+    "medicamento": "everolimo",
+    "dosagem": "1 mg"
+  },
+  {
+    "medicamento": "fenofibrato",
+    "dosagem": "200 mg"
+  },
+  {
+    "medicamento": "fenofibrato",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "fenoterol",
+    "dosagem": "100 mcg aerossol"
+  },
+  {
+    "medicamento": "filgrastim",
+    "dosagem": "300 mcg injetável"
+  },
+  {
+    "medicamento": "fingolimode",
+    "dosagem": "0,5 mg"
+  },
+  {
+    "medicamento": "fludrocortisona",
+    "dosagem": "0,1 mg"
+  },
+  {
+    "medicamento": "formoterol",
+    "dosagem": "12 mcg cápsula inalante"
+  },
+  {
+    "medicamento": "formoterol + budesonida",
+    "dosagem": "12 mcg + 400 mcg cápsula inalante"
+  },
+  {
+    "medicamento": "fumarato de dimetila",
+    "dosagem": "120 mg"
+  },
+  {
+    "medicamento": "fumarato de dimetila",
+    "dosagem": "240 mg"
+  },
+  {
+    "medicamento": "furoato de fluticasona + brometo de umeclidínio + trifenato de vilanterol",
+    "dosagem": "100 mcg + 62,5 mcg + 25 mcg pó para inalação"
+  },
+  {
+    "medicamento": "gabapentina",
+    "dosagem": "300 mg"
+  },
+  {
+    "medicamento": "gabapentina",
+    "dosagem": "400 mg"
+  },
+  {
+    "medicamento": "galantamina",
+    "dosagem": "16 mg"
+  },
+  {
+    "medicamento": "galantamina",
+    "dosagem": "24 mg"
+  },
+  {
+    "medicamento": "galantamina",
+    "dosagem": "8 mg"
+  },
+  {
+    "medicamento": "galsulfase",
+    "dosagem": "1 mg/mL injetável"
+  },
+  {
+    "medicamento": "genfibrozila",
+    "dosagem": "600 mg"
+  },
+  {
+    "medicamento": "genfibrozila",
+    "dosagem": "900 mg"
+  },
+  {
+    "medicamento": "glatiramer",
+    "dosagem": "40 mg injetável"
+  },
+  {
+    "medicamento": "golimumabe",
+    "dosagem": "50 mg injetável"
+  },
+  {
+    "medicamento": "gosserrelina",
+    "dosagem": "10,8 mg injetável"
+  },
+  {
+    "medicamento": "gosserrelina",
+    "dosagem": "3,6 mg injetável"
+  },
+  {
+    "medicamento": "hidroxicloroquina",
+    "dosagem": "400 mg"
+  },
+  {
+    "medicamento": "hidroxiuréia",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "hidroxiuréia",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "idursulfase alfa",
+    "dosagem": "2 mg/mL injetável"
+  },
+  {
+    "medicamento": "iloprosta",
+    "dosagem": "10 mcg/mL solução para nebulização"
+  },
+  {
+    "medicamento": "imiglucerase",
+    "dosagem": "400 UI injetável"
+  },
+  {
+    "medicamento": "imunoglobulina humana",
+    "dosagem": "0,5 g injetável"
+  },
+  {
+    "medicamento": "imunoglobulina humana",
+    "dosagem": "1 g injetável"
+  },
+  {
+    "medicamento": "imunoglobulina humana",
+    "dosagem": "2,5 g injetável"
+  },
+  {
+    "medicamento": "imunoglobulina humana",
+    "dosagem": "5,0 g injetável"
+  },
+  {
+    "medicamento": "infliximabe",
+    "dosagem": "10 mg/mL injetável"
+  },
+  {
+    "medicamento": "infliximabe",
+    "dosagem": "100 mg injetável"
+  },
+  {
+    "medicamento": "insulina análoga de ação prolongada",
+    "dosagem": "100 UI/mL"
+  },
+  {
+    "medicamento": "insulina análoga de ação rápida",
+    "dosagem": "100 UI/mL"
+  },
+  {
+    "medicamento": "isotretinoína",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "isotretinoína",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "ivacaftor",
+    "dosagem": "150 mg"
+  },
+  {
+    "medicamento": "ivacaftor / elexacaftor / tezacaftor + ivacaftor",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "ivacaftor / elexacaftor / tezacaftor + ivacaftor",
+    "dosagem": "37,5 mg"
+  },
+  {
+    "medicamento": "ivacaftor / elexacaftor / tezacaftor + ivacaftor",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "lamotrigina",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "lamotrigina",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "lamotrigina",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "lanreotida",
+    "dosagem": "120 mg injetável"
+  },
+  {
+    "medicamento": "lanreotida",
+    "dosagem": "60 mg injetável"
+  },
+  {
+    "medicamento": "lanreotida",
+    "dosagem": "90 mg injetável"
+  },
+  {
+    "medicamento": "laronidase",
+    "dosagem": "0,58 mg/mL injetável"
+  },
+  {
+    "medicamento": "latanoprosta",
+    "dosagem": "0,05 mg/mL solução oftálmica"
+  },
+  {
+    "medicamento": "leflunomida",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "leuprorrelina",
+    "dosagem": "3,75 mg injetável"
+  },
+  {
+    "medicamento": "leuprorrelina",
+    "dosagem": "3,75 mg pó para suspensão injetável"
+  },
+  {
+    "medicamento": "leuprorrelina",
+    "dosagem": "45 mg pó para suspensão injetável"
+  },
+  {
+    "medicamento": "levetiracetam",
+    "dosagem": "100 mg/mL solução oral"
+  },
+  {
+    "medicamento": "levetiracetam",
+    "dosagem": "1000 mg"
+  },
+  {
+    "medicamento": "levetiracetam",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "levetiracetam",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "levetiracetam",
+    "dosagem": "750 mg"
+  },
+  {
+    "medicamento": "memantina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "mepolizumabe",
+    "dosagem": "100 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "mesalazina",
+    "dosagem": "400 mg"
+  },
+  {
+    "medicamento": "mesalazina",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "mesalazina",
+    "dosagem": "800 mg"
+  },
+  {
+    "medicamento": "metadona",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "metadona",
+    "dosagem": "10 mg/mL injetável"
+  },
+  {
+    "medicamento": "metadona",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "metilprednisolona",
+    "dosagem": "500 mg injetável"
+  },
+  {
+    "medicamento": "metotrexato",
+    "dosagem": "2,5 mg"
+  },
+  {
+    "medicamento": "metotrexato",
+    "dosagem": "25 mg/mL injetável"
+  },
+  {
+    "medicamento": "micofenolato de mofetila",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "micofenolato de sódio",
+    "dosagem": "180 mg"
+  },
+  {
+    "medicamento": "micofenolato de sódio",
+    "dosagem": "360 mg"
+  },
+  {
+    "medicamento": "miglustate",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "morfina",
+    "dosagem": "10 mg/mL injetável"
+  },
+  {
+    "medicamento": "morfina",
+    "dosagem": "10 mg/mL solução oral"
+  },
+  {
+    "medicamento": "naproxeno",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "naproxeno",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "natalizumabe",
+    "dosagem": "300 mg"
+  },
+  {
+    "medicamento": "nusinersena",
+    "dosagem": "2,4 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "octreotida",
+    "dosagem": "0,1 mg/mL injetável"
+  },
+  {
+    "medicamento": "octreotida",
+    "dosagem": "10 mg injetável"
+  },
+  {
+    "medicamento": "octreotida",
+    "dosagem": "20 mg injetável"
+  },
+  {
+    "medicamento": "octreotida",
+    "dosagem": "30 mg injetável"
+  },
+  {
+    "medicamento": "olanzapina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "olanzapina",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "omalizumabe",
+    "dosagem": "150 mg"
+  },
+  {
+    "medicamento": "pamidronato",
+    "dosagem": "60 mg injetável"
+  },
+  {
+    "medicamento": "pancreatina",
+    "dosagem": "10.000 UI cápsula"
+  },
+  {
+    "medicamento": "pancreatina",
+    "dosagem": "25.000 UI cápsula"
+  },
+  {
+    "medicamento": "paricalcitol",
+    "dosagem": "5,0 mcg/mL"
+  },
+  {
+    "medicamento": "penicilamina",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "pilocarpina",
+    "dosagem": "20 mg/mL solução oftálmica"
+  },
+  {
+    "medicamento": "piridostigmina",
+    "dosagem": "60 mg"
+  },
+  {
+    "medicamento": "pramipexol",
+    "dosagem": "0,125 mg"
+  },
+  {
+    "medicamento": "pramipexol",
+    "dosagem": "0,25 mg"
+  },
+  {
+    "medicamento": "pramipexol",
+    "dosagem": "1 mg"
+  },
+  {
+    "medicamento": "pravastatina",
+    "dosagem": "10 mg"
+  },
+  {
+    "medicamento": "pravastatina",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "pravastatina",
+    "dosagem": "40 mg"
+  },
+  {
+    "medicamento": "primidona",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "primidona",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "quetiapina",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "quetiapina",
+    "dosagem": "200 mg"
+  },
+  {
+    "medicamento": "quetiapina",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "quetiapina",
+    "dosagem": "300 mg"
+  },
+  {
+    "medicamento": "raloxifeno",
+    "dosagem": "60 mg"
+  },
+  {
+    "medicamento": "rasagilina",
+    "dosagem": "1 mg"
+  },
+  {
+    "medicamento": "riluzol",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "risanquizumabe",
+    "dosagem": "150 mg/mL"
+  },
+  {
+    "medicamento": "risdiplam",
+    "dosagem": "0,75 mg/mL solução oral"
+  },
+  {
+    "medicamento": "risedronato",
+    "dosagem": "35 mg"
+  },
+  {
+    "medicamento": "risperidona",
+    "dosagem": "1 mg"
+  },
+  {
+    "medicamento": "risperidona",
+    "dosagem": "1 mg/mL solução oral"
+  },
+  {
+    "medicamento": "risperidona",
+    "dosagem": "2 mg"
+  },
+  {
+    "medicamento": "risperidona",
+    "dosagem": "3 mg"
+  },
+  {
+    "medicamento": "rituximabe",
+    "dosagem": "500 mg injetável"
+  },
+  {
+    "medicamento": "rivastigmina",
+    "dosagem": "1,5 mg"
+  },
+  {
+    "medicamento": "rivastigmina",
+    "dosagem": "3 mg"
+  },
+  {
+    "medicamento": "rivastigmina",
+    "dosagem": "4,5 mg"
+  },
+  {
+    "medicamento": "rivastigmina",
+    "dosagem": "6 mg"
+  },
+  {
+    "medicamento": "sacarato de hidróxido férrico",
+    "dosagem": "100 mg injetável"
+  },
+  {
+    "medicamento": "sacubitril valsartana",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "sacubitril valsartana",
+    "dosagem": "200 mg"
+  },
+  {
+    "medicamento": "sacubitril valsartana",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "sapropterina",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "secuquinumabe",
+    "dosagem": "150 mg/mL solução injetável"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "1000 mcg"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "1200 mcg"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "1400 mcg"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "200 mcg"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "400 mcg"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "600 mcg"
+  },
+  {
+    "medicamento": "selexipague",
+    "dosagem": "800 mcg"
+  },
+  {
+    "medicamento": "sevelamer",
+    "dosagem": "800 mg"
+  },
+  {
+    "medicamento": "sildenafila",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "sildenafila",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "sildenafila",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "sirolimo",
+    "dosagem": "1 mg"
+  },
+  {
+    "medicamento": "sirolimo",
+    "dosagem": "2 mg"
+  },
+  {
+    "medicamento": "somatropina",
+    "dosagem": "1,33 mg solução injetável"
+  },
+  {
+    "medicamento": "somatropina",
+    "dosagem": "4 UI solução injetável"
+  },
+  {
+    "medicamento": "sulfassalazina",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "tacrolimo",
+    "dosagem": "1 mg"
+  },
+  {
+    "medicamento": "tacrolimo",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "tafamidis",
+    "dosagem": "20 mg"
+  },
+  {
+    "medicamento": "tafamidis",
+    "dosagem": "61 mg"
+  },
+  {
+    "medicamento": "teriflunomida",
+    "dosagem": "14 mg"
+  },
+  {
+    "medicamento": "timolol",
+    "dosagem": "5,0 mg/mL solução oftálmica"
+  },
+  {
+    "medicamento": "tiotrópio + olodaterol",
+    "dosagem": "2,5 mcg + 2,5 mcg"
+  },
+  {
+    "medicamento": "tobramicina",
+    "dosagem": "300 mg solução para inalação"
+  },
+  {
+    "medicamento": "tocilizumabe",
+    "dosagem": "20 mg/mL injetável"
+  },
+  {
+    "medicamento": "tofacitinibe",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "topiramato",
+    "dosagem": "100 mg"
+  },
+  {
+    "medicamento": "topiramato",
+    "dosagem": "25 mg"
+  },
+  {
+    "medicamento": "topiramato",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "toxina botulínica tipo a",
+    "dosagem": "100 UI injetável"
+  },
+  {
+    "medicamento": "toxina botulínica tipo a",
+    "dosagem": "500 UI injetável"
+  },
+  {
+    "medicamento": "travoprosta",
+    "dosagem": "0,04 mg/mL solução oftálmica"
+  },
+  {
+    "medicamento": "trientina",
+    "dosagem": "250 mg"
+  },
+  {
+    "medicamento": "triexifenidil",
+    "dosagem": "5 mg"
+  },
+  {
+    "medicamento": "triptorrelina",
+    "dosagem": "11,25 mg injetável"
+  },
+  {
+    "medicamento": "triptorrelina",
+    "dosagem": "11,25 mg pó para suspensão injetável"
+  },
+  {
+    "medicamento": "triptorrelina",
+    "dosagem": "22,5 mg pó para suspensão injetável"
+  },
+  {
+    "medicamento": "triptorrelina",
+    "dosagem": "3,75 mg injetável"
+  },
+  {
+    "medicamento": "triptorrelina",
+    "dosagem": "3,75 mg pó para suspensão injetável"
+  },
+  {
+    "medicamento": "umeclidínio + vilanterol",
+    "dosagem": "62,5 mcg + 25 mcg"
+  },
+  {
+    "medicamento": "upadacitinibe",
+    "dosagem": "15 mg"
+  },
+  {
+    "medicamento": "ustequinumabe",
+    "dosagem": "45 mg injetável"
+  },
+  {
+    "medicamento": "vedolizumabe",
+    "dosagem": "300 mg/mL injetável"
+  },
+  {
+    "medicamento": "vigabatrina",
+    "dosagem": "500 mg"
+  },
+  {
+    "medicamento": "ziprasidona",
+    "dosagem": "40 mg"
+  },
+  {
+    "medicamento": "ziprasidona",
+    "dosagem": "80 mg"
+  },
+  {
+    "medicamento": "ácido ursodesoxicólico",
+    "dosagem": "150 mg"
+  },
+  {
+    "medicamento": "ácido ursodesoxicólico",
+    "dosagem": "300 mg"
+  },
+  {
+    "medicamento": "ácido ursodesoxicólico",
+    "dosagem": "50 mg"
+  },
+  {
+    "medicamento": "ácido zoledrônico",
+    "dosagem": "5 mg"
+  }
+]

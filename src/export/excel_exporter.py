@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     from src.database.rac_database import RACDatabase
 
 
+class SavePathError(Exception):
+    pass
+
+
 class ExcelExporter:
     def __init__(self, db: RACDatabase) -> None:
         self._db = db
@@ -25,6 +29,7 @@ class ExcelExporter:
     def export_malote(self, malote_id: int) -> Optional[str]:
         try:
             import openpyxl
+            from openpyxl.utils import get_column_letter
         except ImportError:
             ErrorHandler.log(
                 "openpyxl não instalado",
@@ -41,6 +46,13 @@ class ExcelExporter:
         if not malote:
             return None
 
+        date_str = malote.date or "unknown"
+        try:
+            dt = datetime.fromisoformat(date_str)
+            date_display = dt.strftime("%d/%m")
+        except ValueError:
+            date_display = date_str
+
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
 
@@ -51,36 +63,95 @@ class ExcelExporter:
             "urgente": "Urgentes",
         }
 
+        tipo_title = {
+            "entrada": "ENTRADAS",
+            "renovacao": "RENOVAÇÕES",
+            "retirada": "RETIRADAS",
+            "urgente": "URGENTES",
+        }
+
         for tipo, tab_name in tipo_tabs.items():
             ws = wb.create_sheet(title=tab_name)
 
-            ws.append(["Nome", "Medicamentos"])
+            subtitle = f"{tipo_title[tipo]} - {date_display}"
 
-            tipo_registros = [r for r in registros if r["tipo"] == tipo]
-            tipo_registros.sort(key=lambda r: r.get("paciente_name", ""))
+            ws["A1"] = "USAFA OCIAN"
+            ws.merge_cells("A1:B1")
+            ws["A2"] = subtitle
+            ws.merge_cells("A2:B2")
+
+            tipo_registros = [r for r in registros if r.tipo == tipo]
+            tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
             for reg in tipo_registros:
-                items_str = ", ".join(
-                    to_upper_normalized(i) for i in reg.get("items", [])
+                items_str = "\n".join(
+                    to_upper_normalized(i) for i in reg.items
                 )
                 ws.append([
-                    to_upper_normalized(reg.get("paciente_name", "")),
+                    to_upper_normalized(reg.paciente_name or ""),
                     items_str,
                 ])
 
-            ws.column_dimensions["A"].width = 35
-            ws.column_dimensions["B"].width = 60
+            max_a = 10
+            max_b = 10
+            for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
+                a_val = str(row[0].value or "")
+                max_a = max(max_a, len(a_val))
+                b_val = row[1].value
+                if b_val:
+                    longest_line = max(len(line) for line in str(b_val).split("\n"))
+                    max_b = max(max_b, longest_line)
+
+            ws.column_dimensions["A"].width = min(max_a + 4, 50)
+            ws.column_dimensions["B"].width = min(max_b + 4, 80)
+
+            main_font = openpyxl.styles.Font(name="Calibri", size=11)
+            title1_font = openpyxl.styles.Font(name="Calibri", size=20)
+            title2_font = openpyxl.styles.Font(name="Calibri", size=16)
+            center = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+            center_wrap = openpyxl.styles.Alignment(horizontal="center", vertical="center", wrap_text=True)
+            thin_border = openpyxl.styles.Border(
+                left=openpyxl.styles.Side(style="thin"),
+                right=openpyxl.styles.Side(style="thin"),
+                top=openpyxl.styles.Side(style="thin"),
+                bottom=openpyxl.styles.Side(style="thin"),
+            )
+
+            for cell in ws[1]:
+                cell.font = title1_font
+                cell.alignment = center
+                cell.border = thin_border
+            for cell in ws[2]:
+                cell.font = title2_font
+                cell.alignment = center
+                cell.border = thin_border
+
+            for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
+                for cell in row:
+                    cell.font = main_font
+                    if cell.value and "\n" in str(cell.value):
+                        cell.alignment = center_wrap
+                    else:
+                        cell.alignment = center
+                    if cell.value is not None:
+                        cell.border = thin_border
+
+            ws.page_setup.paperSize = ws.PAPERSIZE_A4
+            ws.page_setup.orientation = "portrait"
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+            ws.page_setup.pageOrder = "downThenOver"
+            ws.sheet_view.showGridLines = False
+
+            ws.print_options.horizontalCentered = True
+            ws.print_options.verticalCentered = False
 
         try:
-            date_str = malote.get("date", "unknown")
-            try:
-                dt = datetime.fromisoformat(date_str)
-                date_display = dt.strftime("%Y-%m-%d")
-            except ValueError:
-                date_display = date_str
-
             timestamp = datetime.now().strftime("%H%M%S")
-            filename = f"Malote_{date_display}_{timestamp}.xlsx"
+            safe_date = date_display.replace("/", "-")
+            filename = f"Malote_{safe_date}_{timestamp}.xlsx"
 
             from src.utils.config import ConfigManager
             config = ConfigManager()
@@ -108,4 +179,4 @@ class ExcelExporter:
                 context=ErrorContext.EXPORT,
                 recovery_hint="Verifique permissões de escrita no diretório de salvamento",
             )
-            return None
+            raise SavePathError(str(e)) from e
