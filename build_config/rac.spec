@@ -1,11 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
-import sys
 import shutil
-
-is_windows = sys.platform.startswith("win")
-is_linux = sys.platform.startswith("linux")
 
 here = os.path.abspath(SPECPATH) if os.path.isdir(SPECPATH) else os.path.dirname(os.path.abspath(SPECPATH))
 project_root = os.path.dirname(here)

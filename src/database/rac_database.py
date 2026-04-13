@@ -28,7 +28,16 @@ class RACDatabase(BaseDatabase):
     def _resolve_default_db_path(self) -> str:
         return resolve_db_path("registros.db", create_dir=True)
 
+    def _reconnect_unlocked(self) -> None:
+        super()._reconnect_unlocked()
+        self._register_custom_functions()
+
+    def _register_custom_functions(self) -> None:
+        if self.conn:
+            self.conn.create_function("normalize", 1, normalize_text)
+
     def _create_schema(self) -> None:
+        self._register_custom_functions()
         stored_version = self._ensure_schema_version(self.SCHEMA_VERSION)
 
         if stored_version == self.SCHEMA_VERSION:
@@ -80,6 +89,7 @@ class RACDatabase(BaseDatabase):
             CREATE INDEX IF NOT EXISTS idx_pacientes_nome ON pacientes(name COLLATE NOCASE);
             CREATE INDEX IF NOT EXISTS idx_registro_items_registro ON registro_items(registro_id);
             CREATE INDEX IF NOT EXISTS idx_registro_items_item ON registro_items(item_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_registros_unique ON registros(tipo, paciente_id, malote_id);
             """
         )
 
@@ -220,12 +230,25 @@ class RACDatabase(BaseDatabase):
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
+    def find_paciente_by_name(self, name: str) -> Optional[Paciente]:
+        def _op():
+            cursor = self._get_cursor()
+            cursor.execute(
+                "SELECT * FROM pacientes WHERE normalize(name) = ? LIMIT 1",
+                (normalize_text(name),),
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            return Paciente.from_row(dict(row)) if row else None
+
+        return self._retry_on_transient_error(_op, operation_type="read")
+
     def search_pacientes(self, query: str, limit: int = 10) -> list[Paciente]:
         def _op():
             cursor = self._get_cursor()
             normalized = normalize_text(query)
             cursor.execute(
-                "SELECT * FROM pacientes WHERE LOWER(name) LIKE ? ORDER BY name LIMIT ?",
+                "SELECT * FROM pacientes WHERE normalize(name) LIKE ? ORDER BY name LIMIT ?",
                 (f"%{normalized}%", limit),
             )
             rows = cursor.fetchall()
@@ -277,21 +300,32 @@ class RACDatabase(BaseDatabase):
             cursor = self._get_cursor()
             now = datetime.now().isoformat()
             wd = 1 if waiting_docs else 0
-            cursor.execute(
-                "INSERT INTO registros (tipo, paciente_id, malote_id, created_at, waiting_docs) VALUES (?, ?, ?, ?, ?)",
-                (tipo, paciente_id, malote_id, now, wd),
-            )
-            self._commit()
-            registro_id = cursor.lastrowid
-            cursor.close()
-            return Registro(
-                id=registro_id,
-                tipo=tipo,
-                paciente_id=paciente_id,
-                malote_id=malote_id,
-                created_at=now,
-                waiting_docs=waiting_docs,
-            )
+            try:
+                cursor.execute(
+                    "INSERT INTO registros (tipo, paciente_id, malote_id, created_at, waiting_docs) VALUES (?, ?, ?, ?, ?)",
+                    (tipo, paciente_id, malote_id, now, wd),
+                )
+                self._commit()
+                registro_id = cursor.lastrowid
+                cursor.close()
+                return Registro(
+                    id=registro_id,
+                    tipo=tipo,
+                    paciente_id=paciente_id,
+                    malote_id=malote_id,
+                    created_at=now,
+                    waiting_docs=waiting_docs,
+                )
+            except sqlite3.IntegrityError:
+                cursor.close()
+                existing = self.find_registro(tipo, paciente_id, malote_id)
+                if existing and existing.id is not None:
+                    self.update_registro(
+                        existing.id, tipo=tipo, paciente_id=paciente_id,
+                        malote_id=malote_id, waiting_docs=waiting_docs,
+                    )
+                    return existing
+                raise
 
         return self._retry_on_transient_error(_op, operation_type="write")
 
@@ -305,6 +339,24 @@ class RACDatabase(BaseDatabase):
                 "JOIN malotes m ON r.malote_id = m.id "
                 "WHERE r.id = ?",
                 (registro_id,),
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            return Registro.from_row(dict(row)) if row else None
+
+        return self._retry_on_transient_error(_op, operation_type="read")
+
+    def find_registro(self, tipo: str, paciente_id: int, malote_id: int) -> Optional[Registro]:
+        def _op():
+            cursor = self._get_cursor()
+            cursor.execute(
+                "SELECT r.*, p.name as paciente_name, m.date as malote_date "
+                "FROM registros r "
+                "JOIN pacientes p ON r.paciente_id = p.id "
+                "JOIN malotes m ON r.malote_id = m.id "
+                "WHERE r.tipo = ? AND r.paciente_id = ? AND r.malote_id = ? "
+                "LIMIT 1",
+                (tipo, paciente_id, malote_id),
             )
             row = cursor.fetchone()
             cursor.close()
@@ -399,7 +451,7 @@ class RACDatabase(BaseDatabase):
                 "FROM registros r "
                 "JOIN pacientes p ON r.paciente_id = p.id "
                 "JOIN malotes m ON r.malote_id = m.id "
-                "WHERE r.malote_id = ? AND LOWER(p.name) LIKE ? "
+                "WHERE r.malote_id = ? AND normalize(p.name) LIKE ? "
                 "ORDER BY p.name COLLATE NOCASE "
                 "LIMIT ?",
                 (malote_id, f"%{normalized}%", limit),
@@ -445,7 +497,7 @@ class RACDatabase(BaseDatabase):
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def get_last_items_for_paciente(self, paciente_id: int) -> list[ItemCatalog]:
+    def get_items_for_paciente(self, paciente_id: int) -> list[ItemCatalog]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
@@ -481,7 +533,7 @@ class RACDatabase(BaseDatabase):
             cursor = self._get_cursor()
             normalized = normalize_text(query)
             cursor.execute(
-                "SELECT * FROM items_catalog WHERE LOWER(name) LIKE ? ORDER BY name COLLATE NOCASE LIMIT ?",
+                "SELECT * FROM items_catalog WHERE normalize(name) LIKE ? ORDER BY name COLLATE NOCASE LIMIT ?",
                 (f"%{normalized}%", limit),
             )
             rows = cursor.fetchall()

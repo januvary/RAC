@@ -65,7 +65,7 @@ wine $WINE_PYTHON -c "import sys; import shutil; [shutil.rmtree(p, ignore_errors
 echo ""
 echo "[3/6] Building with PyInstaller..."
 cd "$BUILD_CONFIG"
-yes | wine $WINE_PYTHON -m PyInstaller --clean -y rac.spec 2>&1 | grep -v "fixme" | grep -v "WARNING: Failed to run strip"
+yes | wine $WINE_PYTHON -m PyInstaller --clean -y rac.spec 2>&1 | grep -v "fixme" | grep -v "WARNING: Failed to run strip" | grep -v "FileNotFound\|Traceback\|subprocess\|Popen\|execute_child\|CreateProcess\|winapi\|process_collected"
 
 if [ $? -ne 0 ]; then
     echo ""
@@ -78,6 +78,7 @@ echo ""
 echo "[4/6] Organizing output..."
 mkdir -p "$DIST"
 cp -r "$BUILD_CONFIG/dist/RAC" "$DIST/"
+cp "$BUILD_CONFIG/update_windows.ps1" "$DIST/RAC/update.ps1"
 
 if [ ! -f "$DIST/RAC/RAC.exe" ]; then
     echo -e "${RED}[ERROR]${NC} RAC.exe was not created!"
@@ -154,6 +155,7 @@ fi
 
 # --- Clean up temp src ---
 rm -rf "$BUILD_CONFIG/_build_src"
+rm -rf "$BUILD_CONFIG/dist"
 
 # --- Report ---
 echo ""

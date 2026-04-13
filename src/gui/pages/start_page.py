@@ -6,7 +6,7 @@ Start Page — malote header, search, tipo buttons, export
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QPushButton, QLineEdit, QDialog,
+    QPushButton, QDialog,
     QSizePolicy,
     QFileDialog,
 )
@@ -68,16 +68,18 @@ class StartPage(QWidget):
         h.setSpacing(8)
 
         self._malote_label = MaloteLabel(self._mw)
+        self._malote_label.malote_changed.connect(self.refresh)
         h.addStretch()
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
         layout.addLayout(h)
 
     def _build_search(self, layout: QVBoxLayout):
-        self._search_combo = SearchableComboBox("Nome do paciente...")
+        self._search_combo = SearchableComboBox(
+            "Nome do paciente...", on_search=self._search_registros
+        )
         self._search_combo.selection_changed.connect(self._on_search_select)
         layout.addWidget(self._search_combo)
-        self._refresh_search()
 
     def _build_tipo_grid(self, layout: QVBoxLayout):
         grid_widget = QWidget()
@@ -109,20 +111,18 @@ class StartPage(QWidget):
 
     def refresh(self):
         self._malote_label.refresh()
-        self._refresh_search()
+        self._search_combo.set_options({})
+        self._search_combo.clear()
 
-    def _refresh_search(self):
+    def _search_registros(self, query: str) -> dict[str, str]:
         malote = self._mw.state.get_active_malote()
-        if not malote:
-            self._search_combo.set_options({})
-            return
-        resultados = self._mw.db.get_registros_by_malote(malote.id)
-        options = {}
-        for reg in resultados:
-            tipo = TIPO_LABELS.get(reg.tipo, "")
-            name = reg.paciente_name or ""
-            options[str(reg.id)] = f"{name} ({tipo})"
-        self._search_combo.set_options(options)
+        if not malote or not query:
+            return {}
+        resultados = self._mw.db.search_registros_by_patient(malote.id, query)
+        return {
+            str(r.id): f"{r.paciente_name or ''} ({TIPO_LABELS.get(r.tipo, '')})"
+            for r in resultados
+        }
 
     def _on_search_select(self, data):
         if not data:

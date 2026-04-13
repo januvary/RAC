@@ -20,8 +20,6 @@ class RACStateManager:
         self._active_malote: Optional[Malote] = None
         self._current_tipo: str = ""
         self._editing_registro: Optional[Registro] = None
-        self._search_query: str = ""
-        self._search_results: list[dict] = []
         self._auto_return: bool = True
         self._save_path: Path = Path.home() / "Downloads"
         self._lock = threading.RLock()
@@ -72,26 +70,6 @@ class RACStateManager:
         with self._lock:
             if self._editing_registro and self._editing_registro.id == registro_id:
                 self._editing_registro = None
-
-    # ========== SEARCH ==========
-
-    def get_search_query(self) -> str:
-        with self._lock:
-            return self._search_query
-
-    def get_search_results(self) -> list[dict]:
-        with self._lock:
-            return list(self._search_results)
-
-    def set_search_results(self, query: str, results: list[dict]) -> None:
-        with self._lock:
-            self._search_query = query
-            self._search_results = results
-
-    def clear_search(self) -> None:
-        with self._lock:
-            self._search_query = ""
-            self._search_results = []
 
     # ========== CONFIG ==========
 

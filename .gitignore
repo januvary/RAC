@@ -4,13 +4,14 @@ __pycache__/
 
 build/
 dist/
+*.spec
+!build_config/rac.spec
+
 build_config/build/
 build_config/dist/
 build_config/dist_linux/
 build_config/dist_windows/
 build_config/_build_src/
-*.spec
-!build_config/rac.spec
 
 data/registros.db
 data/config.json

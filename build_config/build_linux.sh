@@ -34,6 +34,7 @@ python3 -m PyInstaller --clean -y rac.spec 2>&1 | tail -5
 echo "[3/5] Organizing output..."
 mkdir -p "$DIST"
 cp -r "$BUILD_CONFIG/dist/RAC" "$DIST/"
+cp "$BUILD_CONFIG/update_linux.sh" "$DIST/RAC/update.sh"
 
 echo "[4/5] Optimizing build size..."
 
@@ -108,6 +109,7 @@ fi
 
 # --- Clean up temp src ---
 rm -rf "$BUILD_CONFIG/_build_src"
+rm -rf "$BUILD_CONFIG/dist"
 
 echo "[5/5] Final build size:"
 echo ""

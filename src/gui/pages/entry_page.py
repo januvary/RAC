@@ -78,6 +78,9 @@ class EntryPage(QWidget):
 
         self._malote_label = MaloteLabel(self._mw)
 
+        self._tipo_combo.tipo_changed.connect(self._on_context_changed)
+        self._malote_label.malote_changed.connect(self._on_context_changed)
+
         h = QHBoxLayout()
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
@@ -110,6 +113,7 @@ class EntryPage(QWidget):
                 )
 
         self._paciente_combo.selection_changed.connect(self._on_paciente_selected)
+        self._paciente_combo.exact_match_changed.connect(self._on_paciente_selected)
         h.addWidget(self._paciente_combo)
 
         layout.addLayout(h)
@@ -119,6 +123,10 @@ class EntryPage(QWidget):
         return {str(p.id): p.name for p in pacientes}
 
     def _build_items_section(self, layout: QVBoxLayout):
+        self._catalog_options = {
+            str(i.id): i.name for i in self._mw.db.get_all_items()
+        }
+
         self._items_container = QVBoxLayout()
         self._items_container.setSpacing(0)
         layout.addLayout(self._items_container)
@@ -170,8 +178,7 @@ class EntryPage(QWidget):
         layout.addLayout(h)
 
     def _add_item_row(self, item_id: int | None = None):
-        all_items = self._mw.db.get_all_items()
-        item_options = {str(i.id): i.name for i in all_items}
+        item_options = self._catalog_options
 
         row_frame = QFrame()
         row_frame.setProperty("itemrow", True)
@@ -218,9 +225,30 @@ class EntryPage(QWidget):
             paciente_id = int(data)
         except (ValueError, TypeError):
             return
-        self._load_patient_items(paciente_id)
+        self._load_items_for_context(paciente_id)
 
-    def _load_patient_items(self, paciente_id: int):
+    def _on_context_changed(self, *_):
+        paciente_id = self._resolve_current_patient()
+        if paciente_id is None:
+            return
+        self._load_items_for_context(paciente_id)
+
+    def _resolve_current_patient(self) -> int | None:
+        pid = self._paciente_combo.current_data()
+        if not pid:
+            name = self._paciente_combo.current_text().strip()
+            if name:
+                existing = self._mw.db.find_paciente_by_name(name)
+                if existing:
+                    pid = str(existing.id)
+        if not pid:
+            return None
+        try:
+            return int(pid)
+        except (ValueError, TypeError):
+            return None
+
+    def _clear_item_rows(self):
         self._selected_items.clear()
         while self._items_container.count():
             w = self._items_container.takeAt(0).widget()
@@ -228,12 +256,32 @@ class EntryPage(QWidget):
                 w.setParent(None)
                 w.deleteLater()
 
-        patient_items = self._mw.db.get_last_items_for_paciente(paciente_id)
-        if not patient_items:
-            self._add_item_row()
+    def _load_items_for_context(self, paciente_id: int):
+        malote = self._mw.state.get_active_malote()
+        tipo = self._tipo_combo.current_tipo()
+
+        existing_reg = None
+        if malote:
+            existing_reg = self._mw.db.find_registro(tipo, paciente_id, malote.id)
+
+        if existing_reg:
+            self._registro = existing_reg
+            items = self._mw.db.get_items_for_registro(existing_reg.id)
+            self._clear_item_rows()
+            if not items:
+                self._add_item_row()
+            else:
+                for item in items:
+                    self._add_item_row(item_id=item.item_id)
         else:
-            for item in patient_items:
-                self._add_item_row(item_id=item.id)
+            self._registro = None
+            self._clear_item_rows()
+            patient_items = self._mw.db.get_items_for_paciente(paciente_id)
+            if not patient_items:
+                self._add_item_row()
+            else:
+                for item in patient_items:
+                    self._add_item_row(item_id=item.id)
 
     def focus_next_field(self):
         total_fields = 1 + self._items_container.count()
@@ -257,21 +305,9 @@ class EntryPage(QWidget):
         self._paciente_combo.focus_search()
 
     def _on_save(self):
-        pid = self._paciente_combo.current_data()
-        if not pid:
-            name = self._paciente_combo.current_text().strip()
-            if not name:
-                self._toast("Selecione ou digite o nome do paciente", "warning")
-                return
-            try:
-                paciente = self._mw.db.create_paciente(name)
-                pid = str(paciente.id)
-                self._paciente_combo.add_option(pid, name)
-                self._paciente_combo.set_current_by_data(pid)
-            except Exception as e:
-                ErrorHandler.handle_error(e, context=ErrorContext.DATABASE, show_dialog=False)
-                self._toast(f"Erro ao criar paciente: {e}", "negative")
-                return
+        item_ids = [i["id"] for i in self._selected_items if i.get("id") is not None]
+        tipo = self._tipo_combo.current_tipo()
+        waiting_docs = self._docs_check.isChecked()
 
         malote = self._mw.state.get_active_malote()
         if not malote:
@@ -279,31 +315,52 @@ class EntryPage(QWidget):
             return
         malote_id = malote.id
 
-        item_ids = [i["id"] for i in self._selected_items if i.get("id") is not None]
-        tipo = self._tipo_combo.current_tipo()
-        waiting_docs = self._docs_check.isChecked()
+        paciente_id = self._resolve_current_patient()
+        if paciente_id is None:
+            name = self._paciente_combo.current_text().strip()
+            if not name:
+                self._toast("Selecione ou digite o nome do paciente", "warning")
+                return
+            try:
+                paciente = self._mw.db.create_paciente(name)
+                paciente_id = paciente.id
+            except Exception as e:
+                ErrorHandler.handle_error(e, context=ErrorContext.DATABASE, show_dialog=False)
+                self._toast(f"Erro ao criar paciente: {e}", "negative")
+                return
 
         try:
-            paciente_id = int(pid)
-
+            is_update = False
             if self._registro:
+                is_update = True
                 self._mw.db.update_registro(
                     self._registro.id, tipo=tipo, paciente_id=paciente_id,
                     malote_id=malote_id, waiting_docs=waiting_docs,
                 )
                 reg_id = self._registro.id
             else:
-                new_reg = self._mw.db.create_registro(
-                    tipo, paciente_id, malote_id,
-                    waiting_docs=waiting_docs,
-                )
-                reg_id = new_reg.id
+                existing = self._mw.db.find_registro(tipo, paciente_id, malote_id)
+                if existing:
+                    is_update = True
+                    self._mw.db.update_registro(
+                        existing.id, tipo=tipo, paciente_id=paciente_id,
+                        malote_id=malote_id, waiting_docs=waiting_docs,
+                    )
+                    reg_id = existing.id
+                    self._registro = existing
+                else:
+                    new_reg = self._mw.db.create_registro(
+                        tipo, paciente_id, malote_id,
+                        waiting_docs=waiting_docs,
+                    )
+                    reg_id = new_reg.id
+                    self._registro = new_reg
 
-            if item_ids:
-                self._mw.db.set_registro_items(reg_id, item_ids)
+            self._mw.db.set_registro_items(reg_id, item_ids)
 
             self._mw.state.notify_registro_saved(Registro(id=reg_id, tipo=tipo))
-            self._toast("Registro salvo!", "positive")
+            msg = "Registro editado!" if is_update else "Registro salvo!"
+            self._toast(msg, "positive")
 
             if not self._auto_switch.isChecked():
                 from PySide6.QtCore import QTimer

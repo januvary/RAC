@@ -10,11 +10,81 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate, QStyleOptionViewItem, QLineEdit, QDialog,
     QTreeWidget, QTreeWidgetItem,
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QStringListModel, QEvent
 from PySide6.QtGui import QPainter, QFontMetrics
 
 from src.gui.constants import TIPO_HEX, TIPO_LABELS, TIPO_SYMBOLS
 from src.gui.styles import colors
+from src.utils.text_utils import normalize_text
+
+
+class _SearchCompleter(QCompleter):
+    def __init__(self, model, parent=None):
+        super().__init__(model, parent)
+        self._escape_pressed = False
+        self._user_selected = False
+        self._activated = False
+        self._spurious_close = False
+        self._reshow_count = 0
+        self.activated.connect(lambda _: setattr(self, '_activated', True))
+
+    def _is_spurious_hide(self, obj) -> bool:
+        if obj is not self.popup():
+            return False
+        widget = self.widget()
+        if not isinstance(widget, QLineEdit):
+            return False
+        if not widget.text().strip():
+            return False
+        if self._escape_pressed or self._user_selected or self._activated:
+            return False
+        if not self._spurious_close:
+            return False
+        if self._reshow_count >= 3:
+            return False
+        return True
+
+    def _reshow(self):
+        if self._escape_pressed or self._user_selected or self._activated:
+            return
+        widget = self.widget()
+        if not isinstance(widget, QLineEdit) or not widget.text().strip():
+            return
+        self._reshow_count += 1
+        super().complete()
+
+    def eventFilter(self, obj, event):
+        et = event.type()
+
+        if et == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == Qt.Key.Key_Escape:
+                self._escape_pressed = True
+        elif et == QEvent.Type.MouseButtonPress and obj is self.popup():
+            self._user_selected = True
+        elif et == QEvent.Type.Close and obj is self.popup():
+            self._spurious_close = True
+
+        if et == QEvent.Type.Hide and self._is_spurious_hide(obj):
+            QTimer.singleShot(0, self._reshow)
+
+        result = super().eventFilter(obj, event)
+
+        if et == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+            self._escape_pressed = False
+
+        return result
+
+    def complete(self, rect=None):
+        self._escape_pressed = False
+        self._user_selected = False
+        self._activated = False
+        self._spurious_close = False
+        self._reshow_count = 0
+        if rect is not None:
+            super().complete(rect)
+        else:
+            super().complete()
 
 
 class _CenteredDelegate(QStyledItemDelegate):
@@ -70,117 +140,121 @@ class HeadingLabel(QLabel):
 
 class SearchableComboBox(QWidget):
     selection_changed = Signal(object)
+    exact_match_changed = Signal(object)
 
     def __init__(
         self, placeholder: str = "Buscar...", parent=None, on_search=None
     ):
         super().__init__(parent)
+        self._on_search = on_search
+        self._selected_key: str | None = None
+        self._selected_label: str | None = None
+        self._options: dict[str, str] = {}
+        self._search_labels: dict[str, str] = {}
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self._combo = _NoScrollComboBox()
-        self._combo.setEditable(True)
-        self._combo.setInsertPolicy(_NoScrollComboBox.InsertPolicy.NoInsert)
-        self._combo.setPlaceholderText(placeholder)
-        self._combo.setSizePolicy(
+        self._model = QStringListModel(self)
+        self._completer = _SearchCompleter(self._model, self)
+        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.activated.connect(self._on_activated)
+
+        self._line_edit = QLineEdit()
+        self._line_edit.setPlaceholderText(placeholder)
+        self._line_edit.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        self._line_edit.setCompleter(self._completer)
+        self._line_edit.textEdited.connect(self._on_text_edited)
+        self._line_edit.textChanged.connect(self._on_text_changed)
 
-        completer = self._combo.completer()
-        if completer:
-            completer.setFilterMode(Qt.MatchFlag.MatchContains)
-            completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-            completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-
-        self._combo.currentIndexChanged.connect(self._on_index_changed)
-
-        if completer:
-            completer.activated.connect(self._on_completer_activated)
-
-        layout.addWidget(self._combo)
-        self._data_map: dict[str, dict] = {}
-
-        self._on_search = on_search
-        if on_search:
-            line_edit = self._combo.lineEdit()
-            if line_edit:
-                line_edit.textEdited.connect(self._do_search)
+        layout.addWidget(self._line_edit)
 
     def set_options(self, options: dict[str, str]):
-        self._combo.blockSignals(True)
-        self._combo.clear()
-        self._data_map.clear()
-        for key, label in options.items():
-            self._combo.addItem(label, key)
-            self._data_map[key] = {"id": key, "name": label}
-        self._combo.blockSignals(False)
-        if self._combo.completer():
-            self._combo.completer().setModel(self._combo.model())
+        self._options = dict(options)
+        self._search_labels = {v: k for k, v in options.items()}
+        self._model.setStringList(list(options.values()))
+        if self._selected_key and self._selected_key in self._options:
+            self._selected_label = self._options[self._selected_key]
 
     def current_data(self) -> str | None:
-        idx = self._combo.currentIndex()
-        if idx < 0:
-            return None
-        return self._combo.itemData(idx)
+        return self._selected_key
 
     def set_current_by_data(self, data: str):
-        idx = self._combo.findData(data)
-        if idx >= 0:
-            self._combo.setCurrentIndex(idx)
+        label = self._options.get(data)
+        if label is not None:
+            self._selected_key = data
+            self._selected_label = label
+            self._line_edit.setText(label)
 
     def current_text(self) -> str:
-        return self._combo.currentText()
+        return self._line_edit.text()
 
     def focus_search(self):
-        line_edit = self._combo.lineEdit()
-        if line_edit:
-            line_edit.setFocus()
-            line_edit.selectAll()
-        else:
-            self._combo.setFocus()
+        self._line_edit.setFocus()
+        self._line_edit.selectAll()
+
+    def clear(self):
+        self._selected_key = None
+        self._selected_label = None
+        self._line_edit.clear()
 
     def add_option(self, key: str, label: str):
-        self._combo.addItem(label, key)
-        self._data_map[key] = {"id": key, "name": label}
-        if self._combo.completer():
-            self._combo.completer().setModel(self._combo.model())
+        self._options[key] = label
+        self._search_labels[label] = key
+        self._model.setStringList(list(self._options.values()))
 
-    def _on_index_changed(self, idx):
-        if idx >= 0:
-            self.selection_changed.emit(self._combo.itemData(idx))
+    def _on_text_edited(self, text: str):
+        if self._on_search:
+            self._do_search(text)
+        elif text:
+            QTimer.singleShot(0, lambda: self._explicit_complete(text))
         else:
+            popup = self._completer.popup()
+            if popup:
+                popup.hide()
+
+    def _explicit_complete(self, text: str):
+        self._completer.setCompletionPrefix(text)
+        self._completer.complete()
+
+    def _on_text_changed(self, text: str):
+        if self._selected_label and text != self._selected_label:
+            self._selected_key = None
+            self._selected_label = None
             self.selection_changed.emit(None)
 
-    def _on_completer_activated(self, text: str):
-        idx = self._combo.findText(text, Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchCaseSensitive)
-        if idx >= 0:
-            self._combo.setCurrentIndex(idx)
+    def _on_activated(self, text: str):
+        key = self._search_labels.get(text)
+        if key is not None:
+            self._selected_key = key
+            self._selected_label = text
+            self._line_edit.setText(text)
+            self.selection_changed.emit(key)
 
-    def _do_search(self, text: str = ""):
-        if not self._on_search:
+    def _do_search(self, text: str):
+        query = text.strip()
+        if not query:
+            self._model.setStringList([])
+            self._search_labels.clear()
             return
-        text = ""
-        line_edit = self._combo.lineEdit()
-        if line_edit:
-            text = line_edit.text().strip()
-        results = self._on_search(text)
-        if results is not None:
-            current_text = ""
-            if line_edit:
-                current_text = line_edit.text()
-            self._combo.blockSignals(True)
-            self._combo.clear()
-            self._data_map.clear()
-            for key, label in results.items():
-                self._combo.addItem(label, key)
-                self._data_map[key] = {"id": key, "name": label}
-            if line_edit:
-                line_edit.setText(current_text)
-            self._combo.blockSignals(False)
-            completer = self._combo.completer()
-            if completer:
-                completer.setModel(self._combo.model())
+        results = self._on_search(query)
+        if results is None:
+            return
+        labels = list(results.values())
+        self._search_labels = {v: k for k, v in results.items()}
+        self._model.setStringList(labels)
+        self._completer.setCompletionPrefix(query)
+        self._completer.complete()
+        normalized_query = normalize_text(query)
+        for key, label in results.items():
+            if normalize_text(label) == normalized_query:
+                self.exact_match_changed.emit(key)
+                break
 
 
 class TipoButton(QPushButton):

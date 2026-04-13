@@ -7,7 +7,7 @@ Preview Page — tabbed table view of malote registros
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
     QTableWidget, QTableWidgetItem, QSizePolicy,
-    QHeaderView,
+    QHeaderView, QMenu,
 )
 from PySide6.QtCore import Qt
 
@@ -19,6 +19,7 @@ from src.gui.constants import TIPO_HEX, TIPO_LABELS
 from src.gui.styles import colors
 from src.utils.error_handler import ErrorHandler, ErrorContext
 from src.utils.text_utils import format_malote_date, parse_date, to_upper_normalized
+import sqlite3
 
 _TIPO_ORDER = ["entrada", "renovacao", "retirada", "urgente"]
 
@@ -67,6 +68,7 @@ class PreviewPage(QWidget):
         h.addStretch()
 
         self._malote_label = MaloteLabel(self._mw)
+        self._malote_label.malote_changed.connect(self.refresh)
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
         layout.addLayout(h)
@@ -117,6 +119,10 @@ class PreviewPage(QWidget):
             table.cellDoubleClicked.connect(
                 lambda r, c, t=table: self._on_row_double_clicked(t, r)
             )
+            table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            table.customContextMenuRequested.connect(
+                lambda pos, t=table, tp=tipo: self._show_row_menu(t, tp, pos)
+            )
 
             tab_label = f"{TIPO_LABELS.get(tipo, tipo)} ({len(tipo_registros)})"
             self._tabs.addTab(table, tab_label)
@@ -144,6 +150,64 @@ class PreviewPage(QWidget):
         reg = self._mw.db.get_registro_by_id(reg_id)
         if reg:
             self._mw.navigate_to("entry", tipo=reg.tipo, edit_id=reg_id)
+
+    def _show_row_menu(self, table: QTableWidget, current_tipo: str, pos):
+        row = table.rowAt(pos.y())
+        if row < 0:
+            return
+        item = table.item(row, 0)
+        if not item:
+            return
+        reg_id = item.data(Qt.ItemDataRole.UserRole)
+        if reg_id is None:
+            return
+
+        menu = QMenu(self)
+
+        tipo_menu = menu.addMenu("Alterar tipo")
+        for tipo in _TIPO_ORDER:
+            if tipo == current_tipo:
+                continue
+            action = tipo_menu.addAction(TIPO_LABELS.get(tipo, tipo))
+            action.triggered.connect(
+                lambda checked=False, rid=reg_id, t=tipo: self._change_tipo(rid, t)
+            )
+
+        active = self._mw.state.get_active_malote()
+        malotes = self._mw.db.get_all_malotes()
+        other_malotes = [m for m in malotes if not active or m.id != active.id]
+        if other_malotes:
+            malote_menu = menu.addMenu("Mover para malote")
+            for m in other_malotes:
+                display = format_malote_date(m)
+                action = malote_menu.addAction(display)
+                action.triggered.connect(
+                    lambda checked=False, rid=reg_id, mid=m.id: self._move_to_malote(rid, mid)
+                )
+
+        menu.exec(table.viewport().mapToGlobal(pos))
+
+    def _change_tipo(self, reg_id: int, new_tipo: str):
+        try:
+            self._mw.db.update_registro(reg_id, tipo=new_tipo)
+            self.refresh()
+            self._toast("Tipo alterado", "positive")
+        except sqlite3.IntegrityError:
+            self._toast("Registro já existe nesse tipo para esse paciente", "warning")
+        except Exception as e:
+            ErrorHandler.handle_error(e, context=ErrorContext.REGISTRO, show_dialog=False)
+            self._toast(f"Erro: {e}", "negative")
+
+    def _move_to_malote(self, reg_id: int, new_malote_id: int):
+        try:
+            self._mw.db.update_registro(reg_id, malote_id=new_malote_id)
+            self.refresh()
+            self._toast("Registro movido", "positive")
+        except sqlite3.IntegrityError:
+            self._toast("Registro já existe nesse malote para esse paciente e tipo", "warning")
+        except Exception as e:
+            ErrorHandler.handle_error(e, context=ErrorContext.REGISTRO, show_dialog=False)
+            self._toast(f"Erro: {e}", "negative")
 
     def _toast(self, message: str, kind: str = "info"):
         show_toast(message, kind, self)
