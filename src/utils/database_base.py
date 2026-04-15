@@ -42,7 +42,7 @@ class BaseDatabase(ABC):
     def _create_schema(self) -> None:
         pass
 
-    def _ensure_schema_version(self, current_version: int) -> int:
+    def _ensure_schema_version(self) -> int:
         cursor = self._get_cursor()
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS _schema_meta (key TEXT PRIMARY KEY, value TEXT)"
@@ -138,23 +138,6 @@ class BaseDatabase(ABC):
             context=ErrorContext.DATABASE,
         )
 
-    def _ensure_connection(self) -> None:
-        with self._lock:
-            if not self._is_connection_healthy():
-                self._reconnect_unlocked()
-
-    def _is_connection_healthy(self) -> bool:
-        try:
-            with self._lock:
-                if self.conn is None:
-                    return False
-                cursor = self.conn.cursor()
-                cursor.execute("SELECT 1")
-                cursor.close()
-                return True
-        except (sqlite3.OperationalError, sqlite3.ProgrammingError, AttributeError):
-            return False
-
     def _reconnect_unlocked(self) -> None:
         if self.conn:
             with suppress(Exception):
@@ -170,6 +153,8 @@ class BaseDatabase(ABC):
             cursor.execute("PRAGMA journal_mode=TRUNCATE")
             cursor.execute("PRAGMA synchronous=FULL")
             cursor.execute("PRAGMA busy_timeout=10000")
+            cursor.execute("PRAGMA cache_size=-2000")
+            cursor.execute("PRAGMA temp_store=MEMORY")
             cursor.close()
 
             ErrorHandler.log(
@@ -260,10 +245,11 @@ class BaseDatabase(ABC):
                 context=ErrorContext.DATABASE,
             )
 
-    def close(self) -> None:
+    def close(self, skip_backup: bool = False) -> None:
         if self.conn:
             try:
-                self._backup_database()
+                if not skip_backup:
+                    self._backup_database()
                 self.conn.close()
                 self.conn = None
                 ErrorHandler.log(

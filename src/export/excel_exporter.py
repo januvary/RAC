@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
-from src.utils.text_utils import to_upper_normalized
+from src.constants import TIPO_LABELS, TIPO_TITLES
 
 if TYPE_CHECKING:
     from src.database.rac_database import RACDatabase
@@ -28,8 +28,13 @@ class ExcelExporter:
 
     def export_malote(self, malote_id: int) -> Optional[str]:
         try:
-            import openpyxl
-            from openpyxl.utils import get_column_letter
+            import openpyxl  # type: ignore[import-untyped]
+            from openpyxl.styles import (  # type: ignore[import-untyped]
+                Alignment,
+                Border,
+                Font,
+                Side,
+            )
         except ImportError:
             ErrorHandler.log(
                 "openpyxl não instalado",
@@ -54,26 +59,14 @@ class ExcelExporter:
             date_display = date_str
 
         wb = openpyxl.Workbook()
-        wb.remove(wb.active)
+        active_sheet = wb.active
+        if active_sheet is not None:
+            wb.remove(active_sheet)
 
-        tipo_tabs = {
-            "entrada": "Entradas",
-            "renovacao": "Renovações",
-            "retirada": "Retiradas",
-            "urgente": "Urgentes",
-        }
-
-        tipo_title = {
-            "entrada": "ENTRADAS",
-            "renovacao": "RENOVAÇÕES",
-            "retirada": "RETIRADAS",
-            "urgente": "URGENTES",
-        }
-
-        for tipo, tab_name in tipo_tabs.items():
+        for tipo, tab_name in TIPO_LABELS.items():
             ws = wb.create_sheet(title=tab_name)
 
-            subtitle = f"{tipo_title[tipo]} - {date_display}"
+            subtitle = f"{TIPO_TITLES[tipo]} - {date_display}"
 
             ws["A1"] = "USAFA OCIAN"
             ws.merge_cells("A1:B1")
@@ -84,13 +77,13 @@ class ExcelExporter:
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
             for reg in tipo_registros:
-                items_str = "\n".join(
-                    to_upper_normalized(i) for i in reg.items
+                items_str = "\n".join(reg.items)
+                ws.append(
+                    [
+                        reg.paciente_name or "",
+                        items_str,
+                    ]
                 )
-                ws.append([
-                    to_upper_normalized(reg.paciente_name or ""),
-                    items_str,
-                ])
 
             max_a = 10
             max_b = 10
@@ -105,16 +98,18 @@ class ExcelExporter:
             ws.column_dimensions["A"].width = min(max_a + 4, 50)
             ws.column_dimensions["B"].width = min(max_b + 4, 80)
 
-            main_font = openpyxl.styles.Font(name="Calibri", size=11)
-            title1_font = openpyxl.styles.Font(name="Calibri", size=20)
-            title2_font = openpyxl.styles.Font(name="Calibri", size=16)
-            center = openpyxl.styles.Alignment(horizontal="center", vertical="center")
-            center_wrap = openpyxl.styles.Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin_border = openpyxl.styles.Border(
-                left=openpyxl.styles.Side(style="thin"),
-                right=openpyxl.styles.Side(style="thin"),
-                top=openpyxl.styles.Side(style="thin"),
-                bottom=openpyxl.styles.Side(style="thin"),
+            main_font = Font(name="Arial", size=11)
+            title1_font = Font(name="Arial", size=20)
+            title2_font = Font(name="Arial", size=16)
+            center = Alignment(horizontal="center", vertical="center")
+            center_wrap = Alignment(
+                horizontal="center", vertical="center", wrap_text=True
+            )
+            thin_border = Border(
+                left=Side(style="thin"),
+                right=Side(style="thin"),
+                top=Side(style="thin"),
+                bottom=Side(style="thin"),
             )
 
             for cell in ws[1]:
@@ -154,6 +149,7 @@ class ExcelExporter:
             filename = f"Malote_{safe_date}_{timestamp}.xlsx"
 
             from src.utils.config import ConfigManager
+
             config = ConfigManager()
             save_path = config.get("save_path", Path.home() / "Downloads")
 

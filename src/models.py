@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
 class Malote:
-    id: Optional[int] = None
+    id: int | None = None
     date: str = ""
 
     @classmethod
@@ -25,7 +25,7 @@ class Malote:
 
 @dataclass
 class Paciente:
-    id: Optional[int] = None
+    id: int | None = None
     name: str = ""
 
     @classmethod
@@ -44,7 +44,7 @@ class Paciente:
 
 @dataclass
 class ItemCatalog:
-    id: Optional[int] = None
+    id: int | None = None
     name: str = ""
     unidade: str = "un"
 
@@ -66,10 +66,10 @@ class ItemCatalog:
 
 @dataclass
 class Registro:
-    id: Optional[int] = None
+    id: int | None = None
     tipo: str = ""
-    paciente_id: Optional[int] = None
-    malote_id: Optional[int] = None
+    paciente_id: int | None = None
+    malote_id: int | None = None
     created_at: str = ""
     paciente_name: str | None = None
     malote_date: str | None = None
@@ -103,9 +103,9 @@ class Registro:
 
 @dataclass
 class RegistroItem:
-    id: Optional[int] = None
-    registro_id: Optional[int] = None
-    item_id: Optional[int] = None
+    id: int | None = None
+    registro_id: int | None = None
+    item_id: int | None = None
     item_name: str | None = None
     unidade: str | None = None
 
@@ -131,9 +131,9 @@ class RegistroItem:
 
 @dataclass
 class RegistroExport:
-    id: Optional[int] = None
+    id: int | None = None
     tipo: str = ""
-    paciente_id: Optional[int] = None
+    paciente_id: int | None = None
     paciente_name: str | None = None
     items: list[str] = field(default_factory=list)
 
@@ -144,7 +144,6 @@ class RegistroExport:
             tipo=row.get("tipo", ""),
             paciente_id=row.get("paciente_id"),
             paciente_name=row.get("paciente_name"),
-            items=row.get("items", []),
         )
 
     def to_dict(self) -> dict[str, Any]:

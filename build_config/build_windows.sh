@@ -140,8 +140,8 @@ if [ -d "$QT_BIN" ]; then
         rm -f "$QT_BIN"/$pattern
     done
 
-    # Software OpenGL renderer - not needed on systems with GPU drivers
-    rm -f "$QT_BIN/opengl32sw.dll"
+    # Software OpenGL renderer - keep as fallback for machines without GPU drivers
+    # rm -f "$QT_BIN/opengl32sw.dll"
 fi
 
 # --- Remove CJK codecs and readline ---
@@ -153,7 +153,29 @@ if [ -n "$PY_DYNLOAD" ] && [ -d "$PY_DYNLOAD" ]; then
     done
 fi
 
-# --- Clean up temp src ---
+# --- Bundle VC++ runtime DLLs ---
+WINE_PY310="$HOME/.wine/drive_c/Python310"
+for dll in vcruntime140.dll vcruntime140_1.dll; do
+    if [ -f "$WINE_PY310/$dll" ]; then
+        cp "$WINE_PY310/$dll" "$DIST_INTERNAL/"
+    fi
+done
+
+# --- Check VC++ runtime ---
+echo "[5.5/6] Checking VC++ runtime DLLs..."
+VC_MISSING=0
+for dll in vcruntime140.dll vcruntime140_1.dll; do
+    if ! find "$DIST_INTERNAL" -name "$dll" -print -quit | grep -q .; then
+        echo -e "  ${RED}[WARN]${NC} $dll not found in build!"
+        VC_MISSING=1
+    fi
+done
+if [ $VC_MISSING -eq 1 ]; then
+    echo ""
+    echo -e "  ${RED}[WARN]${NC} Target machines may need Microsoft VC++ Redistributable:"
+    echo "  https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    echo ""
+fi
 rm -rf "$BUILD_CONFIG/_build_src"
 rm -rf "$BUILD_CONFIG/dist"
 

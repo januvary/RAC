@@ -12,13 +12,23 @@ from datetime import datetime
 from src.utils.database_base import BaseDatabase
 from src.utils.paths import resolve_db_path
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
-from src.utils.text_utils import normalize_text
+from src.utils.text_utils import to_upper_normalized
 from src.database.definitive_catalog import DEFINITIVE_CATALOG
-from src.models import Malote, Paciente, ItemCatalog, Registro, RegistroItem, RegistroExport
+from src.services.exceptions import DuplicateRecordError
+from src.models import (
+    Malote,
+    Paciente,
+    ItemCatalog,
+    Registro,
+    RegistroItem,
+    RegistroExport,
+)
 
 
 class RACDatabase(BaseDatabase):
     SCHEMA_VERSION = 1
+
+    _MIGRATIONS: dict[int, str] = {}
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
@@ -28,26 +38,23 @@ class RACDatabase(BaseDatabase):
     def _resolve_default_db_path(self) -> str:
         return resolve_db_path("registros.db", create_dir=True)
 
-    def _reconnect_unlocked(self) -> None:
-        super()._reconnect_unlocked()
-        self._register_custom_functions()
-
-    def _register_custom_functions(self) -> None:
-        if self.conn:
-            self.conn.create_function("normalize", 1, normalize_text)
-
     def _create_schema(self) -> None:
-        self._register_custom_functions()
-        stored_version = self._ensure_schema_version(self.SCHEMA_VERSION)
+        stored_version = self._ensure_schema_version()
 
         if stored_version == self.SCHEMA_VERSION:
             self._seed_catalog_if_empty()
             return
 
-        cursor = self._get_cursor()
+        if stored_version == 0:
+            self._create_fresh_schema()
 
-        cursor.executescript(
-            """
+        self._run_migrations(max(stored_version, 0))
+        self._set_schema_version(self.SCHEMA_VERSION)
+        self._seed_catalog_if_empty()
+
+    def _create_fresh_schema(self) -> None:
+        cursor = self._get_cursor()
+        cursor.executescript("""
             CREATE TABLE IF NOT EXISTS malotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT NOT NULL
@@ -55,7 +62,7 @@ class RACDatabase(BaseDatabase):
 
             CREATE TABLE IF NOT EXISTS pacientes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL
+                name TEXT NOT NULL UNIQUE
             );
 
             CREATE TABLE IF NOT EXISTS items_catalog (
@@ -78,11 +85,7 @@ class RACDatabase(BaseDatabase):
                 registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
                 item_id INTEGER NOT NULL REFERENCES items_catalog(id)
             );
-            """
-        )
 
-        cursor.executescript(
-            """
             CREATE INDEX IF NOT EXISTS idx_registros_malote ON registros(malote_id);
             CREATE INDEX IF NOT EXISTS idx_registros_paciente ON registros(paciente_id);
             CREATE INDEX IF NOT EXISTS idx_registros_tipo ON registros(tipo);
@@ -90,18 +93,28 @@ class RACDatabase(BaseDatabase):
             CREATE INDEX IF NOT EXISTS idx_registro_items_registro ON registro_items(registro_id);
             CREATE INDEX IF NOT EXISTS idx_registro_items_item ON registro_items(item_id);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_registros_unique ON registros(tipo, paciente_id, malote_id);
-            """
-        )
-
+            """)
         self._commit()
         cursor.close()
 
-        self._run_migrations(stored_version)
-        self._set_schema_version(self.SCHEMA_VERSION)
-        self._seed_catalog_if_empty()
-
     def _run_migrations(self, from_version: int) -> None:
-        pass
+        for version in sorted(self._MIGRATIONS):
+            if version <= from_version:
+                continue
+            sql = self._MIGRATIONS[version]
+            cursor = self._get_cursor()
+            try:
+                cursor.executescript(sql)
+                self._commit()
+            except Exception as e:
+                cursor.close()
+                raise RuntimeError(f"Migration v{version} failed: {e}") from e
+            cursor.close()
+            ErrorHandler.log(
+                f"Migration v{version} applied successfully",
+                level=ErrorLevel.INFO,
+                context=ErrorContext.DATABASE,
+            )
 
     def _log_initialization_success(self) -> None:
         count = self._get_catalog_count()
@@ -120,7 +133,7 @@ class RACDatabase(BaseDatabase):
             for name, unidade in DEFINITIVE_CATALOG:
                 cursor.execute(
                     "INSERT INTO items_catalog (name, unidade) VALUES (?, ?)",
-                    (name, unidade),
+                    (to_upper_normalized(name), unidade),
                 )
             self._commit()
             ErrorHandler.log(
@@ -211,12 +224,13 @@ class RACDatabase(BaseDatabase):
 
     def create_paciente(self, name: str) -> Paciente:
         def _op():
+            normalized = to_upper_normalized(name.strip())
             cursor = self._get_cursor()
-            cursor.execute("INSERT INTO pacientes (name) VALUES (?)", (name.strip(),))
+            cursor.execute("INSERT INTO pacientes (name) VALUES (?)", (normalized,))
             self._commit()
             paciente_id = cursor.lastrowid
             cursor.close()
-            return Paciente(id=paciente_id, name=name.strip())
+            return Paciente(id=paciente_id, name=normalized)
 
         return self._retry_on_transient_error(_op, operation_type="write")
 
@@ -234,8 +248,8 @@ class RACDatabase(BaseDatabase):
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
-                "SELECT * FROM pacientes WHERE normalize(name) = ? LIMIT 1",
-                (normalize_text(name),),
+                "SELECT * FROM pacientes WHERE name = ? LIMIT 1",
+                (to_upper_normalized(name),),
             )
             row = cursor.fetchone()
             cursor.close()
@@ -246,9 +260,9 @@ class RACDatabase(BaseDatabase):
     def search_pacientes(self, query: str, limit: int = 10) -> list[Paciente]:
         def _op():
             cursor = self._get_cursor()
-            normalized = normalize_text(query)
+            normalized = to_upper_normalized(query)
             cursor.execute(
-                "SELECT * FROM pacientes WHERE normalize(name) LIKE ? ORDER BY name LIMIT ?",
+                "SELECT * FROM pacientes WHERE name LIKE ? ORDER BY name LIMIT ?",
                 (f"%{normalized}%", limit),
             )
             rows = cursor.fetchall()
@@ -262,7 +276,7 @@ class RACDatabase(BaseDatabase):
             cursor = self._get_cursor()
             cursor.execute(
                 "UPDATE pacientes SET name = ? WHERE id = ?",
-                (name.strip(), paciente_id),
+                (to_upper_normalized(name.strip()), paciente_id),
             )
             self._commit()
             affected = cursor.rowcount
@@ -293,39 +307,31 @@ class RACDatabase(BaseDatabase):
     # ========== REGISTRO ==========
 
     def create_registro(
-        self, tipo: str, paciente_id: int, malote_id: int,
+        self,
+        tipo: str,
+        paciente_id: int,
+        malote_id: int,
         waiting_docs: bool = False,
     ) -> Registro:
         def _op():
             cursor = self._get_cursor()
             now = datetime.now().isoformat()
             wd = 1 if waiting_docs else 0
-            try:
-                cursor.execute(
-                    "INSERT INTO registros (tipo, paciente_id, malote_id, created_at, waiting_docs) VALUES (?, ?, ?, ?, ?)",
-                    (tipo, paciente_id, malote_id, now, wd),
-                )
-                self._commit()
-                registro_id = cursor.lastrowid
-                cursor.close()
-                return Registro(
-                    id=registro_id,
-                    tipo=tipo,
-                    paciente_id=paciente_id,
-                    malote_id=malote_id,
-                    created_at=now,
-                    waiting_docs=waiting_docs,
-                )
-            except sqlite3.IntegrityError:
-                cursor.close()
-                existing = self.find_registro(tipo, paciente_id, malote_id)
-                if existing and existing.id is not None:
-                    self.update_registro(
-                        existing.id, tipo=tipo, paciente_id=paciente_id,
-                        malote_id=malote_id, waiting_docs=waiting_docs,
-                    )
-                    return existing
-                raise
+            cursor.execute(
+                "INSERT INTO registros (tipo, paciente_id, malote_id, created_at, waiting_docs) VALUES (?, ?, ?, ?, ?)",
+                (tipo, paciente_id, malote_id, now, wd),
+            )
+            self._commit()
+            registro_id = cursor.lastrowid
+            cursor.close()
+            return Registro(
+                id=registro_id,
+                tipo=tipo,
+                paciente_id=paciente_id,
+                malote_id=malote_id,
+                created_at=now,
+                waiting_docs=waiting_docs,
+            )
 
         return self._retry_on_transient_error(_op, operation_type="write")
 
@@ -346,7 +352,9 @@ class RACDatabase(BaseDatabase):
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
-    def find_registro(self, tipo: str, paciente_id: int, malote_id: int) -> Optional[Registro]:
+    def find_registro(
+        self, tipo: str, paciente_id: int, malote_id: int
+    ) -> Optional[Registro]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(
@@ -418,12 +426,20 @@ class RACDatabase(BaseDatabase):
             cursor = self._get_cursor()
             set_clause = ", ".join(f"{k} = ?" for k in updates)
             values = list(updates.values()) + [registro_id]
-            cursor.execute(
-                f"UPDATE registros SET {set_clause} WHERE id = ?",
-                values,
-            )
-            self._commit()
-            affected = cursor.rowcount
+            try:
+                cursor.execute(
+                    f"UPDATE registros SET {set_clause} WHERE id = ?",
+                    values,
+                )
+                self._commit()
+                affected = cursor.rowcount
+            except sqlite3.IntegrityError:
+                cursor.close()
+                raise DuplicateRecordError(
+                    f"Duplicate: tipo={updates.get('tipo')}, "
+                    f"paciente_id={updates.get('paciente_id')}, "
+                    f"malote_id={updates.get('malote_id')}"
+                )
             cursor.close()
             return affected > 0
 
@@ -445,13 +461,13 @@ class RACDatabase(BaseDatabase):
     ) -> list[Registro]:
         def _op():
             cursor = self._get_cursor()
-            normalized = normalize_text(query)
+            normalized = to_upper_normalized(query)
             cursor.execute(
                 "SELECT r.*, p.name as paciente_name, m.date as malote_date "
                 "FROM registros r "
                 "JOIN pacientes p ON r.paciente_id = p.id "
                 "JOIN malotes m ON r.malote_id = m.id "
-                "WHERE r.malote_id = ? AND normalize(p.name) LIKE ? "
+                "WHERE r.malote_id = ? AND p.name LIKE ? "
                 "ORDER BY p.name COLLATE NOCASE "
                 "LIMIT ?",
                 (malote_id, f"%{normalized}%", limit),
@@ -531,9 +547,9 @@ class RACDatabase(BaseDatabase):
     def search_items(self, query: str, limit: int = 10) -> list[ItemCatalog]:
         def _op():
             cursor = self._get_cursor()
-            normalized = normalize_text(query)
+            normalized = to_upper_normalized(query)
             cursor.execute(
-                "SELECT * FROM items_catalog WHERE normalize(name) LIKE ? ORDER BY name COLLATE NOCASE LIMIT ?",
+                "SELECT * FROM items_catalog WHERE name LIKE ? ORDER BY name COLLATE NOCASE LIMIT ?",
                 (f"%{normalized}%", limit),
             )
             rows = cursor.fetchall()
@@ -542,9 +558,71 @@ class RACDatabase(BaseDatabase):
 
         return self._retry_on_transient_error(_op, operation_type="read")
 
+    def create_item(self, name: str, unidade: str = "un") -> ItemCatalog:
+        def _op():
+            normalized = to_upper_normalized(name.strip())
+            cursor = self._get_cursor()
+            cursor.execute(
+                "INSERT INTO items_catalog (name, unidade) VALUES (?, ?)",
+                (normalized, unidade),
+            )
+            self._commit()
+            item_id = cursor.lastrowid
+            cursor.close()
+            return ItemCatalog(id=item_id, name=normalized, unidade=unidade)
+
+        return self._retry_on_transient_error(_op, operation_type="write")
+
+    def update_item(self, item_id: int, name: str) -> bool:
+        def _op():
+            cursor = self._get_cursor()
+            cursor.execute(
+                "UPDATE items_catalog SET name = ? WHERE id = ?",
+                (to_upper_normalized(name.strip()), item_id),
+            )
+            self._commit()
+            affected = cursor.rowcount
+            cursor.close()
+            return affected > 0
+
+        return self._retry_on_transient_error(_op, operation_type="write")
+
+    def delete_item(self, item_id: int) -> bool:
+        def _op():
+            cursor = self._get_cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM registro_items WHERE item_id = ?",
+                (item_id,),
+            )
+            count = cursor.fetchone()[0]
+            if count > 0:
+                cursor.close()
+                return False
+            cursor.execute("DELETE FROM items_catalog WHERE id = ?", (item_id,))
+            self._commit()
+            affected = cursor.rowcount
+            cursor.close()
+            return affected > 0
+
+        return self._retry_on_transient_error(_op, operation_type="write")
+
+    # ========== PACIENTE (listagem) ==========
+
+    def get_all_pacientes(self) -> list[Paciente]:
+        def _op():
+            cursor = self._get_cursor()
+            cursor.execute("SELECT * FROM pacientes ORDER BY name COLLATE NOCASE")
+            rows = cursor.fetchall()
+            cursor.close()
+            return [Paciente.from_row(dict(r)) for r in rows]
+
+        return self._retry_on_transient_error(_op, operation_type="read")
+
     # ========== EXPORT HELPERS ==========
 
-    def get_registros_with_items_by_malote(self, malote_id: int) -> list[RegistroExport]:
+    def get_registros_with_items_by_malote(
+        self, malote_id: int
+    ) -> list[RegistroExport]:
         def _op():
             cursor = self._get_cursor()
             cursor.execute(

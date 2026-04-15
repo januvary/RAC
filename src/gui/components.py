@@ -5,10 +5,21 @@ Reusable Qt widgets for RAC — native Qt feel
 """
 
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QVBoxLayout, QLabel,
-    QComboBox, QCompleter, QPushButton, QSizePolicy, QWidget,
-    QStyledItemDelegate, QStyleOptionViewItem, QLineEdit, QDialog,
-    QTreeWidget, QTreeWidgetItem,
+    QFrame,
+    QHBoxLayout,
+    QVBoxLayout,
+    QLabel,
+    QComboBox,
+    QCompleter,
+    QPushButton,
+    QSizePolicy,
+    QWidget,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QLineEdit,
+    QDialog,
+    QTreeWidget,
+    QTreeWidgetItem,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QStringListModel, QEvent
 from PySide6.QtGui import QPainter, QFontMetrics
@@ -26,7 +37,7 @@ class _SearchCompleter(QCompleter):
         self._activated = False
         self._spurious_close = False
         self._reshow_count = 0
-        self.activated.connect(lambda _: setattr(self, '_activated', True))
+        self.activated.connect(lambda _: setattr(self, "_activated", True))
 
     def _is_spurious_hide(self, obj) -> bool:
         if obj is not self.popup():
@@ -142,9 +153,7 @@ class SearchableComboBox(QWidget):
     selection_changed = Signal(object)
     exact_match_changed = Signal(object)
 
-    def __init__(
-        self, placeholder: str = "Buscar...", parent=None, on_search=None
-    ):
+    def __init__(self, placeholder: str = "Buscar...", parent=None, on_search=None):
         super().__init__(parent)
         self._on_search = on_search
         self._selected_key: str | None = None
@@ -158,9 +167,14 @@ class SearchableComboBox(QWidget):
 
         self._model = QStringListModel(self)
         self._completer = _SearchCompleter(self._model, self)
-        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if on_search:
+            self._completer.setCompletionMode(
+                QCompleter.CompletionMode.UnfilteredPopupCompletion
+            )
+        else:
+            self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.activated.connect(self._on_activated)
 
         self._line_edit = QLineEdit()
@@ -175,7 +189,7 @@ class SearchableComboBox(QWidget):
         layout.addWidget(self._line_edit)
 
     def set_options(self, options: dict[str, str]):
-        self._options = dict(options)
+        self._options = options.copy()
         self._search_labels = {v: k for k, v in options.items()}
         self._model.setStringList(list(options.values()))
         if self._selected_key and self._selected_key in self._options:
@@ -242,13 +256,14 @@ class SearchableComboBox(QWidget):
             self._model.setStringList([])
             self._search_labels.clear()
             return
+        assert self._on_search is not None
         results = self._on_search(query)
         if results is None:
             return
         labels = list(results.values())
         self._search_labels = {v: k for k, v in results.items()}
         self._model.setStringList(labels)
-        self._completer.setCompletionPrefix(query)
+        self._completer.setCompletionPrefix("")
         self._completer.complete()
         normalized_query = normalize_text(query)
         for key, label in results.items():
@@ -263,7 +278,7 @@ class TipoButton(QPushButton):
     def __init__(self, tipo_key: str, parent=None):
         label = TIPO_LABELS[tipo_key]
         symbol = TIPO_SYMBOLS[tipo_key]
-        hex_color = TIPO_HEX[tipo_key]
+        self._hex_color = TIPO_HEX[tipo_key]
 
         super().__init__(f"{symbol}  {label}", parent)
         self.tipo_key = tipo_key
@@ -271,7 +286,12 @@ class TipoButton(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(68)
+        self._apply_style()
+        self.clicked.connect(lambda: self.clicked_tipo.emit(self.tipo_key))
+
+    def _apply_style(self):
         c = colors()
+        hex_color = self._hex_color
         self.setStyleSheet(f"""
             QPushButton[tipobtn="true"] {{
                 background-color: {c["bg_card"]};
@@ -293,7 +313,9 @@ class TipoButton(QPushButton):
                 border-left: 3px solid {hex_color};
             }}
         """)
-        self.clicked.connect(lambda: self.clicked_tipo.emit(self.tipo_key))
+
+    def refresh_style(self):
+        self._apply_style()
 
 
 class FlatButton(QPushButton):
@@ -331,6 +353,35 @@ class DestructiveButton(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
 
+class ThemeToggleButton(QPushButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("btnrole", "flat")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(28, 28)
+        self.setStyleSheet(
+            "QPushButton { border: none; font-size: 16px; padding: 0; }"
+        )
+        self.clicked.connect(self._toggle)
+        self._update_icon()
+
+    def _toggle(self):
+        from src.gui.styles import toggle_theme, get_stylesheet
+        from PySide6.QtWidgets import QApplication
+
+        toggle_theme()
+        QApplication.instance().setStyleSheet(get_stylesheet())
+        self._update_icon()
+        window = self.window()
+        if hasattr(window, "theme_changed"):
+            window.theme_changed.emit()
+
+    def _update_icon(self):
+        from src.gui.styles import get_theme
+
+        self.setText("☾" if get_theme() == "dark" else "☀")
+
+
 class TipoLabel(QWidget):
     def __init__(self, tipo_key: str, parent=None):
         super().__init__(parent)
@@ -342,14 +393,16 @@ class TipoLabel(QWidget):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(6)
 
-        dot = QLabel("\u25CF")
+        dot = QLabel("\u25cf")
         dot.setStyleSheet(f"color: {hex_color}; font-size: 14px; border: none;")
         dot.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         h.addWidget(dot)
 
         c = colors()
         text = QLabel(f"{symbol} {label}")
-        text.setStyleSheet(f"color: {c['text_primary']}; font-size: 14px; font-weight: 600; border: none;")
+        text.setStyleSheet(
+            f"color: {c['text_primary']}; font-size: 14px; font-weight: 600; border: none;"
+        )
         text.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         h.addWidget(text)
 
@@ -408,8 +461,10 @@ class TipoCombo(QWidget):
     def _update_display(self, tipo_key: str):
         hex_color = TIPO_HEX[tipo_key]
         symbol = TIPO_SYMBOLS[tipo_key]
-        self._dot.setText(f"{symbol}")
-        self._dot.setStyleSheet(f"color: {hex_color}; font-size: 14px; font-weight: 600; border: none;")
+        self._dot.setText(symbol)
+        self._dot.setStyleSheet(
+            f"color: {hex_color}; font-size: 14px; font-weight: 600; border: none;"
+        )
 
         c = colors()
         self._combo.setStyleSheet(f"""
@@ -459,15 +514,27 @@ class MaloteLabel(QLabel):
         super().__init__(parent)
         self._mw = main_window
         c = colors()
-        self.setStyleSheet(f"color: {c['text_primary']}; font-size: 22px; font-weight: 400;")
+        self.setStyleSheet(
+            f"color: {c['text_primary']}; font-size: 22px; font-weight: 400;"
+        )
         self.setFixedHeight(28)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        self.mousePressEvent = lambda e: _show_malote_dialog(self)
         self.refresh()
+
+    def mousePressEvent(self, event):
+        _show_malote_dialog(self)
+
+    def open_dialog(self):
+        _show_malote_dialog(self)
 
     def refresh(self):
         from src.utils.text_utils import format_malote_date
+
+        c = colors()
+        self.setStyleSheet(
+            f"color: {c['text_primary']}; font-size: 22px; font-weight: 400;"
+        )
         malote = self._mw.state.get_active_malote()
         display = format_malote_date(malote) if malote else "Nenhum malote ativo"
         self.setText(display)
@@ -537,10 +604,12 @@ def _show_malote_dialog(label: MaloteLabel):
     def on_item_clicked(item, _column):
         malote = item.data(0, Qt.ItemDataRole.UserRole)
         if malote:
+            current = mw.state.get_active_malote()
             mw.state.set_active_malote(malote)
             dlg.accept()
             label.refresh()
-            label.malote_changed.emit()
+            if not current or current.id != malote.id or current.date != malote.date:
+                label.malote_changed.emit()
         else:
             item.setExpanded(not item.isExpanded())
 
@@ -549,7 +618,12 @@ def _show_malote_dialog(label: MaloteLabel):
 
     btn_row = QHBoxLayout()
     new_m = FlatButton("Novo Malote")
-    new_m.clicked.connect(lambda: [dlg.reject(), _show_new_malote_dialog(label)])
+
+    def _on_new_malote(_):
+        dlg.reject()
+        _show_new_malote_dialog(label)
+
+    new_m.clicked.connect(_on_new_malote)
     btn_row.addWidget(new_m)
     btn_row.addStretch()
     close_m = FlatButton("Fechar")
@@ -592,12 +666,16 @@ def _show_new_malote_dialog(label: MaloteLabel):
         if not iso:
             return
         try:
+            current = mw.state.get_active_malote()
             malote = mw.db.create_malote(iso)
             mw.state.set_active_malote(malote)
             dlg.accept()
             label.refresh()
-            label.malote_changed.emit()
-            show_toast(f"Malote criado: {format_malote_date(malote)}", "positive", label)
+            if not current or current.id != malote.id or current.date != malote.date:
+                label.malote_changed.emit()
+            show_toast(
+                f"Malote criado: {format_malote_date(malote)}", "positive", label
+            )
         except Exception as e:
             ErrorHandler.handle_error(e, context=ErrorContext.MALOTE, show_dialog=False)
             show_toast(f"Erro: {e}", "negative", label)
@@ -632,7 +710,9 @@ class ToastLabel(QLabel):
         """)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.mousePressEvent = lambda e: self.deleteLater()
+
+    def mousePressEvent(self, event):
+        self.deleteLater()
 
 
 def show_toast(message: str, kind: str, parent: QWidget):
@@ -646,3 +726,8 @@ def show_toast(message: str, kind: str, parent: QWidget):
     toast.show()
     toast.raise_()
     QTimer.singleShot(3000, toast.deleteLater)
+
+
+class ToastMixin:
+    def _toast(self, message: str, kind: str = "info"):
+        show_toast(message, kind, self)  # type: ignore[arg-type]

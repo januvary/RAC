@@ -72,6 +72,14 @@ def get_theme() -> str:
     return _current_theme
 
 
+def toggle_theme() -> str:
+    global _current_theme
+    _current_theme = "light" if _current_theme == "dark" else "dark"
+    from src.utils.config import ConfigManager
+    ConfigManager().set("theme", _current_theme)
+    return _current_theme
+
+
 def colors() -> dict:
     return DARK_COLORS if _current_theme == "dark" else LIGHT_COLORS
 
@@ -86,7 +94,7 @@ def _build_qss(c: dict) -> str:
     return f"""
 /* -- Global -- */
 * {{
-    font-family: "Inter", sans-serif;
+    font-family: "Geist", sans-serif;
 }}
 QMainWindow {{
     background-color: {c["bg_main"]};
@@ -393,6 +401,3 @@ QTableWidget {{
     alternate-background-color: {c["bg_card_alt"]};
 }}
 """
-
-
-STYLESHEET = _build_qss(LIGHT_COLORS)

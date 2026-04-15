@@ -13,9 +13,14 @@ if os.path.exists(clean_src):
     shutil.rmtree(clean_src)
 shutil.copytree(src_dir, clean_src, ignore=shutil.ignore_patterns("__pycache__"))
 
+fonts_dir = os.path.join(here, "fonts")
+
 datas = [
     (clean_src, "src"),
 ]
+
+if os.path.exists(fonts_dir):
+    datas.append((fonts_dir, "fonts"))
 
 icon_path = os.path.join(project_root, "RAC.ico")
 
@@ -79,7 +84,7 @@ exe = EXE(
     name="RAC",
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
+    strip=False,
     upx=False,
     console=False,
     disable_windowed_traceback=False,
@@ -94,7 +99,7 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    strip=True,
+    strip=False,
     upx=False,
     name="RAC",
 )

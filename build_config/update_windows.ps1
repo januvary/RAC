@@ -1,63 +1,73 @@
-# RAC - Source Update Script (Windows)
-# Downloads latest src/ from remote and replaces bundled source.
-# No git required - downloads a zip archive.
+# RAC - Script de Atualizacao (Windows)
+# Baixa o src/ mais recente do repositorio e substitui os arquivos.
+# Nao precisa de git - usa a API do GitHub.
 #
-# Usage: .\update.ps1 [branch]
-#   branch: git branch to download (default: main)
+# Uso: .\update.ps1 [branch]
+#   branch: branch do git para baixar (padrao: master)
 
 param(
-    [string]$Branch = "main"
+    [string]$Branch = "master"
 )
 
-$RepoUrl = "https://github.com/januvary/RAC/archive/refs/heads/$Branch.zip"
-
-$AppDir = Split-Path -Parent $PSScriptRoot
+$AppDir = $PSScriptRoot
 $SrcDir = Join-Path $AppDir "_internal\src"
 $BackupDir = Join-Path $AppDir "_internal\src_backup"
-$TempDir = Join-Path $env:TEMP "rac_update_$(Get-Random)"
+$TempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+$TempDir = Join-Path $TempBase "rac_update_$(Get-Random)"
 
-Write-Host "=== RAC Update ===" -ForegroundColor Cyan
+Write-Host "=== Atualizacao RAC ===" -ForegroundColor Cyan
 Write-Host "Branch: $Branch"
 Write-Host ""
 
 if (-not (Test-Path $SrcDir)) {
-    Write-Host "[ERROR] Cannot find _internal\src\ - is this the right directory?" -ForegroundColor Red
+    Write-Host "[ERRO] Nao foi possivel encontrar _internal\src\. Diretorio correto?" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "[1/4] Downloading latest source..." -ForegroundColor Yellow
+Write-Host "[1/4] Baixando codigo fonte..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $ZipPath = Join-Path $TempDir "source.zip"
 
 try {
-    Invoke-WebRequest -Uri $RepoUrl -OutFile $ZipPath -UseBasicParsing
+    $Headers = @{}
+    $Token = $env:GITHUB_TOKEN
+    if ($Token) {
+        $Headers["Authorization"] = "Bearer $Token"
+    } elseif (Get-Command gh -ErrorAction SilentlyContinue) {
+        $Token = (gh auth token 2>$null)
+        if ($Token) {
+            $Headers["Authorization"] = "Bearer $Token"
+        }
+    }
+
+    Invoke-WebRequest -Uri "https://api.github.com/repos/januvary/RAC/zipball/$Branch" -OutFile $ZipPath -Headers $Headers -UseBasicParsing
 } catch {
-    Write-Host "[ERROR] Download failed: $_" -ForegroundColor Red
-    Remove-Item -Recurse -Force $TempDir
+    Write-Host "[ERRO] Falha no download: $_" -ForegroundColor Red
+    Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
     exit 1
 }
 
 if (-not (Test-Path $ZipPath) -or (Get-Item $ZipPath).Length -eq 0) {
-    Write-Host "[ERROR] Downloaded file is empty. Check REPO_URL and Branch." -ForegroundColor Red
-    Remove-Item -Recurse -Force $TempDir
+    Write-Host "[ERRO] Arquivo baixado esta vazio. Verifique acesso ao repositorio." -ForegroundColor Red
+    Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
     exit 1
 }
 
-Write-Host "[2/4] Extracting..." -ForegroundColor Yellow
+Write-Host "[2/4] Extraindo..." -ForegroundColor Yellow
 $ExtractDir = Join-Path $TempDir "extracted"
 Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir -Force
 
 $ExtractedSrc = Get-ChildItem -Path $ExtractDir -Recurse -Directory -Filter "src" |
-    Where-Object { $_.FullName -match "RAC-[^\\]+\\src$" } |
+    Where-Object { $_.FullName -match "januvary-RAC-[a-f0-9]+[/\\]src$" } |
     Select-Object -First 1
 
 if (-not $ExtractedSrc) {
-    Write-Host "[ERROR] Could not find src\ in downloaded archive." -ForegroundColor Red
-    Remove-Item -Recurse -Force $TempDir
+    Write-Host "[ERRO] Nao foi possivel encontrar src\ no arquivo baixado." -ForegroundColor Red
+    Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
     exit 1
 }
 
-Write-Host "[3/4] Replacing source files..." -ForegroundColor Yellow
+Write-Host "[3/4] Substituindo arquivos..." -ForegroundColor Yellow
 if (Test-Path $BackupDir) {
     Remove-Item -Recurse -Force $BackupDir
 }
@@ -67,12 +77,14 @@ Copy-Item -Path $ExtractedSrc.FullName -Destination $SrcDir -Recurse
 Get-ChildItem -Path $SrcDir -Recurse -Directory -Filter "__pycache__" |
     Remove-Item -Recurse -Force
 
-Write-Host "[4/4] Cleaning up..." -ForegroundColor Yellow
+Write-Host "[4/4] Limpando..." -ForegroundColor Yellow
 Remove-Item -Recurse -Force $TempDir
 
 Write-Host ""
-Write-Host "Update complete!" -ForegroundColor Green
-Write-Host "Backup saved to _internal\src_backup\"
-Write-Host "Restart RAC to apply changes."
+Write-Host "Atualizacao concluida!" -ForegroundColor Green
+Write-Host "Backup salvo em _internal\src_backup\"
+Write-Host "Reinicie o RAC para aplicar as alteracoes."
 Write-Host ""
-Write-Host "To rollback: Move-Item '_internal\src_backup\' '_internal\src\'"
+Write-Host "Para reverter: Move-Item '_internal\src_backup\' '_internal\src\'"
+Write-Host ""
+Read-Host "Pressione Enter para fechar"

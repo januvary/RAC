@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Any
 
-from src.utils.paths import get_config_path, get_root_directory
+from src.utils.paths import get_config_path
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
 
 
@@ -19,7 +19,7 @@ class RACConfig:
     auto_return: bool = True
     theme: str = "dark"
     last_malote_id: Optional[int] = None
-    save_path: Path = None  # type: ignore[assignment]
+    save_path: Optional[Path] = None
 
     def __post_init__(self) -> None:
         if self.save_path is None:
@@ -180,3 +180,8 @@ class ConfigManager:
     def reload(self) -> None:
         self._config = None
         self._load()
+
+    @classmethod
+    def _reset(cls) -> None:
+        cls._instance = None
+        cls._config = None

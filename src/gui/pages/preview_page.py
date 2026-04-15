@@ -5,33 +5,31 @@ Preview Page — tabbed table view of malote registros
 """
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
-    QTableWidget, QTableWidgetItem, QSizePolicy,
-    QHeaderView, QMenu,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QSizePolicy,
+    QHeaderView,
+    QMenu,
 )
 from PySide6.QtCore import Qt
 
 from src.gui.components import (
-    HeadingLabel, FlatButton, ToastLabel, PrimaryButton,
-    MaloteLabel, show_toast,
+    FlatButton,
+    MaloteLabel,
+    ToastMixin,
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS
 from src.gui.styles import colors
 from src.utils.error_handler import ErrorHandler, ErrorContext
-from src.utils.text_utils import format_malote_date, parse_date, to_upper_normalized
-import sqlite3
-
-_TIPO_ORDER = ["entrada", "renovacao", "retirada", "urgente"]
-
-_TIPO_TITLES = {
-    "entrada": "ENTRADAS",
-    "renovacao": "RENOVAÇÕES",
-    "retirada": "RETIRADAS",
-    "urgente": "URGENTES",
-}
+from src.utils.text_utils import format_malote_date
+from src.services.exceptions import DuplicateRecordError
 
 
-class PreviewPage(QWidget):
+class PreviewPage(QWidget, ToastMixin):
     def __init__(self, main_window):
         super().__init__()
         self._mw = main_window
@@ -45,7 +43,9 @@ class PreviewPage(QWidget):
 
         container = QWidget()
         container.setMaximumWidth(720)
-        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        container.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+        )
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -84,7 +84,7 @@ class PreviewPage(QWidget):
         self._tabs.setMinimumHeight(550)
         self._tabs.setStyleSheet(self._tab_style())
 
-        for tipo in _TIPO_ORDER:
+        for tipo in TIPO_LABELS:
             tipo_registros = [r for r in registros if r.tipo == tipo]
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
@@ -105,12 +105,12 @@ class PreviewPage(QWidget):
                 row = table.rowCount()
                 table.insertRow(row)
 
-                name_item = QTableWidgetItem(to_upper_normalized(reg.paciente_name or ""))
+                name_item = QTableWidgetItem(reg.paciente_name or "")
                 name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 name_item.setData(Qt.ItemDataRole.UserRole, reg.id)
                 table.setItem(row, 0, name_item)
 
-                items_str = "\n".join(to_upper_normalized(i) for i in reg.items)
+                items_str = "\n".join(reg.items)
                 meds_item = QTableWidgetItem(items_str)
                 meds_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, 1, meds_item)
@@ -137,8 +137,19 @@ class PreviewPage(QWidget):
             old.setParent(None)
             old.deleteLater()
 
-        container = self.layout().itemAt(0).widget()
-        self._build_tabs(container.layout())
+        main_layout = self.layout()
+        if main_layout is None:
+            return
+        item = main_layout.itemAt(0)
+        if item is None:
+            return
+        container = item.widget()
+        if container is None:
+            return
+        container_layout = container.layout()
+        if not isinstance(container_layout, QVBoxLayout):
+            return
+        self._build_tabs(container_layout)
 
     def _on_row_double_clicked(self, table: QTableWidget, row: int):
         item = table.item(row, 0)
@@ -165,12 +176,12 @@ class PreviewPage(QWidget):
         menu = QMenu(self)
 
         tipo_menu = menu.addMenu("Alterar tipo")
-        for tipo in _TIPO_ORDER:
+        for tipo in TIPO_LABELS:
             if tipo == current_tipo:
                 continue
             action = tipo_menu.addAction(TIPO_LABELS.get(tipo, tipo))
             action.triggered.connect(
-                lambda checked=False, rid=reg_id, t=tipo: self._change_tipo(rid, t)
+                lambda _checked=False, rid=reg_id, t=tipo: self._change_tipo(rid, t)
             )
 
         active = self._mw.state.get_active_malote()
@@ -182,7 +193,9 @@ class PreviewPage(QWidget):
                 display = format_malote_date(m)
                 action = malote_menu.addAction(display)
                 action.triggered.connect(
-                    lambda checked=False, rid=reg_id, mid=m.id: self._move_to_malote(rid, mid)
+                    lambda _checked=False, rid=reg_id, mid=m.id: self._move_to_malote(
+                        rid, mid
+                    )
                 )
 
         menu.exec(table.viewport().mapToGlobal(pos))
@@ -192,10 +205,12 @@ class PreviewPage(QWidget):
             self._mw.db.update_registro(reg_id, tipo=new_tipo)
             self.refresh()
             self._toast("Tipo alterado", "positive")
-        except sqlite3.IntegrityError:
+        except DuplicateRecordError:
             self._toast("Registro já existe nesse tipo para esse paciente", "warning")
         except Exception as e:
-            ErrorHandler.handle_error(e, context=ErrorContext.REGISTRO, show_dialog=False)
+            ErrorHandler.handle_error(
+                e, context=ErrorContext.REGISTRO, show_dialog=False
+            )
             self._toast(f"Erro: {e}", "negative")
 
     def _move_to_malote(self, reg_id: int, new_malote_id: int):
@@ -203,14 +218,15 @@ class PreviewPage(QWidget):
             self._mw.db.update_registro(reg_id, malote_id=new_malote_id)
             self.refresh()
             self._toast("Registro movido", "positive")
-        except sqlite3.IntegrityError:
-            self._toast("Registro já existe nesse malote para esse paciente e tipo", "warning")
+        except DuplicateRecordError:
+            self._toast(
+                "Registro já existe nesse malote para esse paciente e tipo", "warning"
+            )
         except Exception as e:
-            ErrorHandler.handle_error(e, context=ErrorContext.REGISTRO, show_dialog=False)
+            ErrorHandler.handle_error(
+                e, context=ErrorContext.REGISTRO, show_dialog=False
+            )
             self._toast(f"Erro: {e}", "negative")
-
-    def _toast(self, message: str, kind: str = "info"):
-        show_toast(message, kind, self)
 
     @staticmethod
     def _table_style(tipo: str) -> str:

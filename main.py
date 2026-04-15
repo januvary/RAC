@@ -10,6 +10,18 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
+def _load_bundled_fonts():
+    from PySide6.QtGui import QFontDatabase
+    from src.utils.paths import get_root_directory
+
+    fonts_dir = get_root_directory() / "fonts"
+    if fonts_dir.is_dir():
+        db = QFontDatabase()
+        for f in fonts_dir.iterdir():
+            if f.suffix in (".ttf", ".otf"):
+                db.addApplicationFont(str(f))
+
+
 def main():
     from PySide6.QtWidgets import QApplication
     from PySide6.QtGui import QFont
@@ -18,7 +30,9 @@ def main():
 
     app = QApplication(sys.argv)
 
-    font = QFont("Inter", 11)
+    _load_bundled_fonts()
+
+    font = QFont("Geist", 11)
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 

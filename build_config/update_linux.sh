@@ -1,68 +1,79 @@
 #!/bin/bash
-# RAC - Source Update Script (Linux)
-# Downloads latest src/ from remote and replaces bundled source.
-# No git required - downloads a zip archive.
+# RAC - Script de Atualizacao (Linux)
+# Baixa o src/ mais recente do repositorio e substitui os arquivos.
+# Nao precisa de git - usa a API do GitHub (requer gh CLI autenticado).
 #
-# Usage: ./update.sh [branch]
-#   branch: git branch to download (default: main)
+# Uso: ./update.sh [branch]
+#   branch: branch do git para baixar (padrao: master)
+
+if [ ! -t 0 ]; then
+    for term in x-terminal-emulator xterm gnome-terminal konsole xfce4-terminal mate-terminal; do
+        if command -v "$term" &>/dev/null; then
+            exec "$term" -e "bash '$0' $1"
+        fi
+    done
+    echo "Nenhum emulador de terminal encontrado. Execute este script num terminal."
+    exit 1
+fi
 
 set -e
 
-BRANCH="${1:-main}"
-REPO_URL="https://github.com/januvary/RAC/archive/refs/heads/${BRANCH}.zip"
+BRANCH="${1:-master}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$(dirname "$SCRIPT_DIR")"
+APP_DIR="$SCRIPT_DIR"
 SRC_DIR="$APP_DIR/_internal/src"
 BACKUP_DIR="$APP_DIR/_internal/src_backup"
 TMP_DIR=$(mktemp -d)
 
-echo "=== RAC Update ==="
+echo "=== Atualizacao RAC ==="
 echo "Branch: $BRANCH"
 echo ""
 
 if [ ! -d "$SRC_DIR" ]; then
-    echo "[ERROR] Cannot find _internal/src/ - is this the right directory?"
+    echo "[ERRO] Nao foi possivel encontrar _internal/src/. Diretorio correto?"
     exit 1
 fi
 
-echo "[1/4] Downloading latest source..."
-if command -v curl &>/dev/null; then
-    HTTP_CODE=$(curl -L -o "$TMP_DIR/source.zip" -w "%{http_code}" "$REPO_URL" 2>/dev/null)
-elif command -v wget &>/dev/null; then
-    HTTP_CODE=$(wget -q -O "$TMP_DIR/source.zip" "$REPO_URL" && echo "200")
-else
-    echo "[ERROR] Neither curl nor wget found. Install one and try again."
+if ! command -v gh &>/dev/null; then
+    echo "[ERRO] CLI 'gh' nao encontrado. Instale e execute 'gh auth login'."
+    echo "  Veja: https://cli.github.com/"
     exit 1
 fi
 
-if [ "$HTTP_CODE" != "200" ]; then
-    echo "[ERROR] Download failed (HTTP $HTTP_CODE). Check REPO_URL and BRANCH."
+echo "[1/4] Baixando codigo fonte..."
+ZIP_PATH="$TMP_DIR/source.zip"
+gh api "repos/januvary/RAC/zipball/$BRANCH" > "$ZIP_PATH"
+
+if [ ! -s "$ZIP_PATH" ]; then
+    echo "[ERRO] Falha no download. Verifique 'gh auth status' e acesso ao repo."
     rm -rf "$TMP_DIR"
     exit 1
 fi
 
-echo "[2/4] Extracting..."
-unzip -q "$TMP_DIR/source.zip" -d "$TMP_DIR/extracted"
+echo "[2/4] Extraindo..."
+unzip -q "$ZIP_PATH" -d "$TMP_DIR/extracted"
 EXTRACTED_SRC=$(find "$TMP_DIR/extracted" -maxdepth 2 -type d -name "src" | head -1)
 
 if [ -z "$EXTRACTED_SRC" ]; then
-    echo "[ERROR] Could not find src/ in downloaded archive."
+    echo "[ERRO] Nao foi possivel encontrar src/ no arquivo baixado."
     rm -rf "$TMP_DIR"
     exit 1
 fi
 
-echo "[3/4] Replacing source files..."
+echo "[3/4] Substituindo arquivos..."
 rm -rf "$BACKUP_DIR"
 mv "$SRC_DIR" "$BACKUP_DIR"
 cp -r "$EXTRACTED_SRC" "$SRC_DIR"
 find "$SRC_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
-echo "[4/4] Cleaning up..."
+echo "[4/4] Limpando..."
 rm -rf "$TMP_DIR"
 
 echo ""
-echo "Update complete! Backup saved to _internal/src_backup/"
-echo "Restart RAC to apply changes."
+echo "Atualizacao concluida! Backup salvo em _internal/src_backup/"
+echo "Reinicie o RAC para aplicar as alteracoes."
 echo ""
-echo "To rollback: mv _internal/src_backup/ _internal/src/"
+echo "Para reverter: mv _internal/src_backup/ _internal/src/"
+echo ""
+read -p "Pressione Enter para fechar..."

@@ -61,19 +61,19 @@ random.shuffle(paciente_ids)
 print(f"Created {len(paciente_ids)} pacientes")
 
 tipos = ["entrada", "renovacao", "retirada", "urgente"]
-per_patient: dict[int, int] = {}
+per_patient_tipo: dict[tuple[int, str], int] = {}
 count = 0
 for tipo in tipos:
     for i in range(50):
         random.shuffle(paciente_ids)
         pid = None
         for candidate in paciente_ids:
-            if per_patient.get(candidate, 0) < 2:
+            if per_patient_tipo.get((candidate, tipo), 0) < 1:
                 pid = candidate
                 break
         if pid is None:
             break
-        per_patient[pid] = per_patient.get(pid, 0) + 1
+        per_patient_tipo[(pid, tipo)] = per_patient_tipo.get((pid, tipo), 0) + 1
         reg = db.create_registro(tipo, pid, malote.id)
         assert reg.id is not None
         n_items = random.randint(1, 5)

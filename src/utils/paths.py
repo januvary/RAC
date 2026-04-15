@@ -49,12 +49,6 @@ def resolve_db_path(db_filename: str, create_dir: bool = True) -> str:
     return str(chosen_path)
 
 
-def ensure_data_dir_exists() -> Path:
-    data_dir = get_root_directory() / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir
-
-
 def get_config_path() -> Path:
     root_dir = get_root_directory()
 

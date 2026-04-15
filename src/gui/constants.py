@@ -4,6 +4,8 @@
 Shared constants for RAC PySide6 app
 """
 
+from src.constants import TIPO_LABELS, TIPO_TITLES  # noqa: F401
+
 TIPO_HEX = {
     "entrada": "#10B981",
     "renovacao": "#3B82F6",
@@ -11,18 +13,9 @@ TIPO_HEX = {
     "urgente": "#EF4444",
 }
 
-TIPO_LABELS = {
-    "entrada": "Entrada",
-    "renovacao": "Renovação",
-    "retirada": "Retirada",
-    "urgente": "Urgente",
-}
-
 TIPO_SYMBOLS = {
-    "entrada": "\u25B2",
-    "renovacao": "\u21BB",
-    "retirada": "\u25BC",
+    "entrada": "\u25b2",
+    "renovacao": "\u21bb",
+    "retirada": "\u25bc",
     "urgente": "!",
 }
-
-PRIMARY_COLOR = "#3B82F6"

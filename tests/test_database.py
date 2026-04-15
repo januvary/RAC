@@ -1,10 +1,11 @@
 import os
+import sqlite3
 import tempfile
 
 import pytest
 
 from src.database.rac_database import RACDatabase
-from src.models import Malote, Paciente, Registro, ItemCatalog, RegistroItem, RegistroExport
+from src.models import Malote, Paciente, Registro, ItemCatalog, RegistroExport
 
 
 @pytest.fixture
@@ -12,7 +13,7 @@ def db():
     with tempfile.TemporaryDirectory() as tmpdir:
         database = RACDatabase(db_path=os.path.join(tmpdir, "test.db"))
         yield database
-        database.close()
+        database.close(skip_backup=True)
 
 
 @pytest.fixture
@@ -40,7 +41,13 @@ def full_setup(db, malote, paciente, catalog_items):
     reg = db.create_registro("entrada", paciente.id, malote.id)
     items = catalog_items[:3]
     db.set_registro_items(reg.id, [i.id for i in items])
-    return {"db": db, "malote": malote, "paciente": paciente, "registro": reg, "items": items}
+    return {
+        "db": db,
+        "malote": malote,
+        "paciente": paciente,
+        "registro": reg,
+        "items": items,
+    }
 
 
 class TestMaloteCRUD:
@@ -94,23 +101,23 @@ class TestPacienteCRUD:
         p = db.create_paciente("Maria Santos")
         assert isinstance(p, Paciente)
         assert p.id is not None
-        assert p.name == "Maria Santos"
+        assert p.name == "MARIA SANTOS"
 
     def test_create_strips_whitespace(self, db):
         p = db.create_paciente("  Maria Santos  ")
-        assert p.name == "Maria Santos"
+        assert p.name == "MARIA SANTOS"
 
     def test_find_by_name_exact(self, db):
         db.create_paciente("João Silva")
         found = db.find_paciente_by_name("João Silva")
         assert found is not None
-        assert found.name == "João Silva"
+        assert found.name == "JOAO SILVA"
 
     def test_find_by_name_case_insensitive(self, db):
         db.create_paciente("João Silva")
         found = db.find_paciente_by_name("joão silva")
         assert found is not None
-        assert found.name == "João Silva"
+        assert found.name == "JOAO SILVA"
 
     def test_find_by_name_not_found(self, db):
         assert db.find_paciente_by_name("Ninguém") is None
@@ -119,20 +126,20 @@ class TestPacienteCRUD:
         db.create_paciente("João Silva")
         found = db.find_paciente_by_name("Joao Silva")
         assert found is not None
-        assert found.name == "João Silva"
+        assert found.name == "JOAO SILVA"
 
     def test_search_fuzzy(self, db):
         db.create_paciente("João Silva")
         db.create_paciente("Maria Santos")
         results = db.search_pacientes("silva")
         assert len(results) == 1
-        assert results[0].name == "João Silva"
+        assert results[0].name == "JOAO SILVA"
 
     def test_search_fuzzy_accent_insensitive(self, db):
         db.create_paciente("João Silva")
         results = db.search_pacientes("joao")
         assert len(results) == 1
-        assert results[0].name == "João Silva"
+        assert results[0].name == "JOAO SILVA"
 
     def test_delete_paciente_with_registros(self, db, registro):
         paciente = db.get_paciente_by_id(registro.paciente_id)
@@ -161,7 +168,7 @@ class TestRegistroCRUD:
         r = db.create_registro("entrada", paciente.id, malote.id)
         found = db.get_registro_by_id(r.id)
         assert found is not None
-        assert found.paciente_name == "João Silva"
+        assert found.paciente_name == "JOAO SILVA"
         assert found.malote_date == "2026-04-12"
 
     def test_find_by_tipo_paciente_malote(self, db, malote, paciente):
@@ -209,12 +216,15 @@ class TestRegistroCRUD:
 
 
 class TestUniqueConstraint:
-    def test_same_tipo_paciente_malote_raises_integrity_error(self, db, malote, paciente):
+    def test_same_tipo_paciente_malote_raises_integrity_error(
+        self, db, malote, paciente
+    ):
         r1 = db.create_registro("entrada", paciente.id, malote.id)
         assert r1.id is not None
         with pytest.raises(Exception):
             import sqlite3
-            conn = sqlite3.connect(db._db_path)
+
+            conn = sqlite3.connect(db.db_path)
             try:
                 conn.execute(
                     "INSERT INTO registros (tipo, paciente_id, malote_id, created_at) VALUES (?, ?, ?, ?)",
@@ -223,10 +233,12 @@ class TestUniqueConstraint:
             finally:
                 conn.close()
 
-    def test_create_registro_catches_integrity_and_falls_back(self, db, malote, paciente):
-        r1 = db.create_registro("entrada", paciente.id, malote.id)
-        r2 = db.create_registro("entrada", paciente.id, malote.id)
-        assert r2.id == r1.id
+    def test_create_duplicate_registro_raises_integrity_error(
+        self, db, malote, paciente
+    ):
+        db.create_registro("entrada", paciente.id, malote.id)
+        with pytest.raises(sqlite3.IntegrityError):
+            db.create_registro("entrada", paciente.id, malote.id)
 
     def test_different_tipos_allowed(self, db, malote, paciente):
         r1 = db.create_registro("entrada", paciente.id, malote.id)
@@ -302,14 +314,13 @@ class TestExportHelpers:
         exports = db.get_registros_with_items_by_malote(malote.id)
         assert len(exports) == 1
         assert isinstance(exports[0], RegistroExport)
-        assert exports[0].paciente_name == "João Silva"
+        assert exports[0].paciente_name == "JOAO SILVA"
         assert exports[0].tipo == "entrada"
         assert len(exports[0].items) == 3
 
     def test_export_multiple_registros(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        paciente = full_setup["paciente"]
         items = full_setup["items"]
 
         p2 = db.create_paciente("Ana Costa")
@@ -339,15 +350,15 @@ class TestCatalog:
         assert names == sorted(names, key=str.lower)
 
     def test_search_items(self, db):
-        results = db.search_items("abata")
+        results = db.search_items("ABATA")
         assert len(results) > 0
         for r in results:
-            assert "abata" in r.name.lower()
+            assert "ABATA" in r.name
 
     def test_search_items_accent_insensitive(self, db):
         results = db.search_items("acido")
         assert len(results) > 0
-        assert any("ácido" in r.name.lower() for r in results)
+        assert any("ACIDO" in r.name for r in results)
 
 
 class TestSearchRegistrosByPatient:
@@ -356,14 +367,14 @@ class TestSearchRegistrosByPatient:
         malote = full_setup["malote"]
         results = db.search_registros_by_patient(malote.id, "silva")
         assert len(results) == 1
-        assert results[0].paciente_name == "João Silva"
+        assert results[0].paciente_name == "JOAO SILVA"
 
     def test_search_by_name_accent_insensitive(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
         results = db.search_registros_by_patient(malote.id, "joao")
         assert len(results) == 1
-        assert results[0].paciente_name == "João Silva"
+        assert results[0].paciente_name == "JOAO SILVA"
 
     def test_search_no_match(self, full_setup):
         db = full_setup["db"]

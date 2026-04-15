@@ -1,5 +1,9 @@
-import pytest
-from src.utils.text_utils import normalize_text, to_upper_normalized, parse_date, format_malote_date
+from src.utils.text_utils import (
+    normalize_text,
+    to_upper_normalized,
+    parse_date,
+    format_malote_date,
+)
 from src.models import Malote
 
 
@@ -21,6 +25,12 @@ class TestNormalizeText:
 
     def test_tilde(self):
         assert normalize_text("Pão Órfã") == "pao orfa"
+
+    def test_grave_accents(self):
+        assert normalize_text("Àèìòù") == "aeiou"
+
+    def test_n_tilde(self):
+        assert normalize_text("Nuñez") == "nunez"
 
 
 class TestToUpperNormalized:
