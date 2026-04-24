@@ -17,18 +17,16 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from src.gui.components import (
+from src.gui.widgets import (
     SectionLabel,
     SearchableComboBox,
     TipoButton,
-    PositiveButton,
-    PrimaryButton,
-    FlatButton,
+    make_button,
     MaloteLabel,
     ThemeToggleButton,
     ToastMixin,
 )
-from src.gui.constants import TIPO_LABELS
+from src.gui.constants import TIPO_LABELS, SHORTCUT_LABELS, TIPO_SHORTCUT_KEYS, TIPO_SYMBOLS
 from src.utils.error_handler import ErrorHandler, ErrorContext
 from src.export.excel_exporter import ExcelExporter, SavePathError
 
@@ -61,6 +59,7 @@ class StartPage(QWidget, ToastMixin):
         layout.addSpacing(8)
         self._build_search(layout)
         layout.addSpacing(20)
+        layout.addWidget(SectionLabel("Criar novo registro"))
         layout.addSpacing(8)
         self._build_tipo_grid(layout)
         layout.addSpacing(28)
@@ -91,6 +90,9 @@ class StartPage(QWidget, ToastMixin):
         )
         self._search_combo.selection_changed.connect(self._on_search_select)
         layout.addWidget(self._search_combo)
+        self._shortcut_searches = [
+            ("Nome do paciente...", self._search_combo._line_edit),
+        ]
 
     def _build_tipo_grid(self, layout: QVBoxLayout):
         grid_widget = QWidget()
@@ -109,27 +111,32 @@ class StartPage(QWidget, ToastMixin):
         layout.addWidget(grid_widget)
 
     def _build_export(self, layout: QVBoxLayout):
-        preview_btn = PrimaryButton("Visualizar Malote")
+        self._shortcut_widgets = {}
+
+        preview_btn = make_button("Visualizar Malote", "primary")
         preview_btn.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         preview_btn.setFixedHeight(48)
         preview_btn.clicked.connect(self._on_preview)
         layout.addWidget(preview_btn)
+        self._shortcut_widgets["preview"] = preview_btn
         layout.addSpacing(8)
 
-        btn = PositiveButton("Exportar Planilha")
+        btn = make_button("Exportar Planilha", "positive")
         btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         btn.setFixedHeight(48)
         btn.clicked.connect(self._on_export)
         layout.addWidget(btn)
+        self._shortcut_widgets["export"] = btn
         layout.addSpacing(8)
 
-        manage_btn = FlatButton("Gerenciar Listas")
+        manage_btn = make_button("Gerenciar Listas", "flat")
         manage_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         manage_btn.setFixedHeight(40)
         manage_btn.clicked.connect(self._on_lists)
         layout.addWidget(manage_btn)
+        self._shortcut_widgets["lists"] = manage_btn
 
     def refresh(self):
         self._malote_label.refresh()
@@ -208,3 +215,25 @@ class StartPage(QWidget, ToastMixin):
         self._malote_label.refresh()
         for btn in self._tipo_btns:
             btn.refresh_style()
+
+    def set_shortcuts_visible(self, show: bool):
+        for name, widget in self._shortcut_widgets.items():
+            _, label = SHORTCUT_LABELS[name]
+            if show:
+                key = SHORTCUT_LABELS[name][0]
+                widget.setText(f"{label} ({key})")
+            else:
+                widget.setText(label)
+        for btn in self._tipo_btns:
+            label = TIPO_LABELS[btn.tipo_key]
+            symbol = TIPO_SYMBOLS[btn.tipo_key]
+            if show:
+                key = TIPO_SHORTCUT_KEYS[btn.tipo_key]
+                btn.setText(f"{symbol}  {label}  ({key})")
+            else:
+                btn.setText(f"{symbol}  {label}")
+        for placeholder, line_edit in self._shortcut_searches:
+            line_edit.setPlaceholderText(
+                f"{placeholder} (Ctrl+R)" if show else placeholder
+            )
+        self._malote_label.set_shortcut_hint_visible(show)

@@ -13,20 +13,16 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QSizePolicy,
-    QFrame,
 )
 from PySide6.QtCore import Qt, QTimer
 
-from src.gui.components import (
+from src.gui.widgets import (
     SectionLabel,
     HeadingLabel,
     SearchableComboBox,
     TipoCombo,
     MaloteLabel,
-    FlatButton,
-    PositiveButton,
-    NegativeButton,
-    DestructiveButton,
+    make_button,
     ToastMixin,
 )
 from src.models import Registro
@@ -35,6 +31,7 @@ from src.services.exceptions import ValidationError, DuplicateRecordError
 from src.utils.error_handler import ErrorHandler, ErrorContext
 from src.utils.text_utils import to_upper_normalized
 from src.gui.styles import colors
+from src.gui.constants import SHORTCUT_LABELS
 
 
 class EntryPage(QWidget, ToastMixin):
@@ -45,6 +42,7 @@ class EntryPage(QWidget, ToastMixin):
         self._edit_id: int | None = edit_id
         self._edit_registro: Registro | None = None
         self._focus_index: int = -1
+        self._shortcut_widgets: dict[str, QWidget] = {}
 
         if edit_id:
             self._edit_registro = self._mw.db.get_registro_by_id(edit_id)
@@ -87,6 +85,7 @@ class EntryPage(QWidget, ToastMixin):
         self._build_action_bar(layout)
 
         outer.addWidget(container)
+        QTimer.singleShot(0, self._paciente_combo.focus_search)
 
     def _build_header(self, layout: QVBoxLayout):
         self._tipo_combo = TipoCombo(self._tipo)
@@ -105,7 +104,10 @@ class EntryPage(QWidget, ToastMixin):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
 
-        h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignTop)
+        back_btn = make_button("Voltar", "flat")
+        back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
+        self._shortcut_widgets["back"] = back_btn
+        h.addWidget(back_btn, 0, Qt.AlignmentFlag.AlignTop)
         h.addStretch()
 
         self._status_label = QLabel()
@@ -116,6 +118,13 @@ class EntryPage(QWidget, ToastMixin):
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
         layout.addLayout(h)
+
+        tipo_row = QHBoxLayout()
+        tipo_row.setContentsMargins(0, 0, 0, 0)
+        tipo_row.addStretch()
+        tipo_row.addWidget(self._tipo_combo)
+
+        layout.addLayout(tipo_row)
         self._update_registro_status(self._is_editing)
 
     def _build_patient_section(self, layout: QVBoxLayout):
@@ -137,6 +146,10 @@ class EntryPage(QWidget, ToastMixin):
         self._paciente_combo.exact_match_changed.connect(self._on_paciente_selected)
         h.addWidget(self._paciente_combo)
 
+        self._shortcut_searches = [
+            ("Nome do Paciente", self._paciente_combo._line_edit),
+        ]
+
         layout.addLayout(h)
 
     def _search_pacientes(self, query: str) -> dict[str, str]:
@@ -151,11 +164,13 @@ class EntryPage(QWidget, ToastMixin):
         self._catalog_options = {str(i.id): i.name for i in self._mw.db.get_all_items()}
 
         self._items_container = QVBoxLayout()
-        self._items_container.setSpacing(0)
+        self._items_container.setSpacing(4)
         layout.addLayout(self._items_container)
 
-        add_btn = FlatButton("+ Adicionar Item")
+        layout.addSpacing(4)
+        add_btn = make_button("+ Adicionar Item", "flat")
         add_btn.clicked.connect(self._add_item_row)
+        self._shortcut_widgets["add_item"] = add_btn
         layout.addWidget(add_btn)
 
         if self._edit_registro:
@@ -169,38 +184,58 @@ class EntryPage(QWidget, ToastMixin):
         h = QHBoxLayout()
         h.setSpacing(8)
 
-        back_btn = FlatButton("Voltar")
-        back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
-        h.addWidget(back_btn)
-        h.addStretch()
-
         self._docs_check = QCheckBox("Esperando documentos")
+        self._docs_check.setToolTip(
+            "Exclui este registro da planilha exportada."
+        )
         if self._edit_registro and self._edit_registro.waiting_docs:
             self._docs_check.setChecked(True)
         h.addWidget(self._docs_check)
+        self._shortcut_widgets["toggle_docs"] = self._docs_check
 
         h.addStretch()
 
+        stay_label = QLabel("Ficar nesta tela")
+        c = colors()
+        stay_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 12px; border: none;")
+        h.addWidget(stay_label)
+        self._shortcut_widgets["toggle_stay"] = stay_label
+
         self._auto_switch = QCheckBox()
-        self._auto_switch.setChecked(not self._mw.state.get_auto_return())
+        self._auto_switch.setChecked(self._mw.state.get_stay_on_page())
         self._auto_switch.stateChanged.connect(
-            lambda: self._mw.state.set_auto_return(not self._auto_switch.isChecked())
+            lambda: self._mw.state.set_stay_on_page(self._auto_switch.isChecked())
         )
         h.addWidget(self._auto_switch)
 
         if self._is_editing:
-            self._delete_btn = NegativeButton("Excluir")
+            self._delete_btn = make_button("Excluir", "negative")
             self._delete_btn.clicked.connect(self._confirm_delete)
             h.addWidget(self._delete_btn)
         else:
             self._delete_btn = None
 
-        save_btn = PositiveButton("Salvar")
+        save_btn = make_button("Salvar", "positive")
         save_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         save_btn.clicked.connect(self._on_save)
         h.addWidget(save_btn)
+        self._shortcut_widgets["save"] = save_btn
 
         layout.addLayout(h)
+
+    def set_shortcuts_visible(self, show: bool):
+        for name, widget in self._shortcut_widgets.items():
+            _, label = SHORTCUT_LABELS[name]
+            if show:
+                key = SHORTCUT_LABELS[name][0]
+                widget.setText(f"{label} ({key})")
+            else:
+                widget.setText(label)
+        for placeholder, line_edit in self._shortcut_searches:
+            line_edit.setPlaceholderText(
+                f"{placeholder} (Ctrl+R)" if show else placeholder
+            )
+        self._malote_label.set_shortcut_hint_visible(show)
 
     def _update_registro_status(self, editing: bool):
         c = colors()
@@ -216,14 +251,17 @@ class EntryPage(QWidget, ToastMixin):
             )
 
     def _add_item_row(self, item_id: int | None = None):
-        row_frame = QFrame()
-        row_frame.setProperty("itemrow", True)
-        row_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        row_h = QHBoxLayout(row_frame)
-        row_h.setContentsMargins(6, 2, 6, 2)
+        row = QWidget()
+        row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        row_h = QHBoxLayout(row)
+        row_h.setContentsMargins(0, 0, 0, 0)
         row_h.setSpacing(6)
 
-        combo = SearchableComboBox("Buscar item...", on_search=self._search_items)
+        combo = SearchableComboBox(
+            "Buscar item...",
+            on_search=self._search_items,
+            on_delete_empty=lambda w=row: self._remove_item(w),
+        )
         combo.set_options(self._catalog_options)
         if item_id is not None:
             combo.set_current_by_data(str(item_id))
@@ -234,16 +272,16 @@ class EntryPage(QWidget, ToastMixin):
         remove_btn.setFixedSize(28, 28)
         remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_btn.clicked.connect(
-            lambda _checked=False, f=row_frame: self._remove_item(f)
+            lambda _checked=False, w=row: self._remove_item(w)
         )
         row_h.addWidget(remove_btn)
 
-        self._items_container.addWidget(row_frame)
+        self._items_container.addWidget(row)
         return combo
 
-    def _remove_item(self, frame: QFrame):
-        frame.setParent(None)
-        frame.deleteLater()
+    def _remove_item(self, widget: QWidget):
+        widget.setParent(None)
+        widget.deleteLater()
 
     def _on_paciente_selected(self, data):
         if not data:
@@ -326,24 +364,25 @@ class EntryPage(QWidget, ToastMixin):
 
     def focus_next_field(self):
         total_fields = 1 + self._items_container.count()
-        self._focus_index = (self._focus_index + 1) % total_fields
-
-        if self._focus_index == 0:
-            self._paciente_combo.focus_search()
+        for _ in range(total_fields):
+            self._focus_index = (self._focus_index + 1) % total_fields
+            combo = self._combo_at(self._focus_index)
+            if combo and combo._line_edit.hasFocus():
+                continue
+            if combo:
+                combo.focus_search()
             return
 
-        row_idx = self._focus_index - 1
+    def _combo_at(self, index: int):
+        if index == 0:
+            return self._paciente_combo
+        row_idx = index - 1
         if row_idx < self._items_container.count():
             item = self._items_container.itemAt(row_idx)
             frame = item.widget() if item else None
             if frame:
-                combo = frame.findChild(SearchableComboBox)
-                if combo:
-                    combo.focus_search()
-                    return
-
-        self._focus_index = 0
-        self._paciente_combo.focus_search()
+                return frame.findChild(SearchableComboBox)
+        return None
 
     def _on_save(self):
         item_ids = self._collect_item_ids()
@@ -386,10 +425,10 @@ class EntryPage(QWidget, ToastMixin):
         msg = "Registro editado!" if result.is_update else "Registro salvo!"
         self._toast(msg, "positive")
 
-        if not self._auto_switch.isChecked():
-            QTimer.singleShot(600, lambda: self._mw.navigate_to("start"))
+        if self._auto_switch.isChecked():
+            QTimer.singleShot(350, self._reset_form)
         else:
-            QTimer.singleShot(600, self._reset_form)
+            QTimer.singleShot(350, lambda: self._mw.navigate_to("start"))
 
     def _reset_form(self):
         self._edit_id = None
@@ -402,6 +441,7 @@ class EntryPage(QWidget, ToastMixin):
         self._update_registro_status(False)
         if self._delete_btn:
             self._delete_btn.hide()
+        self._paciente_combo.focus_search()
 
     def _confirm_delete(self):
         if not self._edit_id:
@@ -422,10 +462,10 @@ class EntryPage(QWidget, ToastMixin):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel = FlatButton("Cancelar")
+        cancel = make_button("Cancelar", "flat")
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
-        delete_btn = DestructiveButton("Excluir")
+        delete_btn = make_button("Excluir", "destructive")
         delete_btn.clicked.connect(lambda: self._do_delete(dlg))
         btn_row.addWidget(delete_btn)
         layout.addLayout(btn_row)

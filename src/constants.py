@@ -5,12 +5,12 @@ TIPO_LABELS = {
     "entrada": "Entrada",
     "renovacao": "Renovação",
     "retirada": "Retirada",
-    "urgente": "Urgente",
+    "urgente": "Resolver na hora",
 }
 
 TIPO_TITLES = {
     "entrada": "ENTRADAS",
     "renovacao": "RENOVAÇÕES",
     "retirada": "RETIRADAS",
-    "urgente": "URGENTES",
+    "urgente": "RESOLVER NA HORA",
 }

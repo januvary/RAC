@@ -7,76 +7,31 @@ Utilitários para processamento de texto e normalização
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime, date as date_type
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from src.models import Malote
 
-_ACCENT_MAP: Dict[str, str] = {
-    "Á": "A",
-    "É": "E",
-    "Í": "I",
-    "Ó": "O",
-    "Ú": "U",
-    "á": "a",
-    "é": "e",
-    "í": "i",
-    "ó": "o",
-    "ú": "u",
-    "À": "A",
-    "È": "E",
-    "Ì": "I",
-    "Ò": "O",
-    "Ù": "U",
-    "à": "a",
-    "è": "e",
-    "ì": "i",
-    "ò": "o",
-    "ù": "u",
-    "Â": "A",
-    "Ê": "E",
-    "Î": "I",
-    "Ô": "O",
-    "Û": "U",
-    "â": "a",
-    "ê": "e",
-    "î": "i",
-    "ô": "o",
-    "û": "u",
-    "Ã": "A",
-    "Õ": "O",
-    "Ñ": "N",
-    "ã": "a",
-    "õ": "o",
-    "ñ": "n",
-    "Ä": "A",
-    "Ë": "E",
-    "Ï": "I",
-    "Ö": "O",
-    "Ü": "U",
-    "ä": "a",
-    "ë": "e",
-    "ï": "i",
-    "ö": "o",
-    "ü": "u",
-    "Ç": "C",
-    "ç": "c",
-}
 
-_TRANSLATE_TABLE = str.maketrans(_ACCENT_MAP)
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 def normalize_text(text: str) -> str:
     if not text:
         return ""
-    return text.translate(_TRANSLATE_TABLE).lower()
+    return _strip_accents(text).lower()
 
 
 def to_upper_normalized(text: str) -> str:
     if not text:
         return ""
-    return text.translate(_TRANSLATE_TABLE).upper()
+    return _strip_accents(text).upper()
 
 
 def parse_date(text: Optional[str]) -> Optional[str]:

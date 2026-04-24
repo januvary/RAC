@@ -18,7 +18,7 @@ class RACStateManager:
     def __init__(self) -> None:
         self._active_malote: Optional[Malote] = None
         self._current_tipo: str = ""
-        self._auto_return: bool = True
+        self._stay_on_page: bool = False
         self._lock = threading.RLock()
 
     # ========== MALOTE ==========
@@ -47,10 +47,10 @@ class RACStateManager:
 
     # ========== CONFIG ==========
 
-    def get_auto_return(self) -> bool:
+    def get_stay_on_page(self) -> bool:
         with self._lock:
-            return self._auto_return
+            return self._stay_on_page
 
-    def set_auto_return(self, value: bool) -> None:
+    def set_stay_on_page(self, value: bool) -> None:
         with self._lock:
-            self._auto_return = value
+            self._stay_on_page = value

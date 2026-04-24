@@ -208,7 +208,7 @@ class TestDelete:
             service.delete(0)
 
     def test_delete_nonexistent_raises(self, service):
-        with pytest.raises(ValidationError, match="not found"):
+        with pytest.raises(ValidationError, match="não encontrado"):
             service.delete(9999)
 
 

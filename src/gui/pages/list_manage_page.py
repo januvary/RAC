@@ -18,13 +18,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from src.gui.components import (
-    DestructiveButton,
-    FlatButton,
+from src.gui.widgets import (
+    make_button,
     HeadingLabel,
-    PrimaryButton,
     ToastMixin,
 )
+from src.gui.constants import SHORTCUT_LABELS
 from src.gui.styles import colors
 
 
@@ -61,9 +60,10 @@ class ListManagePage(QWidget, ToastMixin):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
 
-        back_btn = FlatButton("Voltar")
+        back_btn = make_button("Voltar", "flat")
         back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
         h.addWidget(back_btn)
+        self._shortcut_widgets = {"back": back_btn}
         h.addStretch()
 
         layout.addLayout(h)
@@ -92,6 +92,10 @@ class ListManagePage(QWidget, ToastMixin):
         search_row.addWidget(self._item_search)
         tab_layout.addLayout(search_row)
 
+        self._shortcut_searches = [
+            ("Buscar medicamento...", self._item_search),
+        ]
+
         self._item_list = QListWidget()
         self._item_list.setAlternatingRowColors(True)
         self._item_list.setStyleSheet(self._list_style())
@@ -101,13 +105,13 @@ class ListManagePage(QWidget, ToastMixin):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
         btn_row.addStretch()
-        edit_btn = FlatButton("Editar")
+        edit_btn = make_button("Editar", "flat")
         edit_btn.clicked.connect(self._edit_selected_item)
         btn_row.addWidget(edit_btn)
-        add_btn = PrimaryButton("Adicionar")
+        add_btn = make_button("Adicionar", "primary")
         add_btn.clicked.connect(self._add_item)
         btn_row.addWidget(add_btn)
-        del_btn = DestructiveButton("Excluir")
+        del_btn = make_button("Excluir", "destructive")
         del_btn.clicked.connect(self._delete_selected_item)
         btn_row.addWidget(del_btn)
         tab_layout.addLayout(btn_row)
@@ -129,6 +133,10 @@ class ListManagePage(QWidget, ToastMixin):
         search_row.addWidget(self._paciente_search)
         tab_layout.addLayout(search_row)
 
+        self._shortcut_searches.append(
+            ("Buscar paciente...", self._paciente_search),
+        )
+
         self._paciente_list = QListWidget()
         self._paciente_list.setAlternatingRowColors(True)
         self._paciente_list.setStyleSheet(self._list_style())
@@ -138,13 +146,13 @@ class ListManagePage(QWidget, ToastMixin):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
         btn_row.addStretch()
-        edit_btn = FlatButton("Editar")
+        edit_btn = make_button("Editar", "flat")
         edit_btn.clicked.connect(self._edit_selected_paciente)
         btn_row.addWidget(edit_btn)
-        add_btn = PrimaryButton("Adicionar")
+        add_btn = make_button("Adicionar", "primary")
         add_btn.clicked.connect(self._add_paciente)
         btn_row.addWidget(add_btn)
-        del_btn = DestructiveButton("Excluir")
+        del_btn = make_button("Excluir", "destructive")
         del_btn.clicked.connect(self._delete_selected_paciente)
         btn_row.addWidget(del_btn)
         tab_layout.addLayout(btn_row)
@@ -172,10 +180,10 @@ class ListManagePage(QWidget, ToastMixin):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel = FlatButton("Cancelar")
+        cancel = make_button("Cancelar", "flat")
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
-        confirm = PrimaryButton("Confirmar")
+        confirm = make_button("Confirmar", "primary")
         btn_row.addWidget(confirm)
         layout.addLayout(btn_row)
 
@@ -257,10 +265,10 @@ class ListManagePage(QWidget, ToastMixin):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        cancel = FlatButton("Cancelar")
+        cancel = make_button("Cancelar", "flat")
         cancel.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel)
-        confirm = DestructiveButton("Excluir")
+        confirm = make_button("Excluir", "destructive")
         confirm.clicked.connect(dlg.accept)
         btn_row.addWidget(confirm)
         layout.addLayout(btn_row)
@@ -354,9 +362,9 @@ class ListManagePage(QWidget, ToastMixin):
         c = colors()
         return f"""
             QListWidget {{
-                border: 1px solid {c["border_light"]};
+                border: none;
                 border-radius: 6px;
-                background: {c["bg_card"]};
+                background: transparent;
                 alternate-background-color: {c["bg_card_alt"]};
                 font-size: 13px;
                 color: {c["text_primary"]};
@@ -407,3 +415,16 @@ class ListManagePage(QWidget, ToastMixin):
                 color: {c["text_primary"]};
             }}
         """
+
+    def set_shortcuts_visible(self, show: bool):
+        for name, widget in self._shortcut_widgets.items():
+            _, label = SHORTCUT_LABELS[name]
+            if show:
+                key = SHORTCUT_LABELS[name][0]
+                widget.setText(f"{label} ({key})")
+            else:
+                widget.setText(label)
+        for placeholder, line_edit in self._shortcut_searches:
+            line_edit.setPlaceholderText(
+                f"{placeholder} (Ctrl+R)" if show else placeholder
+            )

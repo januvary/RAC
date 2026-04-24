@@ -19,3 +19,21 @@ TIPO_SYMBOLS = {
     "retirada": "\u25bc",
     "urgente": "!",
 }
+
+SHORTCUT_LABELS: dict[str, tuple[str, str]] = {
+    "save": ("Ctrl+S", "Salvar"),
+    "export": ("Ctrl+E", "Exportar Planilha"),
+    "back": ("Esc", "Voltar"),
+    "preview": ("Ctrl+G", "Visualizar Malote"),
+    "lists": ("Ctrl+T", "Gerenciar Listas"),
+    "add_item": ("Ctrl+F", "+ Adicionar Item"),
+    "toggle_docs": ("Ctrl+W", "Esperando documentos"),
+    "toggle_stay": ("Ctrl+Q", "Ficar nesta tela"),
+}
+
+TIPO_SHORTCUT_KEYS: dict[str, str] = {
+    "entrada": "Ctrl+1",
+    "renovacao": "Ctrl+2",
+    "retirada": "Ctrl+3",
+    "urgente": "Ctrl+4",
+}

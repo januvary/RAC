@@ -16,7 +16,7 @@ from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
 
 @dataclass
 class RACConfig:
-    auto_return: bool = True
+    stay_on_page: bool = False
     theme: str = "dark"
     last_malote_id: Optional[int] = None
     save_path: Optional[Path] = None
@@ -27,9 +27,9 @@ class RACConfig:
         self.validate()
 
     def validate(self) -> None:
-        if not isinstance(self.auto_return, bool):
+        if not isinstance(self.stay_on_page, bool):
             raise ValueError(
-                f"auto_return must be bool, got {type(self.auto_return).__name__}"
+                f"stay_on_page must be bool, got {type(self.stay_on_page).__name__}"
             )
 
         if self.theme not in ("dark", "light"):
@@ -45,7 +45,7 @@ class RACConfig:
 
     def to_dict(self) -> dict:
         return {
-            "auto_return": self.auto_return,
+            "stay_on_page": self.stay_on_page,
             "theme": self.theme,
             "last_malote_id": self.last_malote_id,
             "save_path": str(self.save_path),
@@ -54,7 +54,7 @@ class RACConfig:
     @staticmethod
     def get_defaults() -> "RACConfig":
         return RACConfig(
-            auto_return=True,
+            stay_on_page=False,
             theme="dark",
             last_malote_id=None,
             save_path=Path.home() / "Downloads",
@@ -85,6 +85,9 @@ class ConfigManager:
 
                 if "save_path" in data:
                     data["save_path"] = Path(data["save_path"])
+
+                if "auto_return" in data and "stay_on_page" not in data:
+                    data["stay_on_page"] = not data.pop("auto_return")
 
                 config = RACConfig(**data)
                 ErrorHandler.log(
@@ -146,7 +149,7 @@ class ConfigManager:
             self._config = self._load()
 
         try:
-            if key == "auto_return":
+            if key == "stay_on_page":
                 if not isinstance(value, bool):
                     return False
             elif key == "theme":

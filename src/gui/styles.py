@@ -7,12 +7,12 @@ Global QSS stylesheet — native Qt feel with theme support
 _current_theme: str = "light"
 
 LIGHT_COLORS = {
-    "bg_main": "#FAFAFA",
-    "bg_card": "white",
-    "bg_card_alt": "#F9FAFB",
-    "bg_hover": "#F3F4F6",
-    "bg_pressed": "#E5E7EB",
-    "bg_input": "white",
+    "bg_main": "#F3F2ED",
+    "bg_card": "#F9F8F3",
+    "bg_card_alt": "#EEEEE8",
+    "bg_hover": "#E6E5DF",
+    "bg_pressed": "#DBDAD3",
+    "bg_input": "#F9F8F3",
     "border": "#D1D5DB",
     "border_light": "#E5E7EB",
     "text_primary": "#374151",
@@ -37,7 +37,7 @@ LIGHT_COLORS = {
 DARK_COLORS = {
     "bg_main": "#111827",
     "bg_card": "#1F2937",
-    "bg_card_alt": "#374151",
+    "bg_card_alt": "#283040",
     "bg_hover": "#374151",
     "bg_pressed": "#4B5563",
     "bg_input": "#1F2937",
@@ -46,10 +46,10 @@ DARK_COLORS = {
     "text_primary": "#F9FAFB",
     "text_secondary": "#9CA3AF",
     "text_dark": "#F9FAFB",
-    "selection_bg": "#1E3A5F",
+    "selection_bg": "#1E3A8A",
     "selection_text": "#F9FAFB",
     "separator": "#374151",
-    "gridline": "#374151",
+    "gridline": "#252D3A",
     "scrollbar": "#4B5563",
     "scrollbar_hover": "#6B7280",
     "toast_positive_fg": "#34D399",
@@ -59,7 +59,7 @@ DARK_COLORS = {
     "toast_negative_fg": "#F87171",
     "toast_negative_bg": "#7F1D1D",
     "toast_info_fg": "#60A5FA",
-    "toast_info_bg": "#1E3A5F",
+    "toast_info_bg": "#1E3A8A",
 }
 
 
@@ -88,6 +88,31 @@ def get_stylesheet(theme: str | None = None) -> str:
     resolved = theme or _current_theme
     c = DARK_COLORS if resolved == "dark" else LIGHT_COLORS
     return _build_qss(c)
+
+
+def tipo_button_qss(hex_color: str) -> str:
+    c = colors()
+    return f"""
+        QPushButton[tipobtn="true"] {{
+            background-color: {c["bg_card"]};
+            border: 1px solid {c["border_light"]};
+            border-left: 3px solid {hex_color};
+            border-radius: 8px;
+            padding: 20px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            color: {c["text_primary"]};
+        }}
+        QPushButton[tipobtn="true"]:hover {{
+            background-color: {c["bg_card_alt"]};
+            border-left: 3px solid {hex_color};
+            border-color: {c["border"]};
+        }}
+        QPushButton[tipobtn="true"]:pressed {{
+            background-color: {c["bg_hover"]};
+            border-left: 3px solid {hex_color};
+        }}
+    """
 
 
 def _build_qss(c: dict) -> str:
@@ -266,14 +291,6 @@ QPushButton[tipobtn="true"]:pressed {{
     background-color: {c["bg_hover"]};
 }}
 
-/* -- Item Row -- */
-QFrame[itemrow="true"] {{
-    background-color: {c["bg_card"]};
-    border: 1px solid {c["border_light"]};
-    border-radius: 6px;
-    padding: 4px;
-}}
-
 /* -- Dialog -- */
 QDialog {{
     background-color: {c["bg_card"]};
@@ -399,5 +416,47 @@ QListView {{
 /* -- Table alternating rows -- */
 QTableWidget {{
     alternate-background-color: {c["bg_card_alt"]};
+}}
+
+/* -- Malote Label -- */
+QLabel[malotelabel="true"] {{
+    color: {c["text_primary"]};
+    font-size: 22px;
+    font-weight: 400;
+}}
+
+/* -- Theme Toggle Button -- */
+QPushButton[btnrole="theme-toggle"] {{
+    border: none;
+    font-size: 16px;
+    padding: 0;
+}}
+
+/* -- Toast -- */
+QLabel[toastkind] {{
+    border-radius: 7px;
+    padding: 9px 17px;
+    font-weight: 500;
+    font-size: 15px;
+}}
+QLabel[toastkind="positive"] {{
+    background-color: {c["toast_positive_bg"]};
+    color: {c["toast_positive_fg"]};
+    border: 1px solid {c["toast_positive_fg"]}33;
+}}
+QLabel[toastkind="warning"] {{
+    background-color: {c["toast_warning_bg"]};
+    color: {c["toast_warning_fg"]};
+    border: 1px solid {c["toast_warning_fg"]}33;
+}}
+QLabel[toastkind="negative"] {{
+    background-color: {c["toast_negative_bg"]};
+    color: {c["toast_negative_fg"]};
+    border: 1px solid {c["toast_negative_fg"]}33;
+}}
+QLabel[toastkind="info"] {{
+    background-color: {c["toast_info_bg"]};
+    color: {c["toast_info_fg"]};
+    border: 1px solid {c["toast_info_fg"]}33;
 }}
 """

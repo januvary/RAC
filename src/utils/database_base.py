@@ -10,13 +10,32 @@ import time
 import threading
 import shutil
 from abc import ABC, abstractmethod
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Callable, Literal, Optional, ParamSpec, TypeVar
 
 from src.utils.paths import resolve_db_path
 from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _db_op(op_type: str = "read") -> Callable[[Callable[_P, _R]], Callable[_P, _R]]:
+    def decorator(func: Callable[_P, _R]) -> Callable[_P, _R]:
+        def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+            db: Any = args[0]  # type: ignore[assignment]
+            return db._retry_on_transient_error(
+                lambda: func(*args, **kwargs),
+                operation_type=op_type,
+            )
+
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__ = func.__doc__
+        return wrapper
+
+    return decorator
 
 
 class BaseDatabase(ABC):
@@ -43,27 +62,25 @@ class BaseDatabase(ABC):
         pass
 
     def _ensure_schema_version(self) -> int:
-        cursor = self._get_cursor()
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS _schema_meta (key TEXT PRIMARY KEY, value TEXT)"
-        )
-        self._commit()
-        cursor.execute("SELECT value FROM _schema_meta WHERE key = 'version'")
-        row = cursor.fetchone()
-        cursor.close()
+        with self._cursor() as cur:
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS _schema_meta (key TEXT PRIMARY KEY, value TEXT)"
+            )
+            self._commit()
+            cur.execute("SELECT value FROM _schema_meta WHERE key = 'version'")
+            row = cur.fetchone()
         if row is None:
             return 0
         stored = int(row["value"] if isinstance(row, dict) else row[0])
         return stored
 
     def _set_schema_version(self, version: int) -> None:
-        cursor = self._get_cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
-            ("version", str(version)),
-        )
-        self._commit()
-        cursor.close()
+        with self._cursor() as cur:
+            cur.execute(
+                "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
+                ("version", str(version)),
+            )
+            self._commit()
 
     def _resolve_default_db_path(self) -> str:
         return resolve_db_path("database.db", create_dir=True)
@@ -80,14 +97,13 @@ class BaseDatabase(ABC):
             self.close()
 
     def _setup_pragmas(self) -> None:
-        cursor = self._get_cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA journal_mode=TRUNCATE")
-        cursor.execute("PRAGMA synchronous=FULL")
-        cursor.execute("PRAGMA cache_size=-2000")
-        cursor.execute("PRAGMA busy_timeout=10000")
-        cursor.execute("PRAGMA temp_store=MEMORY")
-        cursor.close()
+        with self._cursor() as cur:
+            cur.execute("PRAGMA foreign_keys=ON")
+            cur.execute("PRAGMA journal_mode=TRUNCATE")
+            cur.execute("PRAGMA synchronous=FULL")
+            cur.execute("PRAGMA cache_size=-2000")
+            cur.execute("PRAGMA busy_timeout=10000")
+            cur.execute("PRAGMA temp_store=MEMORY")
 
     def _initialize(self) -> None:
         max_retries = 5
@@ -178,6 +194,14 @@ class BaseDatabase(ABC):
         with self._lock:
             assert self.conn is not None, "Database connection not initialized"
             return self.conn
+
+    @contextmanager
+    def _cursor(self):
+        cursor = self._get_cursor()
+        try:
+            yield cursor
+        finally:
+            cursor.close()
 
     def _commit(self) -> None:
         with self._lock:

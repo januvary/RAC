@@ -94,7 +94,7 @@ Single `.xlsx` file, generated on demand from Start Screen. Structure:
 
 Saved to JSON, same pattern as Emissor:
 
-- `auto_return`: bool (default true)
+- `stay_on_page`: bool (default false)
 - `theme`: `"dark"` | `"light"`
 - `last_lote_id`: int — restores active malote on relaunch
 - `save_path`: str — default export destination, user downloads by default.
