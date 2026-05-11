@@ -27,7 +27,8 @@ from src.gui.widgets import (
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS, SHORTCUT_LABELS
 from src.gui.styles import colors
-from src.utils.error_handler import ErrorHandler, ErrorContext
+from andaime.error_handler import ErrorHandler, ErrorLevel
+
 from src.utils.text_utils import format_malote_date
 from src.services.exceptions import DuplicateRecordError
 
@@ -252,7 +253,7 @@ class PreviewPage(QWidget, ToastMixin):
             self._toast("Registro já existe nesse tipo para esse paciente", "warning")
         except Exception as e:
             ErrorHandler.handle_error(
-                e, context=ErrorContext.REGISTRO, show_dialog=False
+                e, context="Registro", show_dialog=False
             )
             self._toast(f"Erro: {e}", "negative")
 
@@ -267,7 +268,7 @@ class PreviewPage(QWidget, ToastMixin):
             )
         except Exception as e:
             ErrorHandler.handle_error(
-                e, context=ErrorContext.REGISTRO, show_dialog=False
+                e, context="Registro", show_dialog=False
             )
             self._toast(f"Erro: {e}", "negative")
 
@@ -322,7 +323,7 @@ class PreviewPage(QWidget, ToastMixin):
             self._toast("Nome do paciente atualizado", "positive")
         except Exception as e:
             ErrorHandler.handle_error(
-                e, context=ErrorContext.REGISTRO, show_dialog=False
+                e, context="Registro", show_dialog=False
             )
             self._toast(f"Erro: {e}", "negative")
 

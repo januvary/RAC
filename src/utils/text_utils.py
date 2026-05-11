@@ -1,37 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Text Utilities
-Utilitários para processamento de texto e normalização
-"""
-
 from __future__ import annotations
 
-import unicodedata
 from datetime import datetime, date as date_type
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from src.models import Malote
-
-
-def _strip_accents(text: str) -> str:
-    return "".join(
-        c for c in unicodedata.normalize("NFKD", text)
-        if unicodedata.category(c) != "Mn"
-    )
-
-
-def normalize_text(text: str) -> str:
-    if not text:
-        return ""
-    return _strip_accents(text).lower()
-
-
-def to_upper_normalized(text: str) -> str:
-    if not text:
-        return ""
-    return _strip_accents(text).upper()
 
 
 def parse_date(text: Optional[str]) -> Optional[str]:

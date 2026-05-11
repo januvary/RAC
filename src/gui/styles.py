@@ -75,7 +75,7 @@ def get_theme() -> str:
 def toggle_theme() -> str:
     global _current_theme
     _current_theme = "light" if _current_theme == "dark" else "dark"
-    from src.utils.config import ConfigManager
+    from andaime.config import ConfigManager
     ConfigManager().set("theme", _current_theme)
     return _current_theme
 
@@ -212,6 +212,7 @@ QPushButton[btnrole="negative"]:pressed {{
 QPushButton[btnrole="flat"] {{
     background-color: transparent;
     border: none;
+    padding: 4px 12px;
     color: {c["text_secondary"]};
 }}
 QPushButton[btnrole="flat"]:hover {{

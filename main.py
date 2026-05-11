@@ -6,13 +6,16 @@ RAC Entry Point (PySide6 native desktop)
 
 import sys
 import os
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import andaime
 
 
 def _load_bundled_fonts():
     from PySide6.QtGui import QFontDatabase
-    from src.utils.paths import get_root_directory
+    from andaime.paths import get_root_directory
 
     fonts_dir = get_root_directory() / "fonts"
     if fonts_dir.is_dir():
@@ -23,8 +26,14 @@ def _load_bundled_fonts():
 
 
 def main():
+    andaime.init("RAC", "RACRegistros", root=Path(__file__).parent)
+
     from PySide6.QtWidgets import QApplication
     from PySide6.QtGui import QFont
+
+    from src.utils.config import RACConfig
+    from andaime.config import ConfigManager
+    ConfigManager.init(RACConfig)
 
     from src.gui.styles import set_theme, get_stylesheet
 
@@ -36,7 +45,6 @@ def main():
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
-    from src.utils.config import ConfigManager
     config = ConfigManager()
     theme = config.get("theme", "dark")
     set_theme(theme)

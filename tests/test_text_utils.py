@@ -1,9 +1,5 @@
-from src.utils.text_utils import (
-    normalize_text,
-    to_upper_normalized,
-    parse_date,
-    format_malote_date,
-)
+from andaime.text import normalize_text, to_upper_normalized
+from src.utils.text_utils import parse_date, format_malote_date
 from src.models import Malote
 
 

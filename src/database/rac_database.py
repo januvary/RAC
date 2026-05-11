@@ -9,10 +9,11 @@ import sqlite3
 from typing import Optional
 from datetime import datetime
 
-from src.utils.database_base import BaseDatabase, _db_op
-from src.utils.paths import resolve_db_path
-from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
-from src.utils.text_utils import to_upper_normalized
+from andaime.database import BaseDatabase, _db_op
+from andaime.paths import resolve_db_path
+from andaime.error_handler import ErrorHandler, ErrorLevel
+from andaime.text import to_upper_normalized
+
 from src.database.definitive_catalog import DEFINITIVE_CATALOG
 from src.services.exceptions import DuplicateRecordError
 from src.models import (
@@ -110,7 +111,7 @@ class RACDatabase(BaseDatabase):
             ErrorHandler.log(
                 f"Migration v{version} applied successfully",
                 level=ErrorLevel.INFO,
-                context=ErrorContext.DATABASE,
+                context="Database",
             )
 
     def _log_initialization_success(self) -> None:
@@ -118,7 +119,7 @@ class RACDatabase(BaseDatabase):
         ErrorHandler.log(
             f"RACDatabase inicializado - {count} itens no catálogo",
             level=ErrorLevel.INFO,
-            context=ErrorContext.DATABASE,
+            context="Database",
         )
 
     def _seed_catalog_if_empty(self) -> None:
@@ -136,7 +137,7 @@ class RACDatabase(BaseDatabase):
                 ErrorHandler.log(
                     f"Catálogo inicializado com {len(DEFINITIVE_CATALOG)} itens",
                     level=ErrorLevel.INFO,
-                    context=ErrorContext.DATABASE,
+                    context="Database",
                 )
 
     def _get_catalog_count(self) -> int:

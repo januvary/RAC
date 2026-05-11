@@ -28,8 +28,9 @@ from src.gui.widgets import (
 from src.models import Registro
 from src.services.registro_service import RegistroService
 from src.services.exceptions import ValidationError, DuplicateRecordError
-from src.utils.error_handler import ErrorHandler, ErrorContext
-from src.utils.text_utils import to_upper_normalized
+from andaime.error_handler import ErrorHandler, ErrorLevel
+from andaime.text import to_upper_normalized
+
 from src.gui.styles import colors
 from src.gui.constants import SHORTCUT_LABELS
 
@@ -109,23 +110,11 @@ class EntryPage(QWidget, ToastMixin):
         self._shortcut_widgets["back"] = back_btn
         h.addWidget(back_btn, 0, Qt.AlignmentFlag.AlignTop)
         h.addStretch()
-
-        self._status_label = QLabel()
-        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        h.addWidget(self._status_label)
-
+        h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignVCenter)
         h.addStretch()
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
         layout.addLayout(h)
-
-        tipo_row = QHBoxLayout()
-        tipo_row.setContentsMargins(0, 0, 0, 0)
-        tipo_row.addStretch()
-        tipo_row.addWidget(self._tipo_combo)
-
-        layout.addLayout(tipo_row)
-        self._update_registro_status(self._is_editing)
 
     def _build_patient_section(self, layout: QVBoxLayout):
         h = QHBoxLayout()
@@ -195,6 +184,12 @@ class EntryPage(QWidget, ToastMixin):
 
         h.addStretch()
 
+        self._status_label = QLabel()
+        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        h.addWidget(self._status_label)
+
+        h.addStretch()
+
         stay_label = QLabel("Ficar nesta tela")
         c = colors()
         stay_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 12px; border: none;")
@@ -222,6 +217,7 @@ class EntryPage(QWidget, ToastMixin):
         self._shortcut_widgets["save"] = save_btn
 
         layout.addLayout(h)
+        self._update_registro_status(self._is_editing)
 
     def set_shortcuts_visible(self, show: bool):
         for name, widget in self._shortcut_widgets.items():
@@ -417,7 +413,7 @@ class EntryPage(QWidget, ToastMixin):
             return
         except Exception as e:
             ErrorHandler.handle_error(
-                e, context=ErrorContext.REGISTRO, show_dialog=False
+                e, context="Registro", show_dialog=False
             )
             self._toast(f"Erro ao salvar: {e}", "negative")
             return
@@ -483,6 +479,6 @@ class EntryPage(QWidget, ToastMixin):
             QTimer.singleShot(800, lambda: self._mw.navigate_to("start"))
         except Exception as e:
             ErrorHandler.handle_error(
-                e, context=ErrorContext.REGISTRO, show_dialog=False
+                e, context="Registro", show_dialog=False
             )
             self._toast(f"Erro: {e}", "negative")

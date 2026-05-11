@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.config import ConfigManager, RACConfig
+import andaime.config
+from andaime.config import ConfigManager
+from src.utils.config import RACConfig
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +28,7 @@ def config_path(config_dir):
 
 @pytest.fixture
 def config_manager(config_path, monkeypatch):
-    monkeypatch.setattr("src.utils.config.get_config_path", lambda: config_path)
+    monkeypatch.setattr("andaime.config.get_config_path", lambda: config_path)
     return ConfigManager()
 
 
@@ -128,7 +130,7 @@ class TestConfigManagerPersistence:
 
 class TestConfigManagerCorruptFile:
     def test_invalid_json_uses_defaults(self, config_path, monkeypatch):
-        monkeypatch.setattr("src.utils.config.get_config_path", lambda: config_path)
+        monkeypatch.setattr("andaime.config.get_config_path", lambda: config_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text("{invalid json")
 
@@ -136,7 +138,7 @@ class TestConfigManagerCorruptFile:
         assert cm.get("theme") == "dark"
 
     def test_invalid_values_uses_defaults(self, config_path, monkeypatch):
-        monkeypatch.setattr("src.utils.config.get_config_path", lambda: config_path)
+        monkeypatch.setattr("andaime.config.get_config_path", lambda: config_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(json.dumps({"theme": "blue"}))
 
@@ -146,13 +148,13 @@ class TestConfigManagerCorruptFile:
 
 class TestConfigManagerSingleton:
     def test_returns_same_instance(self, config_path, monkeypatch):
-        monkeypatch.setattr("src.utils.config.get_config_path", lambda: config_path)
+        monkeypatch.setattr("andaime.config.get_config_path", lambda: config_path)
         a = ConfigManager()
         b = ConfigManager()
         assert a is b
 
     def test_reset_clears_instance(self, config_path, monkeypatch):
-        monkeypatch.setattr("src.utils.config.get_config_path", lambda: config_path)
+        monkeypatch.setattr("andaime.config.get_config_path", lambda: config_path)
         a = ConfigManager()
         ConfigManager._reset()
         b = ConfigManager()

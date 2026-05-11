@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QCompleter
 from src.gui.widgets._completer import _SearchCompleter, _CenteredComboBox, _CenteredDelegate
 from src.gui.constants import TIPO_HEX, TIPO_LABELS, TIPO_SYMBOLS
 from src.gui.styles import colors
-from src.utils.text_utils import normalize_text
+from andaime.text import normalize_text
 
 
 class SearchableComboBox(QWidget):

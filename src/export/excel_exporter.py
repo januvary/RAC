@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, Optional
 from datetime import datetime
 from pathlib import Path
 
-from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
+from andaime.error_handler import ErrorHandler, ErrorLevel
+
 from src.constants import TIPO_LABELS, TIPO_TITLES
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ class ExcelExporter:
             ErrorHandler.log(
                 "openpyxl não instalado",
                 level=ErrorLevel.ERROR,
-                context=ErrorContext.EXPORT,
+                context="Exportação",
             )
             return None
 
@@ -85,14 +86,24 @@ class ExcelExporter:
                     ]
                 )
 
-            max_a = 10
-            max_b = 10
+            _wide_chars = set("MWGQCOHUDBDNRAEKPSVXFZ&mw")
+
+            def _estimate_width(text: str) -> float:
+                return sum(
+                    1.15 if c in _wide_chars else 0.75 for c in text
+                )
+
+            max_a = 10.0
+            max_b = 10.0
             for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
                 a_val = str(row[0].value or "")
-                max_a = max(max_a, len(a_val))
+                max_a = max(max_a, _estimate_width(a_val))
                 b_val = row[1].value
                 if b_val:
-                    longest_line = max(len(line) for line in str(b_val).split("\n"))
+                    longest_line = max(
+                        _estimate_width(line)
+                        for line in str(b_val).split("\n")
+                    )
                     max_b = max(max_b, longest_line)
 
             ws.column_dimensions["A"].width = min(max_a + 4, 50)
@@ -116,18 +127,18 @@ class ExcelExporter:
                 cell.font = title1_font
                 cell.alignment = center
                 cell.border = thin_border
+            ws.row_dimensions[1].height = 30
+
             for cell in ws[2]:
                 cell.font = title2_font
                 cell.alignment = center
                 cell.border = thin_border
+            ws.row_dimensions[2].height = 26
 
             for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
                 for cell in row:
                     cell.font = main_font
-                    if cell.value and "\n" in str(cell.value):
-                        cell.alignment = center_wrap
-                    else:
-                        cell.alignment = center
+                    cell.alignment = center_wrap
                     if cell.value is not None:
                         cell.border = thin_border
 
@@ -148,7 +159,7 @@ class ExcelExporter:
             safe_date = date_display.replace("/", "-")
             filename = f"Malote_{safe_date}_{timestamp}.xlsx"
 
-            from src.utils.config import ConfigManager
+            from andaime.config import ConfigManager
 
             config = ConfigManager()
             save_path = config.get("save_path", Path.home() / "Downloads")
@@ -164,7 +175,7 @@ class ExcelExporter:
             ErrorHandler.log(
                 f"Planilha exportada: {full_path}",
                 level=ErrorLevel.INFO,
-                context=ErrorContext.EXPORT,
+                context="Exportação",
             )
 
             return str(full_path)
@@ -172,7 +183,7 @@ class ExcelExporter:
         except Exception as e:
             ErrorHandler.handle_error(
                 e,
-                context=ErrorContext.EXPORT,
+                context="Exportação",
                 recovery_hint="Verifique permissões de escrita no diretório de salvamento",
             )
             raise SavePathError(str(e)) from e

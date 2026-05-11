@@ -27,7 +27,8 @@ from src.gui.widgets import (
     ToastMixin,
 )
 from src.gui.constants import TIPO_LABELS, SHORTCUT_LABELS, TIPO_SHORTCUT_KEYS, TIPO_SYMBOLS
-from src.utils.error_handler import ErrorHandler, ErrorContext
+from andaime.error_handler import ErrorHandler, ErrorLevel
+
 from src.export.excel_exporter import ExcelExporter, SavePathError
 
 
@@ -205,7 +206,7 @@ class StartPage(QWidget, ToastMixin):
             except SavePathError as e:
                 self._toast(f"Erro ao exportar: {e}", "negative")
         except Exception as e:
-            ErrorHandler.handle_error(e, context=ErrorContext.EXPORT, show_dialog=False)
+            ErrorHandler.handle_error(e, context="Exportação", show_dialog=False)
             self._toast(f"Erro ao exportar: {e}", "negative")
 
     def _on_lists(self):

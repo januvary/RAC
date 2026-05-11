@@ -2,11 +2,11 @@ RAC
 
 ---
 
-# Spec — Registros Alto Custo
+# Spec — Registros Alto Custo (Alto Custo = CEAF)
 
 ## Overview
 
-Desktop application for registering and managing patient medication records across four workflow types, with batch-based organization and weekly spreadsheet export. Built in Python with CustomTkinter + SQLite, mirroring the architecture of Emissor de Recibos.
+Desktop application for registering and managing patient medication records across four workflow types, with batch-based organization and weekly spreadsheet export. Built in Python with **PySide6** + SQLite, with a layered architecture (database → services → state → GUI).
 
 ---
 
@@ -14,122 +14,207 @@ Desktop application for registering and managing patient medication records acro
 
 ```sql
 malotes
-  id          INTEGER PRIMARY KEY
-  date        TEXT        -- stored as ISO, displayed formatted
+  id          INTEGER PRIMARY KEY AUTOINCREMENT
+  date        TEXT NOT NULL
 
 pacientes
-  id          INTEGER PRIMARY KEY
-  name        TEXT NOT NULL
+  id          INTEGER PRIMARY KEY AUTOINCREMENT
+  name        TEXT NOT NULL UNIQUE
 
 items_catalog
-  id          INTEGER PRIMARY KEY
-  name        TEXT NOT NULL
+  id          INTEGER PRIMARY KEY AUTOINCREMENT
+  name        TEXT NOT NULL UNIQUE
+  unidade     TEXT NOT NULL DEFAULT 'un'
 
 registros
-  id          INTEGER PRIMARY KEY
-  tipo        TEXT NOT NULL   -- 'entrada' | 'renovacao' | 'retirada' | 'urgente'
-  paciente_id INTEGER REFERENCES pacientes(id)
-  malote_id     INTEGER REFERENCES malotes(id)
-  created_at  TEXT
+  id            INTEGER PRIMARY KEY AUTOINCREMENT
+  tipo          TEXT NOT NULL     -- 'entrada' | 'renovacao' | 'retirada' | 'urgente'
+  paciente_id   INTEGER NOT NULL REFERENCES pacientes(id)
+  malote_id     INTEGER NOT NULL REFERENCES malotes(id)
+  created_at    TEXT NOT NULL
+  waiting_docs  INTEGER NOT NULL DEFAULT 0
+  UNIQUE (tipo, paciente_id, malote_id)
 
 registro_items
-  id            INTEGER PRIMARY KEY
-  registro_id   INTEGER REFERENCES registros(id) ON DELETE CASCADE
-  item_id       INTEGER REFERENCES items_catalog(id)
+  id            INTEGER PRIMARY KEY AUTOINCREMENT
+  registro_id   INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE
+  item_id       INTEGER NOT NULL REFERENCES items_catalog(id)
 ```
+
+Indexes on `registros(malote_id)`, `registros(paciente_id)`, `registros(tipo)`, `pacientes(name COLLATE NOCASE)`, `registro_items(registro_id)`, `registro_items(item_id)`.
+
+---
+
+## Tipo Labels
+
+| Key        | Label              |
+|------------|--------------------|
+| entrada    | Entrada            |
+| renovacao  | Renovação          |
+| retirada   | Retirada           |
+| urgente    | Resolver na hora   |
 
 ---
 
 ## UI Architecture
 
-### Start Screen
+### Start Page
 
 The permanent home base. Contains:
 
-- **Active malote display** — shown prominently as a title (e.g. *"08/04/2026"* or label if set). Clicking it opens the malote switcher.
-- **Malote switcher** — dropdown showing 5 most recent malotes, sorted by most recently created. Footer options: *Ver todos* (opens full list dialog) and *Novo malote* (opens creation popup). Selecting a malote updates it globally and immediately.
-- **Four tipo buttons** — large, equal-sized, clearly labeled: Entrada, Renovação, Retirada, Urgente. Each navigates to the Entry Screen for that tipo.
-- **Search bar** — searches across registros in the active malote by patient name. Results show inline below the bar with tipo badge, patient name, and batch date (one entry per patient per malote). Clicking a result opens the Entry Screen that registro.
-- **Export button** — generates and downloads a single `.xlsx` with four tabs (one per tipo), filtered to active malote, patients sorted alphabetically. Disabled if no active malote.
+- **Theme toggle button** — switches between dark/light theme.
+- **Active malote display** — shown as a clickable label (e.g. *"08/04/2026"*). Clicking opens the malote dialog.
+- **Search bar** — searches across registros in the active malote by patient name. Results show patient name + tipo badge. Clicking a result opens the Entry Page in edit mode.
+- **Four tipo buttons** — in a 2×2 grid: Entrada, Renovação, Retirada, Resolver na hora. Each navigates to the Entry Page for that tipo. Requires an active malote.
+- **Visualizar Malote button** — navigates to the Preview Page.
+- **Exportar Planilha button** — generates and downloads a `.xlsx`. Disabled if no active malote.
+- **Gerenciar Listas button** — navigates to the List Manage Page.
 
-### Entry Screen
+### Entry Page
 
-Reached by clicking a tipo button (new record) or a search result (edit mode). Header shows the active malote as title and the tipo as subtitle.
+Reached by clicking a tipo button (new record) or a search result (edit mode). Header shows a tipo combo (switchable) and the malote label (switchable).
 
-- **Patient field** — text input with live dropdown as you type, searching `pacientes` by name. Dropdown shows matches. Separate *"Novo paciente"* button adjacent to the field - saves the typed in name as a new patient if unexistent.
-- **Items list** — vertical list of selected items. Each row shows item name + remove button. *"Adicionar item"* button adds a row and selects text input, opening a lookup dropdown from `items_catalog`. 
-- **Save button** — saves registro and registro_items. If auto-return is on, navigates back to start screen. If off, clears the form for another entry of the same tipo.
-- **Auto-return toggle** — small, tucked in a corner. Default: on. Persistent across sessions via config.
-- **Back button** — returns to start screen without saving.
+- **Patient field** — searchable combo with live dropdown filtering `pacientes` by name. Patients are auto-created on save if not found (no separate "Novo paciente" button needed).
+- **Items list** — vertical list of searchable combos, each picking from `items_catalog`. Each row has a remove button. *"Adicionar Item"* button adds a new row. When a patient is selected, previous items from that patient's other registros are pre-populated. If an existing registro is found for the same tipo/paciente/malote, it loads into edit mode.
+- **Esperando documentos checkbox** — marks the registro as waiting for documents; excluded from spreadsheet export.
+- **Ficar nesta tela checkbox** — when checked, the form resets after save instead of navigating back. Default: unchecked. Persisted via config (`stay_on_page`).
+- **Status label** — shows "Novo registro" or "Editando registro".
+- **Delete button** — visible only in edit mode. Confirms before deleting.
+- **Save button** — saves registro and registro_items. Navigates back or resets form depending on stay-on-page toggle.
+- **Back button** — returns to start page without saving.
 
-### Malote Creation Popup
+### Malote Dialog
 
-Small modal triggered from malote switcher. Contains:
-- Date input — accepts loose formats (`08/04`, `08/04/26`), auto-completes to full date with current year assumed
-- Confirm and cancel buttons
-- On confirm: saves malote, sets it as active malote
+Modal tree view triggered from the malote label. Contains:
 
-### New Patient Popup
+- **Tree view** — groups malotes by year (previous years collapsed). Active malote shown with checkmark and bold text. Clicking a malote sets it as active.
+- **Right-click context menu** — Edit (opens edit dialog), Delete (only if no registros exist in the malote).
+- **Novo Malote button** — opens creation popup.
+- **Creation popup** — date input accepting loose formats (`08/04`, `08/04/26`), auto-completes to full date. On confirm: saves malote, sets it as active.
 
-Small modal triggered from Entry Screen. Contains:
-- Name field (pre-filled with whatever was typed in the patient search field)
-- Confirm and cancel buttons
-- On confirm: saves patient, auto-selects in Entry Screen
+### Preview Page
+
+Tabbed table view of all registros in the active malote:
+
+- **Tabs** — one per tipo, with count in tab label (e.g. "Entradas (5)").
+- **Search** — per-tab search bar filtering by patient name or medication.
+- **Table** — columns: Nome | Medicamentos (newline-separated). Rows sorted alphabetically by patient name. Double-click a row to open it in the Entry Page.
+- **Right-click context menu** — Edit → Tipo (change tipo), Edit → Malote (move to another malote), Edit → Nome do paciente (rename patient).
+- **Registros with `waiting_docs=1` are excluded** from this view.
+
+### List Manage Page
+
+Tabbed view for managing medications and patients:
+
+- **Medicamentos tab** — searchable list of all items from `items_catalog`. Add, edit (double-click), delete items. Delete blocked if item is in use.
+- **Pacientes tab** — searchable list of all patients. Add, edit (double-click), delete patients. Delete blocked if patient has registros.
+
+---
+
+## Keyboard Shortcuts
+
+Holding **Ctrl+Shift** shows shortcut hints on all buttons and search fields.
+
+| Shortcut   | Action                        |
+|------------|-------------------------------|
+| Ctrl+1-4   | Navigate to tipo / switch tipo |
+| Ctrl+S     | Save registro                 |
+| Ctrl+E     | Export spreadsheet            |
+| Escape     | Back to start page            |
+| Ctrl+D     | Open malote dialog            |
+| Ctrl+R     | Focus search field            |
+| Ctrl+G     | Open preview page             |
+| Ctrl+T     | Open list manage page         |
+| Ctrl+F     | Add new item row              |
+| Ctrl+W     | Toggle "waiting docs"         |
+| Ctrl+Q     | Toggle "stay on page"         |
 
 ---
 
 ## Export
 
-Single `.xlsx` file, generated on demand from Start Screen. Structure:
+Single `.xlsx` file, generated on demand. Structure:
 
-- One tab per tipo: *Entradas*, *Renovações*, *Retiradas*, *Urgentes*
-- Filtered to active malote
-- Columns: **Nome** | **Medicamentos** (comma-separated item names)
-- Rows sorted alphabetically by patient name
-- Filename: `Malote_[malote-date]_[timestamp].xlsx`
+- One tab per tipo: *Entrada*, *Renovação*, *Retirada*, *Resolver na hora*
+- Filtered to active malote, excluding `waiting_docs=1` registros
+- Header row 1: "USAFA OCIAN" (merged, font 20pt Arial, centered)
+- Header row 2: "[TIPO TITLE] - [dd/mm]" (merged, font 16pt Arial, centered)
+- Data rows: **Nome** | **Medicamentos** (newline-separated item names), centered with wrap text, thin borders
+- Auto-sized columns, A4 portrait, fit-to-width, no gridlines, centered printing
+- Filename: `Malote_[dd-mm]_[HHMMSS].xlsx`
 
 ---
 
 ## Configuration
 
-Saved to JSON, same pattern as Emissor:
+Saved to JSON (`data/config.json`):
 
 - `stay_on_page`: bool (default false)
 - `theme`: `"dark"` | `"light"`
-- `last_lote_id`: int — restores active malote on relaunch
-- `save_path`: str — default export destination, user downloads by default.
+- `last_malote_id`: int — restores active malote on relaunch
+- `save_path`: str — default export destination (user downloads by default)
 
 ---
 
 ## File Structure
 
 ```
-sistema_registros/
-  main.py
-  database.py
-  config.py
-  ui/
-    start_screen.py
-    entry_screen.py
-    lote_switcher.py
-    dialogs.py        -- novo malote, novo paciente
-    search_results.py
+src/
+  __init__.py
+  constants.py              -- TIPO_LABELS, TIPO_TITLES
+  models.py                 -- dataclasses: Malote, Paciente, ItemCatalog, Registro, RegistroItem, RegistroExport
+  database/
+    __init__.py
+    rac_database.py         -- RACDatabase (all DB operations)
+    definitive_catalog.py   -- seed data for items_catalog
+  gui/
+    __init__.py
+    main_window.py          -- MainWindow (QStackedWidget navigation, shortcuts)
+    styles.py               -- theme colors, get_stylesheet()
+    constants.py             -- GUI-specific constants (TIPO_HEX, SHORTCUT_LABELS, etc.)
+    pages/
+      __init__.py
+      start_page.py         -- StartPage
+      entry_page.py          -- EntryPage
+      preview_page.py        -- PreviewPage
+      list_manage_page.py    -- ListManagePage
+    widgets/
+      __init__.py            -- re-exports all widgets
+      malote.py              -- MaloteLabel, malote dialog/new/edit
+      toast.py               -- toast notification mixin
+      labels.py              -- SectionLabel, HeadingLabel, etc.
+      inputs.py              -- SearchableComboBox
+      buttons.py             -- TipoButton, make_button(), ThemeToggleButton
+      _completer.py          -- completer utilities
   export/
-    spreadsheet.py
-  assets/
+    __init__.py
+    excel_exporter.py        -- ExcelExporter
+  services/
+    __init__.py
+    registro_service.py      -- RegistroService (save/delete/edit logic)
+    exceptions.py            -- ValidationError, DuplicateRecordError
+  state/
+    __init__.py
+    rac_state_manager.py     -- RACStateManager (active malote, tipo, stay_on_page)
+  utils/
+    __init__.py
+    config.py                -- ConfigManager (JSON config)
+    database_base.py         -- BaseDatabase (shared DB infra)
+    paths.py                 -- resolve_db_path, get_root_directory
+    error_handler.py         -- ErrorHandler, ErrorContext, ErrorLevel
+    text_utils.py            -- to_upper_normalized, parse_date, format_malote_date
+main.py                      -- entry point
+data/
+  config.json
   registros.db
 ```
 
 ---
 
-## Out of Scope (v1)
+## Previously Out of Scope (Now Implemented)
 
-- Other workflows mentioned but not specified
-- Items catalog management UI (seeded manually)
-- Multi-unit or networked access
-- Patient edit/delete
-- Registro deletion (soft-delete could be added later)
-
----
-
-
+- Items catalog management UI (add/edit/delete via List Manage Page)
+- Patient edit/delete (via List Manage Page and Preview Page)
+- Registro deletion (delete button in Entry Page edit mode)
+- Malote edit/delete (via malote dialog context menu)
+- Preview page with inline tipo/malote/patient editing

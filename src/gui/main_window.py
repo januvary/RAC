@@ -10,8 +10,9 @@ from PySide6.QtGui import QShortcut, QKeySequence
 
 from src.database.rac_database import RACDatabase
 from src.state.rac_state_manager import RACStateManager
-from src.utils.config import ConfigManager
-from src.utils.error_handler import ErrorHandler, ErrorContext, ErrorLevel
+from andaime.config import ConfigManager
+from andaime.error_handler import ErrorHandler, ErrorLevel
+
 from src.gui.constants import TIPO_LABELS
 
 
@@ -85,7 +86,7 @@ class MainWindow(QMainWindow):
         ErrorHandler.log(
             "RAC inicializado",
             level=ErrorLevel.INFO,
-            context=ErrorContext.UI,
+            context="User Interface",
         )
 
     def shutdown_backend(self):

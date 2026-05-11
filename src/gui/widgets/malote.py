@@ -228,8 +228,7 @@ def _show_malote_dialog(label: MaloteLabel):
 
 def _show_new_malote_dialog(label: MaloteLabel):
     from src.utils.text_utils import parse_date, format_malote_date
-    from src.utils.error_handler import ErrorHandler, ErrorContext
-
+    from andaime.error_handler import ErrorHandler
     parent = label.window()
     mw = label._mw
 
@@ -270,7 +269,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
                 f"Malote criado: {format_malote_date(malote)}", "positive", label
             )
         except Exception as e:
-            ErrorHandler.handle_error(e, context=ErrorContext.MALOTE, show_dialog=False)
+            ErrorHandler.handle_error(e, context="Malote", show_dialog=False)
             show_toast(f"Erro: {e}", "negative", label)
 
     create.clicked.connect(do_create)
@@ -283,7 +282,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
 
 def _show_edit_malote_dialog(label: MaloteLabel, malote):
     from src.utils.text_utils import parse_date, format_malote_date
-    from src.utils.error_handler import ErrorHandler, ErrorContext
+    from andaime.error_handler import ErrorHandler
 
     parent = label.window()
     mw = label._mw
@@ -333,7 +332,7 @@ def _show_edit_malote_dialog(label: MaloteLabel, malote):
             dlg.accept()
             show_toast("Malote atualizado", "positive", label)
         except Exception as e:
-            ErrorHandler.handle_error(e, context=ErrorContext.MALOTE, show_dialog=False)
+            ErrorHandler.handle_error(e, context="Malote", show_dialog=False)
             show_toast(f"Erro: {e}", "negative", label)
 
     save.clicked.connect(do_save)
