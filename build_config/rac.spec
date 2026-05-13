@@ -17,7 +17,12 @@ fonts_dir = os.path.join(here, "fonts")
 
 datas = [
     (clean_src, "src"),
+    (os.path.join(project_root, "..", "andaime", "andaime", "data"), os.path.join("andaime", "data")),
 ]
+
+andaime_src = os.path.join(project_root, "..", "andaime", "andaime")
+if os.path.isdir(andaime_src):
+    datas.append((andaime_src, "andaime"))
 
 if os.path.exists(fonts_dir):
     datas.append((fonts_dir, "fonts"))
@@ -62,9 +67,14 @@ a = Analysis(
         "src.gui.pages.preview_page",
         "src.database.rac_database", "src.database.definitive_catalog",
         "src.state.rac_state_manager", "src.models",
-        "src.utils.config", "src.utils.error_handler", "src.utils.paths",
-        "src.utils.text_utils", "src.utils.database_base",
+        "src.utils.config", "src.utils.text_utils", "src.utils.date_calculator",
         "src.export.excel_exporter",
+        "andaime", "andaime.config", "andaime.database",
+        "andaime.dates", "andaime.data",
+        "andaime.error_handler", "andaime.paths", "andaime.text",
+        "holidays",
+        "json", "sqlite3", "shutil", "traceback", "unicodedata",
+        "dataclasses", "logging", "threading", "contextlib",
     ],
     hookspath=[os.path.join(here, "hooks")],
     hooksconfig={},

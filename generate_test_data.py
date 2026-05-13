@@ -6,6 +6,10 @@ from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import andaime
+from pathlib import Path
+andaime.init("RAC", "RACRegistros", root=Path(__file__).parent)
+
 from src.database.rac_database import RACDatabase
 
 FIRST_NAMES = [

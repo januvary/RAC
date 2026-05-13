@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-import andaime.config
 from andaime.config import ConfigManager
 from src.utils.config import RACConfig
 

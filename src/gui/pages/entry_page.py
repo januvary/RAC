@@ -28,7 +28,7 @@ from src.gui.widgets import (
 from src.models import Registro
 from src.services.registro_service import RegistroService
 from src.services.exceptions import ValidationError, DuplicateRecordError
-from andaime.error_handler import ErrorHandler, ErrorLevel
+from andaime.error_handler import ErrorHandler
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
@@ -43,7 +43,8 @@ class EntryPage(QWidget, ToastMixin):
         self._edit_id: int | None = edit_id
         self._edit_registro: Registro | None = None
         self._focus_index: int = -1
-        self._shortcut_widgets: dict[str, QWidget] = {}
+        self._shortcut_widgets: dict[str, QPushButton | QLabel | QCheckBox] = {}
+        self._delete_btn: QPushButton | None = None
 
         if edit_id:
             self._edit_registro = self._mw.db.get_registro_by_id(edit_id)
@@ -174,9 +175,7 @@ class EntryPage(QWidget, ToastMixin):
         h.setSpacing(8)
 
         self._docs_check = QCheckBox("Esperando documentos")
-        self._docs_check.setToolTip(
-            "Exclui este registro da planilha exportada."
-        )
+        self._docs_check.setToolTip("Exclui este registro da planilha exportada.")
         if self._edit_registro and self._edit_registro.waiting_docs:
             self._docs_check.setChecked(True)
         h.addWidget(self._docs_check)
@@ -192,7 +191,9 @@ class EntryPage(QWidget, ToastMixin):
 
         stay_label = QLabel("Ficar nesta tela")
         c = colors()
-        stay_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 12px; border: none;")
+        stay_label.setStyleSheet(
+            f"color: {c['text_secondary']}; font-size: 12px; border: none;"
+        )
         h.addWidget(stay_label)
         self._shortcut_widgets["toggle_stay"] = stay_label
 
@@ -267,9 +268,7 @@ class EntryPage(QWidget, ToastMixin):
         remove_btn.setProperty("btnrole", "remove")
         remove_btn.setFixedSize(28, 28)
         remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_btn.clicked.connect(
-            lambda _checked=False, w=row: self._remove_item(w)
-        )
+        remove_btn.clicked.connect(lambda _checked=False, w=row: self._remove_item(w))
         row_h.addWidget(remove_btn)
 
         self._items_container.addWidget(row)
@@ -409,12 +408,12 @@ class EntryPage(QWidget, ToastMixin):
             self._toast(str(e), "warning")
             return
         except DuplicateRecordError:
-            self._toast("Já existe um registro com esse tipo/paciente/malote", "warning")
+            self._toast(
+                "Já existe um registro com esse tipo/paciente/malote", "warning"
+            )
             return
         except Exception as e:
-            ErrorHandler.handle_error(
-                e, context="Registro", show_dialog=False
-            )
+            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro ao salvar: {e}", "negative")
             return
 
@@ -478,7 +477,5 @@ class EntryPage(QWidget, ToastMixin):
             self._toast("Registro excluido", "info")
             QTimer.singleShot(800, lambda: self._mw.navigate_to("start"))
         except Exception as e:
-            ErrorHandler.handle_error(
-                e, context="Registro", show_dialog=False
-            )
+            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")

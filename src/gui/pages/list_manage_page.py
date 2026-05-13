@@ -281,7 +281,7 @@ class ListManagePage(QWidget, ToastMixin):
             return
         item_id = current.data(Qt.ItemDataRole.UserRole)
         name = current.text()
-        if not self._confirm_delete("Excluir Medicamento", f"Excluir \"{name}\"?"):
+        if not self._confirm_delete("Excluir Medicamento", f'Excluir "{name}"?'):
             return
         if self._mw.db.delete_item(item_id):
             self._load_items()
@@ -348,7 +348,7 @@ class ListManagePage(QWidget, ToastMixin):
             return
         paciente_id = current.data(Qt.ItemDataRole.UserRole)
         name = current.text()
-        if not self._confirm_delete("Excluir Paciente", f"Excluir \"{name}\"?"):
+        if not self._confirm_delete("Excluir Paciente", f'Excluir "{name}"?'):
             return
         if self._mw.db.delete_paciente(paciente_id):
             self._load_pacientes()
@@ -365,7 +365,7 @@ class ListManagePage(QWidget, ToastMixin):
                 border: none;
                 border-radius: 6px;
                 background: transparent;
-                alternate-background-color: {c["bg_card_alt"]};
+                alternate-background-color: {c["table_alt_bg"]};
                 font-size: 13px;
                 color: {c["text_primary"]};
                 outline: none;

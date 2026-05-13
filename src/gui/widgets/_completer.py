@@ -3,8 +3,6 @@
 
 from PySide6.QtWidgets import (
     QComboBox,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QLineEdit,
     QWidget,
 )
@@ -83,12 +81,6 @@ class _SearchCompleter(QCompleter):
             super().complete()
 
 
-class _CenteredDelegate(QStyledItemDelegate):
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
-        option.displayAlignment = Qt.AlignmentFlag.AlignCenter
-        super().paint(painter, option, index)
-
-
 class _NoScrollComboBox(QComboBox):
     def wheelEvent(self, event):
         event.ignore()
@@ -101,9 +93,7 @@ class _CenteredComboBox(_NoScrollComboBox):
         super().showPopup()
         popup = self.findChild(QWidget)
         if popup and self._tipo_bg:
-            popup.setStyleSheet(
-                f"background-color: {self._tipo_bg}; border: none;"
-            )
+            popup.setStyleSheet(f"background-color: {self._tipo_bg}; border: none;")
 
     def paintEvent(self, event):
         painter = QPainter(self)

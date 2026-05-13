@@ -291,7 +291,9 @@ class TestValidation:
 class TestDoubleSaveWorkflow:
     """Simulates the entry page: save once, add items, save again."""
 
-    def test_save_then_save_more_items_same_triple(self, service, db, malote, catalog_items):
+    def test_save_then_save_more_items_same_triple(
+        self, service, db, malote, catalog_items
+    ):
         r1 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
@@ -313,7 +315,9 @@ class TestDoubleSaveWorkflow:
         items = db.get_items_for_registro(r1.registro_id)
         assert len(items) == 2
 
-    def test_save_then_change_tipo_creates_new(self, service, db, malote, catalog_items):
+    def test_save_then_change_tipo_creates_new(
+        self, service, db, malote, catalog_items
+    ):
         r1 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
@@ -537,9 +541,7 @@ class TestComplexWorkflows:
             items = db.get_items_for_registro(rid)
             assert len(items) == 2
 
-    def test_save_edit_change_tipo_back_forth(
-        self, service, db, malote, catalog_items
-    ):
+    def test_save_edit_change_tipo_back_forth(self, service, db, malote, catalog_items):
         r1 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
@@ -600,9 +602,7 @@ class TestComplexWorkflows:
         )
         assert r_b2.registro_id == r_b.registro_id
 
-    def test_change_malote_save_change_back(
-        self, service, db, catalog_items
-    ):
+    def test_change_malote_save_change_back(self, service, db, catalog_items):
         m1 = db.create_malote("2026-04-12")
         m2 = db.create_malote("2026-04-13")
 
@@ -680,9 +680,7 @@ class TestComplexWorkflows:
         assert len(items_r1) == 1
         assert items_r1[0].item_id == catalog_items[0].id
 
-    def test_rename_patient_while_editing(
-        self, service, db, malote, catalog_items
-    ):
+    def test_rename_patient_while_editing(self, service, db, malote, catalog_items):
         r1 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",

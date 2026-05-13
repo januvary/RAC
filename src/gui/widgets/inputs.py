@@ -3,19 +3,23 @@
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
-    QLabel,
     QSizePolicy,
     QWidget,
     QLineEdit,
+    QStyledItemDelegate,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QStringListModel, QEvent
-from PySide6.QtGui import QFontMetrics, QKeyEvent
+from PySide6.QtGui import QColor, QPalette, QPainter
+from PySide6.QtWidgets import QStyleOptionViewItem, QStyle
 
 from PySide6.QtWidgets import QCompleter
 
-from src.gui.widgets._completer import _SearchCompleter, _CenteredComboBox, _CenteredDelegate
-from src.gui.constants import TIPO_HEX, TIPO_LABELS, TIPO_SYMBOLS
-from src.gui.styles import colors
+from src.gui.widgets._completer import (
+    _SearchCompleter,
+    _CenteredComboBox,
+)
+from src.gui.constants import TIPO_LABELS, TIPO_SYMBOLS, TIPO_HEX
+from src.gui.styles import colors, faded_tipo_color
 from andaime.text import normalize_text
 
 
@@ -23,7 +27,13 @@ class SearchableComboBox(QWidget):
     selection_changed = Signal(object)
     exact_match_changed = Signal(object)
 
-    def __init__(self, placeholder: str = "Buscar...", parent=None, on_search=None, on_delete_empty=None):
+    def __init__(
+        self,
+        placeholder: str = "Buscar...",
+        parent=None,
+        on_search=None,
+        on_delete_empty=None,
+    ):
         super().__init__(parent)
         self._on_search = on_search
         self._on_delete_empty = on_delete_empty
@@ -156,6 +166,28 @@ class SearchableComboBox(QWidget):
                 break
 
 
+class _TipoComboDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
+        tipo_key = index.data(Qt.ItemDataRole.UserRole)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        painter.save()
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, option.palette.color(QPalette.ColorRole.Highlight))
+            painter.setPen(option.palette.color(QPalette.ColorRole.HighlightedText))
+        else:
+            if tipo_key:
+                hex_color = TIPO_HEX.get(tipo_key, "")
+                if hex_color:
+                    painter.setPen(QColor(faded_tipo_color(hex_color)))
+                else:
+                    painter.setPen(option.palette.color(QPalette.ColorRole.Text))
+            else:
+                painter.setPen(option.palette.color(QPalette.ColorRole.Text))
+        painter.setFont(option.font)
+        painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
+
+
 class TipoCombo(QWidget):
     tipo_changed = Signal(str)
 
@@ -173,7 +205,7 @@ class TipoCombo(QWidget):
         self._combo.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         self._combo.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo.setMinimumWidth(130)
-        self._combo.setItemDelegate(_CenteredDelegate(self._combo))
+        self._combo.setItemDelegate(_TipoComboDelegate(self._combo))
         self._combo._tipo_bg = ""
         self._layout.addWidget(self._combo)
 
@@ -188,6 +220,7 @@ class TipoCombo(QWidget):
         idx = self._combo.findData(current_tipo)
         if idx >= 0:
             self._combo.setCurrentIndex(idx)
+        self._hide_current_from_dropdown()
 
     def current_tipo(self) -> str:
         return self._tipo
@@ -203,17 +236,25 @@ class TipoCombo(QWidget):
             self._tipo = data
             self._update_display(data)
             self.tipo_changed.emit(data)
+            self._hide_current_from_dropdown()
+
+    def _hide_current_from_dropdown(self):
+        for i in range(self._combo.count()):
+            self._combo.view().setRowHidden(i, i == self._combo.currentIndex())
 
     def _update_display(self, tipo_key: str):
         c = colors()
-        self._combo._tipo_bg = c["bg_card"]
+        dropdown_bg = c["bg_input"]
+        self._combo._tipo_bg = dropdown_bg
+        hex_color = TIPO_HEX.get(tipo_key, "")
+        faded = faded_tipo_color(hex_color)
         self._combo.setStyleSheet(f"""
             QComboBox {{
                 border: none;
                 border-radius: 6px;
                 padding: 2px 6px;
                 background: transparent;
-                color: {c["text_primary"]};
+                color: {faded};
                 font-size: 16px;
                 font-weight: 600;
                 min-height: 22px;
@@ -232,8 +273,7 @@ class TipoCombo(QWidget):
             }}
             QComboBox QAbstractItemView {{
                 border: none;
-                background-color: {c["bg_card"]};
-                color: {c["text_primary"]};
+                background-color: {dropdown_bg};
                 selection-background-color: {c["selection_bg"]};
                 selection-color: {c["selection_text"]};
                 outline: none;
@@ -242,6 +282,5 @@ class TipoCombo(QWidget):
             QComboBox QAbstractItemView::item {{
                 padding: 6px 10px;
                 min-height: 22px;
-                color: {c["text_primary"]};
             }}
         """)

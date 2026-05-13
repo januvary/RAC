@@ -8,18 +8,21 @@ from typing import Any
 class Malote:
     id: int | None = None
     date: str = ""
+    arrival_date: str | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Malote:
         return cls(
             id=row.get("id"),
             date=row.get("date", ""),
+            arrival_date=row.get("arrival_date"),
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "date": self.date,
+            "arrival_date": self.arrival_date,
         }
 
 

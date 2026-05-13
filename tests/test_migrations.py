@@ -38,6 +38,8 @@ def _get_stored_version(db_path: str) -> int:
 
 
 def _create_v1_db(db_path: str) -> None:
+    RACDatabase.SCHEMA_VERSION = 1
+    RACDatabase._MIGRATIONS = {}
     db = RACDatabase(db_path=db_path)
     db.close(skip_backup=True)
 
@@ -69,7 +71,7 @@ class TestFreshDB:
     def test_sets_version(self, db_dir):
         db_path = os.path.join(db_dir, "test.db")
         _create_v1_db(db_path)
-        assert _get_stored_version(db_path) == 1
+        assert _get_stored_version(db_path) == RACDatabase.SCHEMA_VERSION
 
     def test_seeds_catalog(self, db_dir):
         db_path = os.path.join(db_dir, "test.db")
@@ -90,7 +92,7 @@ class TestFreshDB:
         conn.close()
         db2.close(skip_backup=True)
         assert count > 0
-        assert _get_stored_version(db_path) == 1
+        assert _get_stored_version(db_path) == RACDatabase.SCHEMA_VERSION
 
 
 class TestMigrationFramework:
@@ -142,6 +144,7 @@ class TestMigrationFramework:
 
     def test_already_applied_migrations_skip(self, db_dir):
         db_path = os.path.join(db_dir, "test.db")
+        _create_v1_db(db_path)
 
         RACDatabase._MIGRATIONS[2] = """
             ALTER TABLE pacientes ADD COLUMN col_v2 TEXT DEFAULT '';
@@ -182,6 +185,10 @@ class TestMigrationFramework:
 
     def test_migration_preserves_data(self, db_dir):
         db_path = os.path.join(db_dir, "test.db")
+        _create_v1_db(db_path)
+
+        RACDatabase.SCHEMA_VERSION = 1
+        RACDatabase._MIGRATIONS = {}
         db = RACDatabase(db_path=db_path)
         db.create_paciente("João Silva")
         db.close(skip_backup=True)

@@ -7,6 +7,7 @@ Generates .xlsx spreadsheet from malote registros
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Optional
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +22,18 @@ if TYPE_CHECKING:
 
 class SavePathError(Exception):
     pass
+
+
+def _format_item(name: str) -> str:
+    paren = re.search(r"\(([^)]+)\)\s*$", name)
+    if not paren:
+        return name
+    brand = paren.group(1).strip().upper()
+    digit = re.search(r"\d", name)
+    if not digit:
+        return name
+    dosage = name[digit.start() : paren.start()].strip()
+    return f"{brand} {dosage}"
 
 
 class ExcelExporter:
@@ -78,7 +91,8 @@ class ExcelExporter:
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
             for reg in tipo_registros:
-                items_str = "\n".join(reg.items)
+                formatted_items = [_format_item(name) for name in reg.items]
+                items_str = "\n".join(formatted_items)
                 ws.append(
                     [
                         reg.paciente_name or "",
@@ -86,35 +100,15 @@ class ExcelExporter:
                     ]
                 )
 
-            _wide_chars = set("MWGQCOHUDBDNRAEKPSVXFZ&mw")
-
-            def _estimate_width(text: str) -> float:
-                return sum(
-                    1.15 if c in _wide_chars else 0.75 for c in text
-                )
-
-            max_a = 10.0
-            max_b = 10.0
-            for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
-                a_val = str(row[0].value or "")
-                max_a = max(max_a, _estimate_width(a_val))
-                b_val = row[1].value
-                if b_val:
-                    longest_line = max(
-                        _estimate_width(line)
-                        for line in str(b_val).split("\n")
-                    )
-                    max_b = max(max_b, longest_line)
-
-            ws.column_dimensions["A"].width = min(max_a + 4, 50)
-            ws.column_dimensions["B"].width = min(max_b + 4, 80)
+            ws.column_dimensions["A"].width = 35
+            ws.column_dimensions["B"].width = 57
 
             main_font = Font(name="Arial", size=11)
             title1_font = Font(name="Arial", size=20)
             title2_font = Font(name="Arial", size=16)
             center = Alignment(horizontal="center", vertical="center")
-            center_wrap = Alignment(
-                horizontal="center", vertical="center", wrap_text=True
+            left_wrap = Alignment(
+                horizontal="left", vertical="center", wrap_text=True
             )
             thin_border = Border(
                 left=Side(style="thin"),
@@ -138,7 +132,7 @@ class ExcelExporter:
             for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
                 for cell in row:
                     cell.font = main_font
-                    cell.alignment = center_wrap
+                    cell.alignment = left_wrap
                     if cell.value is not None:
                         cell.border = thin_border
 

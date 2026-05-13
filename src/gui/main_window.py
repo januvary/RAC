@@ -18,6 +18,7 @@ from src.gui.constants import TIPO_LABELS
 
 class MainWindow(QMainWindow):
     theme_changed = Signal()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("RAC - Registros Alto Custo")
@@ -62,9 +63,15 @@ class MainWindow(QMainWindow):
     def eventFilter(self, obj, event):
         etype = event.type()
         if etype == QEvent.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Shift and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if (
+                event.key() == Qt.Key.Key_Shift
+                and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            ):
                 self._toggle_shortcut_peek(True)
-            elif event.key() == Qt.Key.Key_Control and event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            elif (
+                event.key() == Qt.Key.Key_Control
+                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            ):
                 self._toggle_shortcut_peek(True)
         elif etype == QEvent.Type.KeyRelease:
             if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control):

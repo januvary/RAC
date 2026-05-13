@@ -27,9 +27,11 @@ from src.models import (
 
 
 class RACDatabase(BaseDatabase):
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
-    _MIGRATIONS: dict[int, str] = {}
+    _MIGRATIONS: dict[int, str] = {
+        2: "ALTER TABLE malotes ADD COLUMN arrival_date TEXT;",
+    }
 
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
@@ -48,9 +50,10 @@ class RACDatabase(BaseDatabase):
 
         if stored_version == 0:
             self._create_fresh_schema()
-
-        self._run_migrations(max(stored_version, 0))
-        self._set_schema_version(self.SCHEMA_VERSION)
+            self._set_schema_version(self.SCHEMA_VERSION)
+        else:
+            self._run_migrations(stored_version)
+            self._set_schema_version(self.SCHEMA_VERSION)
         self._seed_catalog_if_empty()
 
     def _create_fresh_schema(self) -> None:
@@ -58,7 +61,8 @@ class RACDatabase(BaseDatabase):
             cur.executescript("""
                 CREATE TABLE IF NOT EXISTS malotes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT NOT NULL
+                    date TEXT NOT NULL,
+                    arrival_date TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS pacientes (
@@ -148,15 +152,20 @@ class RACDatabase(BaseDatabase):
     # ========== MALOTE ==========
 
     @_db_op("write")
-    def create_malote(self, date: str) -> Malote:
+    def create_malote(self, date: str, arrival_date: str | None = None) -> Malote:
         with self._cursor() as cur:
-            cur.execute("SELECT id FROM malotes WHERE date = ?", (date,))
+            cur.execute("SELECT id, arrival_date FROM malotes WHERE date = ?", (date,))
             existing = cur.fetchone()
             if existing:
-                return Malote(id=existing["id"], date=date)
-            cur.execute("INSERT INTO malotes (date) VALUES (?)", (date,))
+                return Malote(
+                    id=existing["id"], date=date, arrival_date=existing["arrival_date"]
+                )
+            cur.execute(
+                "INSERT INTO malotes (date, arrival_date) VALUES (?, ?)",
+                (date, arrival_date),
+            )
             self._commit()
-            return Malote(id=cur.lastrowid, date=date)
+            return Malote(id=cur.lastrowid, date=date, arrival_date=arrival_date)
 
     @_db_op("read")
     def get_malote_by_id(self, malote_id: int) -> Optional[Malote]:
@@ -181,9 +190,22 @@ class RACDatabase(BaseDatabase):
             return [Malote.from_row(dict(r)) for r in cur.fetchall()]
 
     @_db_op("write")
-    def update_malote(self, malote_id: int, date: str) -> bool:
+    def update_malote(
+        self, malote_id: int, date: str | None = None, arrival_date: str | None = None
+    ) -> bool:
         with self._cursor() as cur:
-            cur.execute("UPDATE malotes SET date = ? WHERE id = ?", (date, malote_id))
+            parts: list[str] = []
+            params: list = []
+            if date is not None:
+                parts.append("date = ?")
+                params.append(date)
+            if arrival_date is not None:
+                parts.append("arrival_date = ?")
+                params.append(arrival_date)
+            if not parts:
+                return False
+            params.append(malote_id)
+            cur.execute(f"UPDATE malotes SET {', '.join(parts)} WHERE id = ?", params)
             self._commit()
             return cur.rowcount > 0
 
@@ -387,7 +409,7 @@ class RACDatabase(BaseDatabase):
 
     @_db_op("read")
     def search_registros_by_patient(
-        self, malote_id: int, query: str, limit: int = 20
+        self, query: str, active_malote_id: int | None = None, limit: int = 20
     ) -> list[Registro]:
         with self._cursor() as cur:
             normalized = to_upper_normalized(query)
@@ -396,10 +418,13 @@ class RACDatabase(BaseDatabase):
                 "FROM registros r "
                 "JOIN pacientes p ON r.paciente_id = p.id "
                 "JOIN malotes m ON r.malote_id = m.id "
-                "WHERE r.malote_id = ? AND p.name LIKE ? "
-                "ORDER BY p.name COLLATE NOCASE "
+                "WHERE p.name LIKE ? "
+                "ORDER BY "
+                "CASE WHEN r.malote_id = ? THEN 0 ELSE 1 END, "
+                "m.date DESC, "
+                "p.name COLLATE NOCASE "
                 "LIMIT ?",
-                (malote_id, f"%{normalized}%", limit),
+                (f"%{normalized}%", active_malote_id or 0, limit),
             )
             return [Registro.from_row(dict(r)) for r in cur.fetchall()]
 

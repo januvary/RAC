@@ -26,8 +26,8 @@ from src.gui.widgets import (
     ToastMixin,
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS, SHORTCUT_LABELS
-from src.gui.styles import colors
-from andaime.error_handler import ErrorHandler, ErrorLevel
+from src.gui.styles import colors, faded_tipo_color
+from andaime.error_handler import ErrorHandler
 
 from src.utils.text_utils import format_malote_date
 from src.services.exceptions import DuplicateRecordError
@@ -87,7 +87,8 @@ class PreviewPage(QWidget, ToastMixin):
 
         self._tabs = QTabWidget()
         self._tabs.setMinimumHeight(550)
-        self._tabs.setStyleSheet(self._tab_style())
+        self._tab_tipo_keys: list[str] = []
+        self._tabs.setStyleSheet(self._tab_style(list(TIPO_LABELS)[0]))
         self._tab_searches: dict[int, QLineEdit] = {}
         self._shortcut_searches: list[tuple[str, QLineEdit]] = []
 
@@ -148,10 +149,17 @@ class PreviewPage(QWidget, ToastMixin):
 
             tab_label = f"{TIPO_LABELS.get(tipo, tipo)} ({len(tipo_registros)})"
             idx = self._tabs.addTab(tab, tab_label)
+            self._tab_tipo_keys.append(tipo)
             self._tab_searches[idx] = search
             self._shortcut_searches.append(("_search_placeholder", search))
 
+        self._tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self._tabs)
+
+    def _on_tab_changed(self, idx):
+        if 0 <= idx < len(self._tab_tipo_keys):
+            tipo_key = self._tab_tipo_keys[idx]
+            self._tabs.setStyleSheet(self._tab_style(tipo_key))
 
     def refresh(self):
         self._malote_label.refresh()
@@ -252,9 +260,7 @@ class PreviewPage(QWidget, ToastMixin):
         except DuplicateRecordError:
             self._toast("Registro já existe nesse tipo para esse paciente", "warning")
         except Exception as e:
-            ErrorHandler.handle_error(
-                e, context="Registro", show_dialog=False
-            )
+            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")
 
     def _move_to_malote(self, reg_id: int, new_malote_id: int):
@@ -267,9 +273,7 @@ class PreviewPage(QWidget, ToastMixin):
                 "Registro já existe nesse malote para esse paciente e tipo", "warning"
             )
         except Exception as e:
-            ErrorHandler.handle_error(
-                e, context="Registro", show_dialog=False
-            )
+            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")
 
     def _open_name_dialog(self, title: str, label: str, initial: str = ""):
@@ -322,9 +326,7 @@ class PreviewPage(QWidget, ToastMixin):
             self.refresh()
             self._toast("Nome do paciente atualizado", "positive")
         except Exception as e:
-            ErrorHandler.handle_error(
-                e, context="Registro", show_dialog=False
-            )
+            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")
 
     @staticmethod
@@ -336,7 +338,7 @@ class PreviewPage(QWidget, ToastMixin):
                 border: none;
                 border-radius: 6px;
                 background: transparent;
-                alternate-background-color: {c["bg_card_alt"]};
+                alternate-background-color: {c["table_alt_bg"]};
                 gridline-color: {c["gridline"]};
                 font-size: 13px;
                 color: {c["text_primary"]};
@@ -353,8 +355,9 @@ class PreviewPage(QWidget, ToastMixin):
         """
 
     @staticmethod
-    def _tab_style() -> str:
+    def _tab_style(tipo_key: str) -> str:
         c = colors()
+        faded = faded_tipo_color(TIPO_HEX.get(tipo_key, ""))
         return f"""
             QTabWidget::pane {{
                 border: 1px solid {c["border_light"]};
@@ -375,7 +378,7 @@ class PreviewPage(QWidget, ToastMixin):
             }}
             QTabBar::tab:selected {{
                 background: {c["bg_card"]};
-                color: #3B82F6;
+                color: {faded};
                 border-bottom: 2px solid {c["bg_card"]};
                 font-weight: 600;
             }}
@@ -395,7 +398,5 @@ class PreviewPage(QWidget, ToastMixin):
                 widget.setText(label)
         for _, line_edit in self._shortcut_searches:
             base = "Buscar paciente ou medicamento..."
-            line_edit.setPlaceholderText(
-                f"{base} (Ctrl+R)" if show else base
-            )
+            line_edit.setPlaceholderText(f"{base} (Ctrl+R)" if show else base)
         self._malote_label.set_shortcut_hint_visible(show)

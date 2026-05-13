@@ -32,4 +32,4 @@ def show_toast(message: str, kind: str, parent: QWidget):
 
 class ToastMixin:
     def _toast(self, message: str, kind: str = "info"):
-        show_toast(message, kind, self)
+        show_toast(message, kind, self)  # type: ignore[arg-type]

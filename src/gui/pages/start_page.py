@@ -26,10 +26,17 @@ from src.gui.widgets import (
     ThemeToggleButton,
     ToastMixin,
 )
-from src.gui.constants import TIPO_LABELS, SHORTCUT_LABELS, TIPO_SHORTCUT_KEYS, TIPO_SYMBOLS
-from andaime.error_handler import ErrorHandler, ErrorLevel
+from src.gui.constants import (
+    TIPO_LABELS,
+    SHORTCUT_LABELS,
+    TIPO_SHORTCUT_KEYS,
+    TIPO_SYMBOLS,
+)
+from andaime.error_handler import ErrorHandler
 
 from src.export.excel_exporter import ExcelExporter, SavePathError
+from src.models import Malote
+from src.utils.text_utils import format_malote_date
 
 
 class StartPage(QWidget, ToastMixin):
@@ -99,7 +106,7 @@ class StartPage(QWidget, ToastMixin):
         grid_widget = QWidget()
         grid = QGridLayout(grid_widget)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(10)
+        grid.setSpacing(5)
 
         self._tipo_btns: list[TipoButton] = []
         for i, tipo_key in enumerate(TIPO_LABELS):
@@ -114,27 +121,33 @@ class StartPage(QWidget, ToastMixin):
     def _build_export(self, layout: QVBoxLayout):
         self._shortcut_widgets = {}
 
-        preview_btn = make_button("Visualizar Malote", "primary")
+        row = QHBoxLayout()
+        row.setSpacing(4)
+
+        _, preview_label = SHORTCUT_LABELS["preview"]
+        preview_btn = make_button(preview_label, "primary")
         preview_btn.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        preview_btn.setFixedHeight(48)
+        preview_btn.setFixedHeight(54)
         preview_btn.clicked.connect(self._on_preview)
-        layout.addWidget(preview_btn)
+        row.addWidget(preview_btn)
         self._shortcut_widgets["preview"] = preview_btn
-        layout.addSpacing(8)
 
-        btn = make_button("Exportar Planilha", "positive")
+        _, export_label = SHORTCUT_LABELS["export"]
+        btn = make_button(export_label, "positive")
         btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        btn.setFixedHeight(48)
+        btn.setFixedHeight(54)
         btn.clicked.connect(self._on_export)
-        layout.addWidget(btn)
+        row.addWidget(btn)
         self._shortcut_widgets["export"] = btn
-        layout.addSpacing(8)
+
+        layout.addLayout(row)
+        layout.addSpacing(4)
 
         manage_btn = make_button("Gerenciar Listas", "flat")
         manage_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        manage_btn.setFixedHeight(40)
+        manage_btn.setFixedHeight(50)
         manage_btn.clicked.connect(self._on_lists)
         layout.addWidget(manage_btn)
         self._shortcut_widgets["lists"] = manage_btn
@@ -145,12 +158,15 @@ class StartPage(QWidget, ToastMixin):
         self._search_combo.clear()
 
     def _search_registros(self, query: str) -> dict[str, str]:
-        malote = self._mw.state.get_active_malote()
-        if not malote or not query:
+        if not query:
             return {}
-        resultados = self._mw.db.search_registros_by_patient(malote.id, query)
+        malote = self._mw.state.get_active_malote()
+        active_id = malote.id if malote else None
+        resultados = self._mw.db.search_registros_by_patient(query, active_id)
         return {
-            str(r.id): f"{r.paciente_name or ''} ({TIPO_LABELS.get(r.tipo, '')})"
+            str(
+                r.id
+            ): f"{r.paciente_name or ''} ({TIPO_LABELS.get(r.tipo, '')}) — {format_malote_date(Malote(date=r.malote_date or ''))}"
             for r in resultados
         }
 

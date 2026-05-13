@@ -7,31 +7,32 @@ Global QSS stylesheet — native Qt feel with theme support
 _current_theme: str = "light"
 
 LIGHT_COLORS = {
-    "bg_main": "#F3F2ED",
-    "bg_card": "#F9F8F3",
-    "bg_card_alt": "#EEEEE8",
-    "bg_hover": "#E6E5DF",
-    "bg_pressed": "#DBDAD3",
-    "bg_input": "#F9F8F3",
-    "border": "#D1D5DB",
-    "border_light": "#E5E7EB",
-    "text_primary": "#374151",
-    "text_secondary": "#6B7280",
-    "text_dark": "#1F2937",
-    "selection_bg": "#EFF6FF",
-    "selection_text": "#1F2937",
-    "separator": "#E5E7EB",
-    "gridline": "#F3F4F6",
-    "scrollbar": "#D1D5DB",
-    "scrollbar_hover": "#9CA3AF",
+    "bg_main": "#F0EBE1",
+    "bg_card": "#FFFAF0",
+    "bg_card_alt": "#E1DAD0",
+    "bg_hover": "#D2CBC0",
+    "bg_pressed": "#C3BBB0",
+    "bg_input": "#FFFCF5",
+    "border": "#D6D3D1",
+    "border_light": "#E7E5E4",
+    "text_primary": "#44403C",
+    "text_secondary": "#78716C",
+    "text_dark": "#292524",
+    "selection_bg": "#D6CFBF",
+    "selection_text": "#292524",
+    "separator": "#E7E5E4",
+    "gridline": "#EDE8DE",
+    "scrollbar": "#D6D3D1",
+    "scrollbar_hover": "#A8A29E",
+    "table_alt_bg": "#F5F0E6",
     "toast_positive_fg": "#059669",
-    "toast_positive_bg": "#ECFDF5",
+    "toast_positive_bg": "#EDF7ED",
     "toast_warning_fg": "#D97706",
-    "toast_warning_bg": "#FFFBEB",
+    "toast_warning_bg": "#FFF7E5",
     "toast_negative_fg": "#DC2626",
-    "toast_negative_bg": "#FEF2F2",
+    "toast_negative_bg": "#FDF0F0",
     "toast_info_fg": "#2563EB",
-    "toast_info_bg": "#EFF6FF",
+    "toast_info_bg": "#EFF2FA",
 }
 
 DARK_COLORS = {
@@ -52,6 +53,7 @@ DARK_COLORS = {
     "gridline": "#252D3A",
     "scrollbar": "#4B5563",
     "scrollbar_hover": "#6B7280",
+    "table_alt_bg": "#283040",
     "toast_positive_fg": "#34D399",
     "toast_positive_bg": "#064E3B",
     "toast_warning_fg": "#FBBF24",
@@ -76,12 +78,28 @@ def toggle_theme() -> str:
     global _current_theme
     _current_theme = "light" if _current_theme == "dark" else "dark"
     from andaime.config import ConfigManager
+
     ConfigManager().set("theme", _current_theme)
     return _current_theme
 
 
 def colors() -> dict:
     return DARK_COLORS if _current_theme == "dark" else LIGHT_COLORS
+
+
+def _blend_hex(hex_a: str, hex_b: str, ratio: float) -> str:
+    ra, ga, ba = int(hex_a[1:3], 16), int(hex_a[3:5], 16), int(hex_a[5:7], 16)
+    rb, gb, bb = int(hex_b[1:3], 16), int(hex_b[3:5], 16), int(hex_b[5:7], 16)
+    r = int(ra * ratio + rb * (1 - ratio))
+    g = int(ga * ratio + gb * (1 - ratio))
+    b = int(ba * ratio + bb * (1 - ratio))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def faded_tipo_color(hex_color: str) -> str:
+    if _current_theme == "dark":
+        return _blend_hex(hex_color, colors()["text_primary"], 0.85)
+    return _blend_hex(hex_color, colors()["text_primary"], 0.55)
 
 
 def get_stylesheet(theme: str | None = None) -> str:
@@ -92,6 +110,7 @@ def get_stylesheet(theme: str | None = None) -> str:
 
 def tipo_button_qss(hex_color: str) -> str:
     c = colors()
+    faded = faded_tipo_color(hex_color)
     return f"""
         QPushButton[tipobtn="true"] {{
             background-color: {c["bg_card"]};
@@ -101,7 +120,7 @@ def tipo_button_qss(hex_color: str) -> str:
             padding: 20px 16px;
             font-size: 15px;
             font-weight: 500;
-            color: {c["text_primary"]};
+            color: {faded};
         }}
         QPushButton[tipobtn="true"]:hover {{
             background-color: {c["bg_card_alt"]};
@@ -154,7 +173,7 @@ QFrame[separator="true"] {{
 /* -- Buttons -- */
 QPushButton {{
     background-color: transparent;
-    border: 1px solid {c["border"]};
+    border: 1px solid {c["bg_main"]};
     border-radius: 6px;
     padding: 8px 20px;
     font-size: 14px;
@@ -164,36 +183,38 @@ QPushButton {{
 }}
 QPushButton:hover {{
     background-color: {c["bg_hover"]};
-    border-color: {c["text_secondary"]};
+    border-color: {c["bg_main"]};
 }}
 QPushButton:pressed {{
     background-color: {c["bg_pressed"]};
 }}
 
 QPushButton[btnrole="primary"] {{
-    background-color: #3B82F6;
-    border-color: #3B82F6;
-    color: white;
+    background-color: {c["bg_card"]};
+    border: 1px solid {c["border_light"]};
+    border-radius: 6px;
+    color: {c["text_primary"]};
 }}
 QPushButton[btnrole="primary"]:hover {{
-    background-color: #2563EB;
-    border-color: #2563EB;
+    background-color: {c["bg_card_alt"]};
+    border-color: {c["border"]};
 }}
 QPushButton[btnrole="primary"]:pressed {{
-    background-color: #1D4ED8;
+    background-color: {c["bg_hover"]};
 }}
 
 QPushButton[btnrole="positive"] {{
-    background-color: #10B981;
-    border-color: #10B981;
-    color: white;
+    background-color: {c["bg_card"]};
+    border: 1px solid {c["border_light"]};
+    border-radius: 6px;
+    color: {c["text_primary"]};
 }}
 QPushButton[btnrole="positive"]:hover {{
-    background-color: #059669;
-    border-color: #059669;
+    background-color: {c["bg_card_alt"]};
+    border-color: {c["border"]};
 }}
 QPushButton[btnrole="positive"]:pressed {{
-    background-color: #047857;
+    background-color: {c["bg_hover"]};
 }}
 
 QPushButton[btnrole="negative"] {{
@@ -243,7 +264,9 @@ QLineEdit, QComboBox {{
     font-size: 14px;
     min-height: 22px;
     selection-background-color: {c["selection_bg"]};
+    selection-color: {c["selection_text"]};
 }}
+
 QLineEdit:focus, QComboBox:focus {{
     border-color: #3B82F6;
 }}
@@ -416,7 +439,7 @@ QListView {{
 
 /* -- Table alternating rows -- */
 QTableWidget {{
-    alternate-background-color: {c["bg_card_alt"]};
+    alternate-background-color: {c["table_alt_bg"]};
 }}
 
 /* -- Malote Label -- */

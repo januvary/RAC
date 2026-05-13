@@ -365,19 +365,19 @@ class TestSearchRegistrosByPatient:
     def test_search_by_name(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        results = db.search_registros_by_patient(malote.id, "silva")
+        results = db.search_registros_by_patient("silva", malote.id)
         assert len(results) == 1
         assert results[0].paciente_name == "JOAO SILVA"
 
     def test_search_by_name_accent_insensitive(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        results = db.search_registros_by_patient(malote.id, "joao")
+        results = db.search_registros_by_patient("joao", malote.id)
         assert len(results) == 1
         assert results[0].paciente_name == "JOAO SILVA"
 
     def test_search_no_match(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        results = db.search_registros_by_patient(malote.id, "xyz")
+        results = db.search_registros_by_patient("xyz", malote.id)
         assert len(results) == 0
