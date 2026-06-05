@@ -7,76 +7,48 @@ Preview Page — tabbed table view of malote registros
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QLineEdit,
-    QSizePolicy,
     QHeaderView,
     QMenu,
-    QDialog,
 )
 from PySide6.QtCore import Qt
 
 from src.gui.widgets import (
-    make_button,
-    HeadingLabel,
     MaloteLabel,
-    ToastMixin,
+    BasePage,
+    open_input_dialog,
+    delete_registro_with_undo,
 )
-from src.gui.constants import TIPO_HEX, TIPO_LABELS, SHORTCUT_LABELS
+from src.gui.constants import TIPO_HEX, TIPO_LABELS
 from src.gui.styles import colors, faded_tipo_color
 from andaime.error_handler import ErrorHandler
 
 from src.utils.text_utils import format_malote_date
 from src.services.exceptions import DuplicateRecordError
+from src.services.registro_service import RegistroService
+from src.export.excel_exporter import _format_item
 
 
-class PreviewPage(QWidget, ToastMixin):
+class PreviewPage(BasePage):
     def __init__(self, main_window):
-        super().__init__()
-        self._mw = main_window
+        super().__init__(main_window)
         self._build_ui()
 
     def _build_ui(self):
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 32, 48, 32)
-        outer.setSpacing(0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
-        container = QWidget()
-        container.setMaximumWidth(720)
-        container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
-        )
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
+        layout = self._scaffold()
         self._build_header(layout)
         layout.addSpacing(20)
-
         self._build_tabs(layout)
 
-        outer.addWidget(container)
-
     def _build_header(self, layout: QVBoxLayout):
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
-
-        back_btn = make_button("Voltar", "flat")
-        back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
-        h.addWidget(back_btn)
-        self._shortcut_widgets = {"back": back_btn}
-        h.addStretch()
+        h = self._add_back_button(layout)
 
         self._malote_label = MaloteLabel(self._mw)
         self._malote_label.malote_changed.connect(self.refresh)
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
-
-        layout.addLayout(h)
 
     def _build_tabs(self, layout: QVBoxLayout):
         malote = self._mw.state.get_active_malote()
@@ -125,18 +97,23 @@ class PreviewPage(QWidget, ToastMixin):
             )
 
             for reg in tipo_registros:
-                row = table.rowCount()
-                table.insertRow(row)
+                for process_items in reg.processes:
+                    row = table.rowCount()
+                    table.insertRow(row)
 
-                name_item = QTableWidgetItem(reg.paciente_name or "")
-                name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                name_item.setData(Qt.ItemDataRole.UserRole, reg.id)
-                table.setItem(row, 0, name_item)
+                    name_item = QTableWidgetItem(reg.paciente_name or "")
+                    name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    name_item.setData(Qt.ItemDataRole.UserRole, reg.id)
+                    table.setItem(row, 0, name_item)
 
-                items_str = "\n".join(reg.items)
-                meds_item = QTableWidgetItem(items_str)
-                meds_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, 1, meds_item)
+                    formatted = [
+                        _format_item(name).replace(" ", "\u00A0")
+                        for name in process_items
+                    ]
+                    items_str = " / ".join(formatted)
+                    meds_item = QTableWidgetItem(items_str)
+                    meds_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    table.setItem(row, 1, meds_item)
 
             table.resizeRowsToContents()
             table.cellDoubleClicked.connect(
@@ -146,6 +123,7 @@ class PreviewPage(QWidget, ToastMixin):
             table.customContextMenuRequested.connect(
                 lambda pos, t=table, tp=tipo: self._show_row_menu(t, tp, pos)
             )
+            self.register_keyboard_nav(table, search, lambda t=table: self._on_enter(t))
 
             tab_label = f"{TIPO_LABELS.get(tipo, tipo)} ({len(tipo_registros)})"
             idx = self._tabs.addTab(tab, tab_label)
@@ -206,7 +184,12 @@ class PreviewPage(QWidget, ToastMixin):
             return
         reg = self._mw.db.get_registro_by_id(reg_id)
         if reg:
-            self._mw.navigate_to("entry", tipo=reg.tipo, edit_id=reg_id)
+            self._mw.navigate_to("entry", tipo=reg.tipo, edit_id=reg_id, return_to="preview")
+
+    def _on_enter(self, table: QTableWidget):
+        row = table.currentRow()
+        if row >= 0:
+            self._on_row_double_clicked(table, row)
 
     def _show_row_menu(self, table: QTableWidget, current_tipo: str, pos):
         row = table.rowAt(pos.y())
@@ -250,6 +233,12 @@ class PreviewPage(QWidget, ToastMixin):
             lambda _checked=False, rid=reg_id: self._edit_paciente_name(rid)
         )
 
+        editar_menu.addSeparator()
+        excluir_action = editar_menu.addAction("Excluir")
+        excluir_action.triggered.connect(
+            lambda _checked=False, rid=reg_id: self._confirm_delete(rid)
+        )
+
         menu.exec(table.viewport().mapToGlobal(pos))
 
     def _change_tipo(self, reg_id: int, new_tipo: str):
@@ -276,45 +265,12 @@ class PreviewPage(QWidget, ToastMixin):
             ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")
 
-    def _open_name_dialog(self, title: str, label: str, initial: str = ""):
-        dlg = QDialog(self)
-        dlg.setWindowTitle(title)
-        dlg.setMinimumWidth(340)
-
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(16)
-
-        layout.addWidget(HeadingLabel(title))
-        layout.addSpacing(4)
-
-        input_field = QLineEdit()
-        input_field.setPlaceholderText(label)
-        input_field.setText(initial)
-        if initial:
-            input_field.selectAll()
-        layout.addWidget(input_field)
-
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        cancel = make_button("Cancelar", "flat")
-        cancel.clicked.connect(dlg.reject)
-        btn_row.addWidget(cancel)
-        confirm = make_button("Confirmar", "primary")
-        btn_row.addWidget(confirm)
-        layout.addLayout(btn_row)
-
-        input_field.returnPressed.connect(dlg.accept)
-        confirm.clicked.connect(dlg.accept)
-
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return None
-        return input_field.text().strip() or None
-
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
         if not reg or not reg.paciente_id:
             return
-        new_name = self._open_name_dialog(
+        new_name = open_input_dialog(
+            self,
             "Editar Nome do Paciente",
             "Nome do paciente",
             initial=reg.paciente_name or "",
@@ -328,6 +284,9 @@ class PreviewPage(QWidget, ToastMixin):
         except Exception as e:
             ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")
+
+    def _confirm_delete(self, reg_id: int):
+        delete_registro_with_undo(self, self._mw.db, reg_id, self.refresh)
 
     @staticmethod
     def _table_style(tipo: str) -> str:
@@ -389,14 +348,5 @@ class PreviewPage(QWidget, ToastMixin):
         """
 
     def set_shortcuts_visible(self, show: bool):
-        for name, widget in self._shortcut_widgets.items():
-            _, label = SHORTCUT_LABELS[name]
-            if show:
-                key = SHORTCUT_LABELS[name][0]
-                widget.setText(f"{label} ({key})")
-            else:
-                widget.setText(label)
-        for _, line_edit in self._shortcut_searches:
-            base = "Buscar paciente ou medicamento..."
-            line_edit.setPlaceholderText(f"{base} (Ctrl+R)" if show else base)
+        super().set_shortcuts_visible(show)
         self._malote_label.set_shortcut_hint_visible(show)

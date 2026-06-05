@@ -12,61 +12,29 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QLineEdit,
-    QLabel,
     QSizePolicy,
-    QDialog,
 )
 from PySide6.QtCore import Qt
 
 from src.gui.widgets import (
     make_button,
-    HeadingLabel,
-    ToastMixin,
+    BasePage,
+    confirm_delete_dialog,
+    open_input_dialog,
 )
-from src.gui.constants import SHORTCUT_LABELS
 from src.gui.styles import colors
 
 
-class ListManagePage(QWidget, ToastMixin):
+class ListManagePage(BasePage):
     def __init__(self, main_window):
-        super().__init__()
-        self._mw = main_window
+        super().__init__(main_window)
         self._build_ui()
 
     def _build_ui(self):
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 32, 48, 32)
-        outer.setSpacing(0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
-        container = QWidget()
-        container.setMaximumWidth(720)
-        container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
-        )
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self._build_header(layout)
+        layout = self._scaffold()
+        self._add_back_button(layout)
         layout.addSpacing(20)
-
         self._build_tabs(layout)
-
-        outer.addWidget(container)
-
-    def _build_header(self, layout: QVBoxLayout):
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
-
-        back_btn = make_button("Voltar", "flat")
-        back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
-        h.addWidget(back_btn)
-        self._shortcut_widgets = {"back": back_btn}
-        h.addStretch()
-
-        layout.addLayout(h)
 
     def _build_tabs(self, layout: QVBoxLayout):
         self._tabs = QTabWidget()
@@ -100,6 +68,7 @@ class ListManagePage(QWidget, ToastMixin):
         self._item_list.setAlternatingRowColors(True)
         self._item_list.setStyleSheet(self._list_style())
         self._item_list.itemDoubleClicked.connect(self._edit_item)
+        self.register_keyboard_nav(self._item_list, self._item_search, lambda _: self._edit_selected_item())
         tab_layout.addWidget(self._item_list)
 
         btn_row = QHBoxLayout()
@@ -141,6 +110,7 @@ class ListManagePage(QWidget, ToastMixin):
         self._paciente_list.setAlternatingRowColors(True)
         self._paciente_list.setStyleSheet(self._list_style())
         self._paciente_list.itemDoubleClicked.connect(self._edit_paciente)
+        self.register_keyboard_nav(self._paciente_list, self._paciente_search, lambda _: self._edit_selected_paciente())
         tab_layout.addWidget(self._paciente_list)
 
         btn_row = QHBoxLayout()
@@ -159,40 +129,6 @@ class ListManagePage(QWidget, ToastMixin):
 
         self._load_pacientes()
         self._tabs.addTab(tab, "Pacientes")
-
-    def _open_name_dialog(self, title: str, label: str, initial: str = ""):
-        dlg = QDialog(self)
-        dlg.setWindowTitle(title)
-        dlg.setMinimumWidth(340)
-
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(16)
-
-        layout.addWidget(HeadingLabel(title))
-        layout.addSpacing(4)
-
-        input_field = QLineEdit()
-        input_field.setPlaceholderText(label)
-        input_field.setText(initial)
-        if initial:
-            input_field.selectAll()
-        layout.addWidget(input_field)
-
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        cancel = make_button("Cancelar", "flat")
-        cancel.clicked.connect(dlg.reject)
-        btn_row.addWidget(cancel)
-        confirm = make_button("Confirmar", "primary")
-        btn_row.addWidget(confirm)
-        layout.addLayout(btn_row)
-
-        input_field.returnPressed.connect(dlg.accept)
-        confirm.clicked.connect(dlg.accept)
-
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return None
-        return input_field.text().strip() or None
 
     def _load_items(self):
         self._all_items = self._mw.db.get_all_items()
@@ -214,7 +150,7 @@ class ListManagePage(QWidget, ToastMixin):
         self._populate_items(filtered)
 
     def _add_item(self):
-        name = self._open_name_dialog("Adicionar Medicamento", "Nome do medicamento")
+        name = open_input_dialog(self, "Adicionar Medicamento", "Nome do medicamento")
         if not name:
             return
         try:
@@ -228,8 +164,8 @@ class ListManagePage(QWidget, ToastMixin):
     def _edit_item(self, item: QListWidgetItem):
         item_id = item.data(Qt.ItemDataRole.UserRole)
         old_name = item.text()
-        new_name = self._open_name_dialog(
-            "Editar Medicamento", "Nome do medicamento", initial=old_name
+        new_name = open_input_dialog(
+            self, "Editar Medicamento", "Nome do medicamento", initial=old_name
         )
         if not new_name or new_name == old_name:
             return
@@ -246,42 +182,13 @@ class ListManagePage(QWidget, ToastMixin):
         if current:
             self._edit_item(current)
 
-    def _confirm_delete(self, title: str, message: str) -> bool:
-        dlg = QDialog(self)
-        dlg.setWindowTitle(title)
-        dlg.setMinimumWidth(340)
-
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(16)
-
-        layout.addWidget(HeadingLabel(title))
-        layout.addSpacing(4)
-
-        msg = QLabel(message)
-        msg.setWordWrap(True)
-        c = colors()
-        msg.setStyleSheet(f"color: {c['text_primary']}; font-size: 13px;")
-        layout.addWidget(msg)
-
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        cancel = make_button("Cancelar", "flat")
-        cancel.clicked.connect(dlg.reject)
-        btn_row.addWidget(cancel)
-        confirm = make_button("Excluir", "destructive")
-        confirm.clicked.connect(dlg.accept)
-        btn_row.addWidget(confirm)
-        layout.addLayout(btn_row)
-
-        return dlg.exec() == QDialog.DialogCode.Accepted
-
     def _delete_selected_item(self):
         current = self._item_list.currentItem()
         if not current:
             return
         item_id = current.data(Qt.ItemDataRole.UserRole)
         name = current.text()
-        if not self._confirm_delete("Excluir Medicamento", f'Excluir "{name}"?'):
+        if not confirm_delete_dialog(self, "Excluir Medicamento", f'Excluir "{name}"?'):
             return
         if self._mw.db.delete_item(item_id):
             self._load_items()
@@ -310,7 +217,7 @@ class ListManagePage(QWidget, ToastMixin):
         self._populate_pacientes(filtered)
 
     def _add_paciente(self):
-        name = self._open_name_dialog("Adicionar Paciente", "Nome do paciente")
+        name = open_input_dialog(self, "Adicionar Paciente", "Nome do paciente")
         if not name:
             return
         try:
@@ -324,8 +231,8 @@ class ListManagePage(QWidget, ToastMixin):
     def _edit_paciente(self, item: QListWidgetItem):
         paciente_id = item.data(Qt.ItemDataRole.UserRole)
         old_name = item.text()
-        new_name = self._open_name_dialog(
-            "Editar Paciente", "Nome do paciente", initial=old_name
+        new_name = open_input_dialog(
+            self, "Editar Paciente", "Nome do paciente", initial=old_name
         )
         if not new_name or new_name == old_name:
             return
@@ -348,7 +255,7 @@ class ListManagePage(QWidget, ToastMixin):
             return
         paciente_id = current.data(Qt.ItemDataRole.UserRole)
         name = current.text()
-        if not self._confirm_delete("Excluir Paciente", f'Excluir "{name}"?'):
+        if not confirm_delete_dialog(self, "Excluir Paciente", f'Excluir "{name}"?'):
             return
         if self._mw.db.delete_paciente(paciente_id):
             self._load_pacientes()
@@ -415,16 +322,3 @@ class ListManagePage(QWidget, ToastMixin):
                 color: {c["text_primary"]};
             }}
         """
-
-    def set_shortcuts_visible(self, show: bool):
-        for name, widget in self._shortcut_widgets.items():
-            _, label = SHORTCUT_LABELS[name]
-            if show:
-                key = SHORTCUT_LABELS[name][0]
-                widget.setText(f"{label} ({key})")
-            else:
-                widget.setText(label)
-        for placeholder, line_edit in self._shortcut_searches:
-            line_edit.setPlaceholderText(
-                f"{placeholder} (Ctrl+R)" if show else placeholder
-            )

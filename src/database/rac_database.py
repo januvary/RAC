@@ -15,6 +15,7 @@ from andaime.error_handler import ErrorHandler, ErrorLevel
 from andaime.text import to_upper_normalized
 
 from src.database.definitive_catalog import DEFINITIVE_CATALOG
+from src.constants import TIPO_LABELS
 from src.services.exceptions import DuplicateRecordError
 from src.models import (
     Malote,
@@ -27,10 +28,11 @@ from src.models import (
 
 
 class RACDatabase(BaseDatabase):
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     _MIGRATIONS: dict[int, str] = {
         2: "ALTER TABLE malotes ADD COLUMN arrival_date TEXT;",
+        3: "ALTER TABLE registro_items ADD COLUMN process_group INTEGER NOT NULL DEFAULT 1;",
     }
 
     def __init__(self, db_path: Optional[str] = None) -> None:
@@ -88,7 +90,8 @@ class RACDatabase(BaseDatabase):
                 CREATE TABLE IF NOT EXISTS registro_items (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
-                    item_id INTEGER NOT NULL REFERENCES items_catalog(id)
+                    item_id INTEGER NOT NULL REFERENCES items_catalog(id),
+                    process_group INTEGER NOT NULL DEFAULT 1
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_registros_malote ON registros(malote_id);
@@ -431,16 +434,18 @@ class RACDatabase(BaseDatabase):
     # ========== REGISTRO ITEMS ==========
 
     @_db_op("write")
-    def set_registro_items(self, registro_id: int, item_ids: list[int]) -> None:
+    def set_registro_items(
+        self, registro_id: int, items: list[tuple[int, int]]
+    ) -> None:
         with self._cursor() as cur:
             cur.execute(
                 "DELETE FROM registro_items WHERE registro_id = ?",
                 (registro_id,),
             )
-            if item_ids:
+            if items:
                 cur.executemany(
-                    "INSERT INTO registro_items (registro_id, item_id) VALUES (?, ?)",
-                    [(registro_id, iid) for iid in item_ids],
+                    "INSERT INTO registro_items (registro_id, item_id, process_group) VALUES (?, ?, ?)",
+                    [(registro_id, iid, pg) for iid, pg in items],
                 )
             self._commit()
 
@@ -451,7 +456,8 @@ class RACDatabase(BaseDatabase):
                 "SELECT ri.*, ic.name as item_name, ic.unidade "
                 "FROM registro_items ri "
                 "JOIN items_catalog ic ON ri.item_id = ic.id "
-                "WHERE ri.registro_id = ?",
+                "WHERE ri.registro_id = ? "
+                "ORDER BY ri.process_group, ic.name COLLATE NOCASE",
                 (registro_id,),
             )
             return [RegistroItem.from_row(dict(r)) for r in cur.fetchall()]
@@ -539,25 +545,207 @@ class RACDatabase(BaseDatabase):
         with self._cursor() as cur:
             cur.execute(
                 "SELECT r.id, r.tipo, r.paciente_id, p.name as paciente_name, "
-                "ic.name as item_name "
+                "ic.name as item_name, ri.process_group "
                 "FROM registros r "
                 "JOIN pacientes p ON r.paciente_id = p.id "
                 "LEFT JOIN registro_items ri ON ri.registro_id = r.id "
                 "LEFT JOIN items_catalog ic ON ri.item_id = ic.id "
                 "WHERE r.malote_id = ? AND r.waiting_docs = 0 "
-                "ORDER BY r.tipo, p.name COLLATE NOCASE, ic.name",
+                "ORDER BY r.tipo, p.name COLLATE NOCASE, ri.process_group, ic.name",
                 (malote_id,),
             )
             rows = cur.fetchall()
 
         registros_map: dict[int, RegistroExport] = {}
+        groups_map: dict[int, dict[int, list[str]]] = {}
         for row in rows:
             r = dict(row)
             reg_id = r["id"]
             if reg_id not in registros_map:
                 registros_map[reg_id] = RegistroExport.from_row(r)
+                groups_map[reg_id] = {}
             item_name = r.get("item_name")
             if item_name:
-                registros_map[reg_id].items.append(item_name)
+                pg = r.get("process_group", 1) or 1
+                groups_map[reg_id].setdefault(pg, []).append(item_name)
+
+        for reg_id, groups in groups_map.items():
+            sorted_groups = sorted(groups.items(), key=lambda x: x[0])
+            registros_map[reg_id].processes = [
+                items for _, items in sorted_groups if items
+            ]
 
         return list(registros_map.values())
+
+    # ========== STATISTICS ==========
+
+    def _stats_where(
+        self,
+        cur,
+        tipo: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> tuple[str, list]:
+        clauses: list[str] = []
+        params: list = []
+        if tipo:
+            clauses.append("r.tipo = ?")
+            params.append(tipo)
+        if date_from:
+            clauses.append("m.date >= ?")
+            params.append(date_from)
+        if date_to:
+            clauses.append("m.date <= ?")
+            params.append(date_to)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        return where, params
+
+    @_db_op("read")
+    def get_stats_summary(
+        self,
+        tipo: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict[str, int]:
+        with self._cursor() as cur:
+            where, params = self._stats_where(cur, tipo, date_from, date_to)
+            cur.execute(
+                f"SELECT COUNT(*) AS total_registros, "
+                f"COUNT(DISTINCT r.paciente_id) AS total_pacientes, "
+                f"COUNT(DISTINCT r.malote_id) AS total_malotes "
+                f"FROM registros r JOIN malotes m ON r.malote_id = m.id{where}",
+                params,
+            )
+            row = dict(cur.fetchone())
+            cur.execute(
+                f"SELECT COUNT(DISTINCT ri.item_id) AS total_items "
+                f"FROM registro_items ri "
+                f"JOIN registros r ON ri.registro_id = r.id "
+                f"JOIN malotes m ON r.malote_id = m.id{where}",
+                params,
+            )
+            row2 = dict(cur.fetchone())
+            return {
+                "total_registros": row["total_registros"] or 0,
+                "total_pacientes": row["total_pacientes"] or 0,
+                "total_items": row2["total_items"] or 0,
+                "total_malotes": row["total_malotes"] or 0,
+            }
+
+    @_db_op("read")
+    def get_stats_by_tipo(
+        self,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[dict]:
+        with self._cursor() as cur:
+            where, params = self._stats_where(cur, date_from=date_from, date_to=date_to)
+            cur.execute(
+                f"SELECT r.tipo, "
+                f"COUNT(*) AS registros, "
+                f"COUNT(DISTINCT r.paciente_id) AS pacientes "
+                f"FROM registros r JOIN malotes m ON r.malote_id = m.id{where} "
+                f"GROUP BY r.tipo ORDER BY r.tipo",
+                params,
+            )
+            tipo_rows = [dict(r) for r in cur.fetchall()]
+            cur.execute(
+                f"SELECT r.tipo, COUNT(DISTINCT ri.item_id) AS items "
+                f"FROM registro_items ri "
+                f"JOIN registros r ON ri.registro_id = r.id "
+                f"JOIN malotes m ON r.malote_id = m.id{where} "
+                f"GROUP BY r.tipo",
+                params,
+            )
+            item_map = {dict(r)["tipo"]: dict(r)["items"] for r in cur.fetchall()}
+            for row in tipo_rows:
+                row["items"] = item_map.get(row["tipo"], 0)
+            return tipo_rows
+
+    @_db_op("read")
+    def get_stats_top_medications(
+        self,
+        tipo: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[dict]:
+        with self._cursor() as cur:
+            where, params = self._stats_where(cur, tipo, date_from, date_to)
+            cur.execute(
+                f"SELECT ic.name AS medicamento, COUNT(*) AS registros "
+                f"FROM registro_items ri "
+                f"JOIN items_catalog ic ON ri.item_id = ic.id "
+                f"JOIN registros r ON ri.registro_id = r.id "
+                f"JOIN malotes m ON r.malote_id = m.id{where} "
+                f"GROUP BY ri.item_id ORDER BY registros DESC",
+                params,
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    @_db_op("read")
+    def get_stats_top_patients(
+        self,
+        tipo: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 10,
+    ) -> list[dict]:
+        with self._cursor() as cur:
+            where, params = self._stats_where(cur, tipo, date_from, date_to)
+            cur.execute(
+                f"SELECT p.name AS paciente, "
+                f"COUNT(*) AS registros, "
+                f"COUNT(DISTINCT m.id) AS malotes "
+                f"FROM registros r "
+                f"JOIN pacientes p ON r.paciente_id = p.id "
+                f"JOIN malotes m ON r.malote_id = m.id{where} "
+                f"GROUP BY r.paciente_id ORDER BY registros DESC LIMIT ?",
+                params + [limit],
+            )
+            patient_rows = [dict(r) for r in cur.fetchall()]
+            pids_where = where.replace("r.", "rr.").replace("m.", "mm.")
+            for row in patient_rows:
+                cur.execute(
+                    f"SELECT COUNT(DISTINCT ri.item_id) AS items "
+                    f"FROM registro_items ri "
+                    f"JOIN registros rr ON ri.registro_id = rr.id "
+                    f"JOIN pacientes p ON rr.paciente_id = p.id "
+                    f"JOIN malotes mm ON rr.malote_id = mm.id "
+                    f"WHERE p.name = ?{(' AND' + pids_where.replace(' WHERE ', '')) if pids_where and 'WHERE' in pids_where else ''}",
+                    [row["paciente"]] + params,
+                )
+                row["items"] = dict(cur.fetchone())["items"] or 0
+            return patient_rows
+
+    @_db_op("read")
+    def get_stats_malote_timeline(
+        self,
+        tipo: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> list[dict]:
+        with self._cursor() as cur:
+            where_base, params = self._stats_where(cur, tipo, date_from, date_to)
+            cur.execute(
+                f"SELECT m.date, m.id AS malote_id "
+                f"FROM malotes m "
+                f"WHERE m.id IN (SELECT DISTINCT r.malote_id FROM registros r JOIN malotes m ON r.malote_id = m.id{where_base}) "
+                f"ORDER BY m.date DESC",
+                params,
+            )
+            malotes = [dict(r) for r in cur.fetchall()]
+            result = []
+            for mal in malotes:
+                row: dict = {"date": mal["date"], "malote_id": mal["malote_id"]}
+                for t in TIPO_LABELS:
+                    cur.execute(
+                        "SELECT COUNT(*) AS cnt FROM registros r "
+                        "JOIN pacientes p ON r.paciente_id = p.id "
+                        "WHERE r.malote_id = ? AND r.tipo = ?",
+                        (mal["malote_id"], t),
+                    )
+                    row[t] = dict(cur.fetchone())["cnt"] or 0
+                row["total"] = sum(row[t] for t in TIPO_LABELS)
+                if row["total"] > 0:
+                    result.append(row)
+            return result

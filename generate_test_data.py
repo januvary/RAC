@@ -82,7 +82,7 @@ for tipo in tipos:
         assert reg.id is not None
         n_items = random.randint(1, 5)
         chosen = random.sample(item_ids, min(n_items, len(item_ids)))
-        db.set_registro_items(reg.id, chosen)
+        db.set_registro_items(reg.id, [(cid, 1) for cid in chosen])
         count += 1
 
 print(f"Created {count} registros")

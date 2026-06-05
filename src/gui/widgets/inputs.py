@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QCompleter
 from src.gui.widgets._completer import (
     _SearchCompleter,
     _CenteredComboBox,
+    _ThemedComboDelegate,
 )
 from src.gui.constants import TIPO_LABELS, TIPO_SYMBOLS, TIPO_HEX
 from src.gui.styles import colors, faded_tipo_color
@@ -206,7 +207,8 @@ class TipoCombo(QWidget):
         self._combo.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo.setMinimumWidth(130)
         self._combo.setItemDelegate(_TipoComboDelegate(self._combo))
-        self._combo._tipo_bg = ""
+        self._combo._popup_bg = ""
+        self._combo.setHideCurrentItem(True)
         self._layout.addWidget(self._combo)
 
         self._combo.currentIndexChanged.connect(self._on_index_changed)
@@ -220,7 +222,6 @@ class TipoCombo(QWidget):
         idx = self._combo.findData(current_tipo)
         if idx >= 0:
             self._combo.setCurrentIndex(idx)
-        self._hide_current_from_dropdown()
 
     def current_tipo(self) -> str:
         return self._tipo
@@ -236,16 +237,11 @@ class TipoCombo(QWidget):
             self._tipo = data
             self._update_display(data)
             self.tipo_changed.emit(data)
-            self._hide_current_from_dropdown()
-
-    def _hide_current_from_dropdown(self):
-        for i in range(self._combo.count()):
-            self._combo.view().setRowHidden(i, i == self._combo.currentIndex())
 
     def _update_display(self, tipo_key: str):
         c = colors()
         dropdown_bg = c["bg_input"]
-        self._combo._tipo_bg = dropdown_bg
+        self._combo._popup_bg = dropdown_bg
         hex_color = TIPO_HEX.get(tipo_key, "")
         faded = faded_tipo_color(hex_color)
         self._combo.setStyleSheet(f"""

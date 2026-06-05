@@ -26,6 +26,7 @@ SHORTCUT_LABELS: dict[str, tuple[str, str]] = {
     "back": ("Esc", "Voltar"),
     "preview": ("Ctrl+G", "◉  Visualizar Malote"),
     "lists": ("Ctrl+T", "Gerenciar Listas"),
+    "stats": ("Ctrl+Y", "Estatisticas"),
     "add_item": ("Ctrl+F", "+ Adicionar Item"),
     "toggle_docs": ("Ctrl+W", "Esperando documentos"),
     "toggle_stay": ("Ctrl+Q", "Ficar nesta tela"),

@@ -111,6 +111,7 @@ class RegistroItem:
     item_id: int | None = None
     item_name: str | None = None
     unidade: str | None = None
+    process_group: int = 1
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> RegistroItem:
@@ -120,6 +121,7 @@ class RegistroItem:
             item_id=row.get("item_id"),
             item_name=row.get("item_name"),
             unidade=row.get("unidade"),
+            process_group=row.get("process_group", 1),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -129,6 +131,7 @@ class RegistroItem:
             "item_id": self.item_id,
             "item_name": self.item_name,
             "unidade": self.unidade,
+            "process_group": self.process_group,
         }
 
 
@@ -138,7 +141,7 @@ class RegistroExport:
     tipo: str = ""
     paciente_id: int | None = None
     paciente_name: str | None = None
-    items: list[str] = field(default_factory=list)
+    processes: list[list[str]] = field(default_factory=list)
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> RegistroExport:
@@ -155,5 +158,5 @@ class RegistroExport:
             "tipo": self.tipo,
             "paciente_id": self.paciente_id,
             "paciente_name": self.paciente_name,
-            "items": self.items,
+            "processes": self.processes,
         }

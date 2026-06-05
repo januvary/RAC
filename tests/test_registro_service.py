@@ -42,7 +42,7 @@ class TestSaveNewRegistro:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         assert isinstance(result, SaveResult)
         assert result.is_update is False
@@ -63,7 +63,7 @@ class TestSaveNewRegistro:
             tipo="entrada",
             paciente_name="João Silva",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         assert result.registro_id is not None
         reg = db.get_registro_by_id(result.registro_id)
@@ -75,7 +75,7 @@ class TestSaveNewRegistro:
             tipo="entrada",
             paciente_name="",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
             paciente_id=p.id,
         )
         reg = db.get_registro_by_id(result.registro_id)
@@ -87,7 +87,7 @@ class TestSaveNewRegistro:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=ids,
+            items=[(iid, 1) for iid in ids],
         )
         items = db.get_items_for_registro(result.registro_id)
         assert len(items) == 2
@@ -98,7 +98,7 @@ class TestSaveNewRegistro:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
             waiting_docs=True,
         )
         reg = db.get_registro_by_id(result.registro_id)
@@ -109,7 +109,7 @@ class TestSaveNewRegistro:
             tipo="entrada",
             paciente_name="  ana maria  ",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         p = db.find_paciente_by_name("ana maria")
         assert p is not None
@@ -122,13 +122,13 @@ class TestSaveDedup:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         r2 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         assert r1.registro_id == r2.registro_id
         assert r2.is_update is True
@@ -138,13 +138,13 @@ class TestSaveDedup:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         r2 = service.save(
             tipo="renovacao",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         assert r1.registro_id != r2.registro_id
         assert r2.is_update is False
@@ -156,7 +156,7 @@ class TestSaveEdit:
             tipo="entrada",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         original_id = result.registro_id
 
@@ -164,7 +164,7 @@ class TestSaveEdit:
             tipo="entrada",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
             edit_id=original_id,
             waiting_docs=True,
         )
@@ -185,7 +185,7 @@ class TestDelete:
             tipo="entrada",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         service.delete(result.registro_id)
         assert db.get_registro_by_id(result.registro_id) is None
@@ -197,7 +197,7 @@ class TestDelete:
             tipo="entrada",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         service.delete(result.registro_id)
         items = db.get_items_for_registro(result.registro_id)
@@ -220,13 +220,13 @@ class TestLoadForEdit:
             tipo="entrada",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[2].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         loaded = service.load_for_edit(result.registro_id)
         assert loaded is not None
         assert isinstance(loaded, EditContext)
         assert loaded.registro.id == result.registro_id
-        assert len(loaded.item_ids) == 2
+        assert len(loaded.items) == 2
 
     def test_load_nonexistent_returns_none(self, service):
         assert service.load_for_edit(9999) is None
@@ -238,13 +238,13 @@ class TestDuplicateRecordError:
             tipo="entrada",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         r2 = service.save(
             tipo="renovacao",
             paciente_name=paciente.name,
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         with pytest.raises(DuplicateRecordError):
             db.update_registro(r2.registro_id, tipo="entrada")
@@ -264,7 +264,7 @@ class TestValidation:
                 tipo="",
                 paciente_name="Maria",
                 malote_id=malote.id,
-                item_ids=[],
+                items=[],
             )
 
     def test_no_patient_raises(self, service, malote):
@@ -273,7 +273,7 @@ class TestValidation:
                 tipo="entrada",
                 paciente_name="",
                 malote_id=malote.id,
-                item_ids=[],
+                items=[],
                 paciente_id=None,
             )
 
@@ -283,7 +283,7 @@ class TestValidation:
                 tipo="entrada",
                 paciente_name="Maria Santos",
                 malote_id=malote.id,
-                item_ids=[catalog_items[0].id],
+                items=[(catalog_items[0].id, 1)],
                 edit_id=9999,
             )
 
@@ -298,7 +298,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         assert r1.is_update is False
 
@@ -306,7 +306,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[1].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
             edit_id=None,
         )
         assert r2.registro_id == r1.registro_id
@@ -322,7 +322,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         assert r1.is_update is False
 
@@ -330,7 +330,7 @@ class TestDoubleSaveWorkflow:
             tipo="renovacao",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[1].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
             edit_id=None,
         )
         assert r2.is_update is False
@@ -348,13 +348,13 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         r2 = service.save(
             tipo="renovacao",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[],
+            items=[],
         )
         assert r2.is_update is False
 
@@ -363,7 +363,7 @@ class TestDoubleSaveWorkflow:
                 tipo="entrada",
                 paciente_name="Maria Santos",
                 malote_id=malote.id,
-                item_ids=[catalog_items[0].id, catalog_items[1].id],
+                items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
                 edit_id=r2.registro_id,
             )
 
@@ -374,7 +374,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         edit_id = r1.registro_id
 
@@ -382,7 +382,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[1].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
             edit_id=edit_id,
         )
         assert r2.registro_id == edit_id
@@ -396,7 +396,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="New Patient",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
             paciente_id=None,
         )
         assert r1.is_update is False
@@ -408,7 +408,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="New Patient",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[1].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
             paciente_id=None,
         )
         assert r2.registro_id == r1.registro_id
@@ -421,19 +421,19 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[ids[0]],
+            items=[(ids[0], 1)],
         )
         r2 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[ids[0], ids[1]],
+            items=[(ids[0], 1), (ids[1], 1)],
         )
         r3 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[ids[0], ids[1], ids[2]],
+            items=[(ids[0], 1), (ids[1], 1), (ids[2], 1)],
         )
 
         assert r1.registro_id == r2.registro_id == r3.registro_id
@@ -451,13 +451,13 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=m1.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         r2 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=m2.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
         )
         assert r1.registro_id != r2.registro_id
 
@@ -465,7 +465,7 @@ class TestDoubleSaveWorkflow:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=m1.id,
-            item_ids=[catalog_items[0].id, catalog_items[2].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         assert r1_again.registro_id == r1.registro_id
         items = db.get_items_for_registro(r1.registro_id)
@@ -482,7 +482,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         assert r_entrada.is_update is False
 
@@ -490,7 +490,7 @@ class TestComplexWorkflows:
             tipo="renovacao",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
         )
         assert r_renovacao.is_update is False
         assert r_renovacao.registro_id != r_entrada.registro_id
@@ -499,7 +499,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[2].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         assert r_entrada2.registro_id == r_entrada.registro_id
         assert r_entrada2.is_update is True
@@ -520,7 +520,7 @@ class TestComplexWorkflows:
                 tipo=tipo,
                 paciente_name=paciente_name,
                 malote_id=malote.id,
-                item_ids=[ids[i]],
+                items=[(ids[i], 1)],
             )
             assert r.is_update is False
             result_ids.append(r.registro_id)
@@ -532,7 +532,7 @@ class TestComplexWorkflows:
                 tipo=tipo,
                 paciente_name=paciente_name,
                 malote_id=malote.id,
-                item_ids=[ids[i], ids[(i + 1) % 4]],
+                items=[(ids[i], 1), (ids[(i + 1) % 4], 1)],
             )
             assert r.is_update is True
             assert r.registro_id == result_ids[i]
@@ -546,13 +546,13 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         r2 = service.save(
             tipo="renovacao",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
         )
 
         with pytest.raises(DuplicateRecordError):
@@ -560,7 +560,7 @@ class TestComplexWorkflows:
                 tipo="entrada",
                 paciente_name="Maria Santos",
                 malote_id=malote.id,
-                item_ids=[catalog_items[2].id],
+                items=[(catalog_items[2].id, 1)],
                 edit_id=r2.registro_id,
             )
 
@@ -576,13 +576,13 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Alice",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         r_b = service.save(
             tipo="entrada",
             paciente_name="Bob",
             malote_id=malote.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
         )
         assert r_a.registro_id != r_b.registro_id
 
@@ -590,7 +590,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Alice",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[2].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         assert r_a2.registro_id == r_a.registro_id
 
@@ -598,7 +598,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Bob",
             malote_id=malote.id,
-            item_ids=[catalog_items[1].id, catalog_items[3].id],
+            items=[(catalog_items[1].id, 1), (catalog_items[3].id, 1)],
         )
         assert r_b2.registro_id == r_b.registro_id
 
@@ -610,13 +610,13 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=m1.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         r_m2 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=m2.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
         )
         assert r_m1.registro_id != r_m2.registro_id
 
@@ -624,7 +624,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=m1.id,
-            item_ids=[catalog_items[0].id, catalog_items[2].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         assert r_m1_again.registro_id == r_m1.registro_id
         items = db.get_items_for_registro(r_m1.registro_id)
@@ -637,7 +637,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
         edit_id = r1.registro_id
 
@@ -645,7 +645,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[1].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
             edit_id=edit_id,
         )
         assert r2.registro_id == edit_id
@@ -661,14 +661,14 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
 
         r2 = service.save(
             tipo="renovacao",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[1].id],
+            items=[(catalog_items[1].id, 1)],
             edit_id=None,
         )
         assert r2.is_update is False
@@ -685,7 +685,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id],
+            items=[(catalog_items[0].id, 1)],
         )
 
         existing_patient = db.find_paciente_by_name("Maria Santos")
@@ -697,7 +697,7 @@ class TestComplexWorkflows:
             tipo="entrada",
             paciente_name="Maria Oliveira",
             malote_id=malote.id,
-            item_ids=[catalog_items[0].id, catalog_items[1].id],
+            items=[(catalog_items[0].id, 1), (catalog_items[1].id, 1)],
             edit_id=r1.registro_id,
         )
         assert r2.registro_id == r1.registro_id

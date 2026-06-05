@@ -112,11 +112,14 @@ class MainWindow(QMainWindow):
         elif page_name == "entry":
             tipo = kwargs.get("tipo", "entrada")
             edit_id = kwargs.get("edit_id")
-            self._show_entry_page(tipo, edit_id)
+            return_to = kwargs.get("return_to", "start")
+            self._show_entry_page(tipo, edit_id, return_to)
         elif page_name == "preview":
             self._show_preview_page()
         elif page_name == "lists":
             self._show_list_manage_page()
+        elif page_name == "stats":
+            self._show_stats_page()
 
     def _show_start_page(self):
         from src.gui.pages.start_page import StartPage
@@ -140,12 +143,12 @@ class MainWindow(QMainWindow):
             self._stack.removeWidget(w)
             w.deleteLater()
 
-    def _show_entry_page(self, tipo: str, edit_id: int | None = None):
+    def _show_entry_page(self, tipo: str, edit_id: int | None = None, return_to: str = "start"):
         from src.gui.pages.entry_page import EntryPage
 
         self._clear_above_start()
 
-        page = EntryPage(self, tipo, edit_id)
+        page = EntryPage(self, tipo, edit_id, return_to)
         self._stack.addWidget(page)
         self._stack.setCurrentWidget(page)
 
@@ -164,6 +167,15 @@ class MainWindow(QMainWindow):
         self._clear_above_start()
 
         page = ListManagePage(self)
+        self._stack.addWidget(page)
+        self._stack.setCurrentWidget(page)
+
+    def _show_stats_page(self):
+        from src.gui.pages.stats_page import StatsPage
+
+        self._clear_above_start()
+
+        page = StatsPage(self)
         self._stack.addWidget(page)
         self._stack.setCurrentWidget(page)
 
@@ -186,6 +198,7 @@ class MainWindow(QMainWindow):
             ("Ctrl+F", self._shortcut_add_item),
             ("Ctrl+W", self._shortcut_toggle_docs),
             ("Ctrl+Q", self._shortcut_toggle_stay_on_page),
+            ("Ctrl+Y", self._shortcut_stats),
         ]
         for key, handler in shortcuts:
             seq = QKeySequence(key)
@@ -221,7 +234,9 @@ class MainWindow(QMainWindow):
         from src.gui.pages.preview_page import PreviewPage
         from src.gui.pages.list_manage_page import ListManagePage
 
-        if isinstance(page, (EntryPage, PreviewPage, ListManagePage)):
+        if isinstance(page, EntryPage):
+            self.navigate_to(page._return_to)
+        elif isinstance(page, (PreviewPage, ListManagePage)):
             self.navigate_to("start")
 
     def _shortcut_malote_dialog(self):
@@ -298,6 +313,13 @@ class MainWindow(QMainWindow):
 
         if isinstance(page, StartPage):
             self.navigate_to("lists")
+
+    def _shortcut_stats(self):
+        page = self._current_page()
+        from src.gui.pages.start_page import StartPage
+
+        if isinstance(page, StartPage):
+            self.navigate_to("stats")
 
     def _shortcut_tipo_by_key(self, tipo: str):
         page = self._current_page()

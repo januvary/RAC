@@ -115,7 +115,6 @@ def tipo_button_qss(hex_color: str) -> str:
         QPushButton[tipobtn="true"] {{
             background-color: {c["bg_card"]};
             border: 1px solid {c["border_light"]};
-            border-left: 3px solid {hex_color};
             border-radius: 8px;
             padding: 20px 16px;
             font-size: 15px;
@@ -124,12 +123,10 @@ def tipo_button_qss(hex_color: str) -> str:
         }}
         QPushButton[tipobtn="true"]:hover {{
             background-color: {c["bg_card_alt"]};
-            border-left: 3px solid {hex_color};
             border-color: {c["border"]};
         }}
         QPushButton[tipobtn="true"]:pressed {{
             background-color: {c["bg_hover"]};
-            border-left: 3px solid {hex_color};
         }}
     """
 
@@ -392,7 +389,7 @@ QPushButton[btnrole="remove"] {{
     background-color: transparent;
     border: none;
     color: {c["text_secondary"]};
-    padding: 4px 8px;
+    padding: 0px;
     font-size: 16px;
     border-radius: 4px;
 }}

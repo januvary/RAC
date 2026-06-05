@@ -24,7 +24,7 @@ from src.gui.widgets import (
     make_button,
     MaloteLabel,
     ThemeToggleButton,
-    ToastMixin,
+    BasePage,
 )
 from src.gui.constants import (
     TIPO_LABELS,
@@ -39,27 +39,14 @@ from src.models import Malote
 from src.utils.text_utils import format_malote_date
 
 
-class StartPage(QWidget, ToastMixin):
+class StartPage(BasePage):
     def __init__(self, main_window):
-        super().__init__()
-        self._mw = main_window
+        super().__init__(main_window)
+        self._pre_search_malote = None
         self._build_ui()
 
     def _build_ui(self):
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 32, 48, 32)
-        outer.setSpacing(0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
-        container = QWidget()
-        container.setMaximumWidth(720)
-        container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
-        )
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
+        layout = self._scaffold()
         self._build_malote_header(layout)
         layout.addSpacing(20)
 
@@ -73,8 +60,6 @@ class StartPage(QWidget, ToastMixin):
         layout.addSpacing(28)
 
         self._build_export(layout)
-
-        outer.addWidget(container)
 
     def _build_malote_header(self, layout: QVBoxLayout):
         h = QHBoxLayout()
@@ -143,16 +128,26 @@ class StartPage(QWidget, ToastMixin):
         self._shortcut_widgets["export"] = btn
 
         layout.addLayout(row)
-        layout.addSpacing(4)
+        layout.addSpacing(7)
 
         manage_btn = make_button("Gerenciar Listas", "flat")
         manage_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        manage_btn.setFixedHeight(50)
+        manage_btn.setFixedHeight(54)
         manage_btn.clicked.connect(self._on_lists)
         layout.addWidget(manage_btn)
         self._shortcut_widgets["lists"] = manage_btn
 
+        stats_btn = make_button("Estatisticas", "flat")
+        stats_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        stats_btn.setFixedHeight(54)
+        stats_btn.clicked.connect(self._on_stats)
+        layout.addWidget(stats_btn)
+        self._shortcut_widgets["stats"] = stats_btn
+
     def refresh(self):
+        if self._pre_search_malote is not None:
+            self._mw.state.set_active_malote(self._pre_search_malote)
+            self._pre_search_malote = None
         self._malote_label.refresh()
         self._search_combo.set_options({})
         self._search_combo.clear()
@@ -177,6 +172,7 @@ class StartPage(QWidget, ToastMixin):
             reg_id = int(data)
             reg = self._mw.db.get_registro_by_id(reg_id)
             if reg:
+                self._pre_search_malote = self._mw.state.get_active_malote()
                 tipo = reg.tipo
                 self._mw.navigate_to("entry", tipo=tipo, edit_id=reg_id)
 
@@ -228,19 +224,16 @@ class StartPage(QWidget, ToastMixin):
     def _on_lists(self):
         self._mw.navigate_to("lists")
 
+    def _on_stats(self):
+        self._mw.navigate_to("stats")
+
     def _on_theme_changed(self):
         self._malote_label.refresh()
         for btn in self._tipo_btns:
             btn.refresh_style()
 
     def set_shortcuts_visible(self, show: bool):
-        for name, widget in self._shortcut_widgets.items():
-            _, label = SHORTCUT_LABELS[name]
-            if show:
-                key = SHORTCUT_LABELS[name][0]
-                widget.setText(f"{label} ({key})")
-            else:
-                widget.setText(label)
+        super().set_shortcuts_visible(show)
         for btn in self._tipo_btns:
             label = TIPO_LABELS[btn.tipo_key]
             symbol = TIPO_SYMBOLS[btn.tipo_key]
@@ -249,8 +242,4 @@ class StartPage(QWidget, ToastMixin):
                 btn.setText(f"{symbol}  {label}  ({key})")
             else:
                 btn.setText(f"{symbol}  {label}")
-        for placeholder, line_edit in self._shortcut_searches:
-            line_edit.setPlaceholderText(
-                f"{placeholder} (Ctrl+R)" if show else placeholder
-            )
         self._malote_label.set_shortcut_hint_visible(show)

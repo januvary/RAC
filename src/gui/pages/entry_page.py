@@ -11,19 +11,20 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QCheckBox,
-    QDialog,
     QSizePolicy,
 )
 from PySide6.QtCore import Qt, QTimer
 
 from src.gui.widgets import (
     SectionLabel,
-    HeadingLabel,
     SearchableComboBox,
     TipoCombo,
     MaloteLabel,
     make_button,
-    ToastMixin,
+    BasePage,
+    delete_registro_with_undo,
+    _CenteredComboBox,
+    _ThemedComboDelegate,
 )
 from src.models import Registro
 from src.services.registro_service import RegistroService
@@ -32,17 +33,16 @@ from andaime.error_handler import ErrorHandler
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
-from src.gui.constants import SHORTCUT_LABELS
 
 
-class EntryPage(QWidget, ToastMixin):
-    def __init__(self, main_window, tipo: str, edit_id: int | None = None):
-        super().__init__()
-        self._mw = main_window
+class EntryPage(BasePage):
+    def __init__(self, main_window, tipo: str, edit_id: int | None = None, return_to: str = "start"):
+        super().__init__(main_window)
         self._tipo = tipo
         self._edit_id: int | None = edit_id
         self._edit_registro: Registro | None = None
         self._focus_index: int = -1
+        self._return_to = return_to
         self._shortcut_widgets: dict[str, QPushButton | QLabel | QCheckBox] = {}
         self._delete_btn: QPushButton | None = None
 
@@ -57,20 +57,7 @@ class EntryPage(QWidget, ToastMixin):
         return self._edit_id is not None
 
     def _build_ui(self):
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 32, 48, 32)
-        outer.setSpacing(0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
-        container = QWidget()
-        container.setMaximumWidth(720)
-        container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
-        )
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
+        layout = self._scaffold()
         self._build_header(layout)
         layout.addSpacing(20)
 
@@ -86,7 +73,6 @@ class EntryPage(QWidget, ToastMixin):
 
         self._build_action_bar(layout)
 
-        outer.addWidget(container)
         QTimer.singleShot(0, self._paciente_combo.focus_search)
 
     def _build_header(self, layout: QVBoxLayout):
@@ -102,20 +88,10 @@ class EntryPage(QWidget, ToastMixin):
         self._tipo_combo.tipo_changed.connect(self._on_context_changed)
         self._malote_label.malote_changed.connect(self._on_context_changed)
 
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
-
-        back_btn = make_button("Voltar", "flat")
-        back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
-        self._shortcut_widgets["back"] = back_btn
-        h.addWidget(back_btn, 0, Qt.AlignmentFlag.AlignTop)
-        h.addStretch()
+        h = self._add_back_button(layout, target=self._return_to)
         h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignVCenter)
         h.addStretch()
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
-
-        layout.addLayout(h)
 
     def _build_patient_section(self, layout: QVBoxLayout):
         h = QHBoxLayout()
@@ -221,17 +197,7 @@ class EntryPage(QWidget, ToastMixin):
         self._update_registro_status(self._is_editing)
 
     def set_shortcuts_visible(self, show: bool):
-        for name, widget in self._shortcut_widgets.items():
-            _, label = SHORTCUT_LABELS[name]
-            if show:
-                key = SHORTCUT_LABELS[name][0]
-                widget.setText(f"{label} ({key})")
-            else:
-                widget.setText(label)
-        for placeholder, line_edit in self._shortcut_searches:
-            line_edit.setPlaceholderText(
-                f"{placeholder} (Ctrl+R)" if show else placeholder
-            )
+        super().set_shortcuts_visible(show)
         self._malote_label.set_shortcut_hint_visible(show)
 
     def _update_registro_status(self, editing: bool):
@@ -247,7 +213,7 @@ class EntryPage(QWidget, ToastMixin):
                 f"color: {c['text_secondary']}; font-size: 12px; font-style: italic;"
             )
 
-    def _add_item_row(self, item_id: int | None = None):
+    def _add_item_row(self, item_id: int | None = None, process_group: int = 1):
         row = QWidget()
         row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row_h = QHBoxLayout(row)
@@ -270,6 +236,27 @@ class EntryPage(QWidget, ToastMixin):
         remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         remove_btn.clicked.connect(lambda _checked=False, w=row: self._remove_item(w))
         row_h.addWidget(remove_btn)
+
+        process_combo = _CenteredComboBox()
+        process_combo.setItemDelegate(_ThemedComboDelegate(process_combo))
+        process_combo.setHideCurrentItem(True)
+        for i in range(1, 6):
+            process_combo.addItem(str(i))
+        process_combo.setFixedSize(28, 28)
+        process_combo.setCurrentIndex(process_group - 1)
+        process_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        process_combo.setToolTip("Grupo do processo")
+        process_combo.setStyleSheet(
+            "QComboBox { background: transparent; border: none; color: "
+            + colors()["text_secondary"]
+            + "; font-size: 13px; font-weight: 600; padding: 0; }"
+            "QComboBox:hover { color: "
+            + colors()["text_primary"]
+            + "; }"
+            "QComboBox::drop-down { border: none; width: 0; }"
+            "QComboBox::down-arrow { image: none; width: 0; }"
+        )
+        row_h.addWidget(process_combo)
 
         self._items_container.addWidget(row)
         return combo
@@ -316,8 +303,8 @@ class EntryPage(QWidget, ToastMixin):
                 w.setParent(None)
                 w.deleteLater()
 
-    def _collect_item_ids(self) -> list[int]:
-        ids = []
+    def _collect_items(self) -> list[tuple[int, int]]:
+        items = []
         for i in range(self._items_container.count()):
             item = self._items_container.itemAt(i)
             if not item:
@@ -327,9 +314,12 @@ class EntryPage(QWidget, ToastMixin):
                 continue
             combo = frame.findChild(SearchableComboBox)
             data = combo.current_data() if combo else None
-            if data:
-                ids.append(int(data))
-        return ids
+            if not data:
+                continue
+            process_combo = frame.findChild(_CenteredComboBox)
+            pg = process_combo.currentIndex() + 1 if process_combo else 1
+            items.append((int(data), pg))
+        return items
 
     def _load_items_for_context(self, paciente_id: int):
         malote = self._mw.state.get_active_malote()
@@ -345,7 +335,9 @@ class EntryPage(QWidget, ToastMixin):
             items = self._mw.db.get_items_for_registro(existing_reg.id)
             if items:
                 for item in items:
-                    self._add_item_row(item_id=item.item_id)
+                    self._add_item_row(
+                        item_id=item.item_id, process_group=item.process_group
+                    )
             else:
                 self._add_item_row()
         else:
@@ -380,7 +372,7 @@ class EntryPage(QWidget, ToastMixin):
         return None
 
     def _on_save(self):
-        item_ids = self._collect_item_ids()
+        items = self._collect_items()
         tipo = self._tipo_combo.current_tipo()
         waiting_docs = self._docs_check.isChecked()
 
@@ -399,7 +391,7 @@ class EntryPage(QWidget, ToastMixin):
                 tipo=tipo,
                 paciente_name=paciente_name,
                 malote_id=malote.id,
-                item_ids=item_ids,
+                items=items,
                 edit_id=self._edit_id,
                 waiting_docs=waiting_docs,
                 paciente_id=paciente_id,
@@ -423,7 +415,7 @@ class EntryPage(QWidget, ToastMixin):
         if self._auto_switch.isChecked():
             QTimer.singleShot(350, self._reset_form)
         else:
-            QTimer.singleShot(350, lambda: self._mw.navigate_to("start"))
+            QTimer.singleShot(350, lambda: self._mw.navigate_to(self._return_to))
 
     def _reset_form(self):
         self._edit_id = None
@@ -441,41 +433,12 @@ class EntryPage(QWidget, ToastMixin):
     def _confirm_delete(self):
         if not self._edit_id:
             return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Excluir Registro")
-        dlg.setMinimumWidth(340)
 
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(12)
+        def navigate_start():
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(800, lambda: self._mw.navigate_to(self._return_to))
 
-        layout.addWidget(HeadingLabel("Excluir este registro?"))
-
-        c = colors()
-        sub = QLabel("Esta acao nao pode ser desfeita.")
-        sub.setStyleSheet(f"color: {c['text_secondary']}; font-size: 13px;")
-        layout.addWidget(sub)
-
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        cancel = make_button("Cancelar", "flat")
-        cancel.clicked.connect(dlg.reject)
-        btn_row.addWidget(cancel)
-        delete_btn = make_button("Excluir", "destructive")
-        delete_btn.clicked.connect(lambda: self._do_delete(dlg))
-        btn_row.addWidget(delete_btn)
-        layout.addLayout(btn_row)
-
-        dlg.exec()
-
-    def _do_delete(self, dlg: QDialog):
-        if not self._edit_id:
-            return
-        try:
-            service = RegistroService(self._mw.db)
-            service.delete(self._edit_id)
-            dlg.accept()
-            self._toast("Registro excluido", "info")
-            QTimer.singleShot(800, lambda: self._mw.navigate_to("start"))
-        except Exception as e:
-            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
-            self._toast(f"Erro: {e}", "negative")
+        delete_registro_with_undo(
+            self, self._mw.db, self._edit_id,
+            on_refresh=navigate_start,
+        )

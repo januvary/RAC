@@ -19,6 +19,7 @@ from src.gui.styles import colors
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets.toast import show_toast
+from src.gui.widgets.dialogs import confirm_delete_dialog
 
 
 class MaloteLabel(QWidget):
@@ -72,6 +73,12 @@ class MaloteLabel(QWidget):
 def _show_malote_dialog(label: MaloteLabel):
     from datetime import datetime
     from src.utils.text_utils import format_malote_date
+    from src.gui.widgets._malote_tree import (
+        make_malote_tree as _make_tree,
+        populate_malote_tree as _populate,
+        wire_tree_keyboard as _wire_kb,
+    )
+    from PySide6.QtWidgets import QHeaderView
 
     parent = label.window()
     mw = label._mw
@@ -86,121 +93,52 @@ def _show_malote_dialog(label: MaloteLabel):
 
     layout.addWidget(HeadingLabel("Malotes"))
 
-    tree = QTreeWidget()
-    tree.setHeaderHidden(True)
-    tree.setRootIsDecorated(True)
-    tree.setAnimated(True)
-    tree.setIndentation(0)
-    tree.setAlternatingRowColors(True)
+    tree = _make_tree()
     tree.setColumnCount(2)
-    c = colors()
-    tree.setStyleSheet(f"""
-        QTreeWidget {{
-            alternate-background-color: {c["table_alt_bg"]};
-        }}
-    """)
-    from PySide6.QtWidgets import QHeaderView
-
     hdr = tree.header()
     hdr.setStretchLastSection(False)
     hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
 
-    def _populate_tree():
-        tree.clear()
-        malotes = mw.db.get_all_malotes()
+    def _decorate(child, m, dt):
         active = mw.state.get_active_malote()
-        current_year = datetime.now().year
-        current_month = datetime.now().month
-        year_items: dict[int, QTreeWidgetItem] = {}
-        month_items: dict[tuple[int, int], QTreeWidgetItem] = {}
+        is_active = active and active.id == m.id
+        display = format_malote_date(m)
+        prefix = "\u2713 " if is_active else "    "
+        child.setText(0, f"{prefix}{display}")
+        if is_active:
+            font = child.font(0)
+            font.setBold(True)
+            child.setFont(0, font)
 
-        sorted_malotes = []
-        for m in malotes:
+        arrival_str = m.arrival_date
+        if not arrival_str:
             try:
-                dt = datetime.fromisoformat(m.date)
+                from src.utils.date_calculator import calculate_arrival_date
+
+                send_dt = datetime.fromisoformat(m.date).date()
+                arrival_str = calculate_arrival_date(send_dt).isoformat()
             except (ValueError, TypeError):
-                dt = datetime.now()
-            sorted_malotes.append((m, dt))
-        sorted_malotes.sort(key=lambda x: x[1], reverse=True)
+                arrival_str = None
+        if arrival_str:
+            try:
+                arrival = datetime.fromisoformat(arrival_str).date()
+                child.setText(1, f"\u279c {arrival.strftime('%d/%m/%Y')}")
+                child.setTextAlignment(1, Qt.AlignmentFlag.AlignRight)
+                font = child.font(1)
+                font.setPointSize(font.pointSize() - 1)
+                child.setFont(1, font)
+            except (ValueError, TypeError):
+                pass
 
-        for m, dt in sorted_malotes:
-            year = dt.year
-            month = dt.month
-            is_current_month = year == current_year and month == current_month
-            is_past_month = (year, month) < (current_year, current_month)
-            is_past_year = year < current_year
-
-            is_active = active and active.id == m.id
-            display = format_malote_date(m)
-            prefix = "\u2713 " if is_active else "    "
-            text = f"{prefix}{display}"
-
-            child = QTreeWidgetItem()
-            child.setText(0, text)
-            child.setData(0, Qt.ItemDataRole.UserRole, m)
-            if is_active:
-                font = child.font(0)
-                font.setBold(True)
-                child.setFont(0, font)
-
-            arrival_str = m.arrival_date
-            if not arrival_str:
-                try:
-                    from src.utils.date_calculator import calculate_arrival_date
-
-                    send_dt = datetime.fromisoformat(m.date).date()
-                    arrival_str = calculate_arrival_date(send_dt).isoformat()
-                except (ValueError, TypeError):
-                    arrival_str = None
-            if arrival_str:
-                try:
-                    arrival = datetime.fromisoformat(arrival_str).date()
-                    child.setText(1, f"\u279c {arrival.strftime('%d/%m/%Y')}")
-                    child.setTextAlignment(1, Qt.AlignmentFlag.AlignRight)
-                    font = child.font(1)
-                    font.setPointSize(font.pointSize() - 1)
-                    child.setFont(1, font)
-                except (ValueError, TypeError):
-                    pass
-
-            if not is_past_month:
-                tree.addTopLevelItem(child)
-            elif is_past_year:
-                if year not in year_items:
-                    year_item = QTreeWidgetItem()
-                    year_item.setText(0, str(year))
-                    year_item.setChildIndicatorPolicy(
-                        QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
-                    )
-                    year_item.setExpanded(False)
-                    year_items[year] = year_item
-                    tree.addTopLevelItem(year_item)
-
-                key = (year, month)
-                if key not in month_items:
-                    month_item = QTreeWidgetItem()
-                    month_item.setText(0, f"{month:02d}/{year}")
-                    month_item.setChildIndicatorPolicy(
-                        QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
-                    )
-                    month_item.setExpanded(False)
-                    month_items[key] = month_item
-                    year_items[year].addChild(month_item)
-
-                month_items[key].addChild(child)
-            else:
-                key = (year, month)
-                if key not in month_items:
-                    month_item = QTreeWidgetItem()
-                    month_item.setText(0, f"{month:02d}/{year}")
-                    month_item.setChildIndicatorPolicy(
-                        QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator
-                    )
-                    month_item.setExpanded(True)
-                    month_items[key] = month_item
-                    tree.addTopLevelItem(month_item)
-                month_items[key].addChild(child)
+    def _populate_tree():
+        malotes = mw.db.get_all_malotes()
+        _populate(
+            tree,
+            malotes,
+            format_display=lambda _m, _dt: "",
+            decorate_item=_decorate,
+        )
 
     _populate_tree()
 
@@ -217,16 +155,7 @@ def _show_malote_dialog(label: MaloteLabel):
             item.setExpanded(not item.isExpanded())
 
     tree.itemClicked.connect(on_item_clicked)
-
-    def on_key_press(event):
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            item = tree.currentItem()
-            if item:
-                on_item_clicked(item, 0)
-        else:
-            QTreeWidget.keyPressEvent(tree, event)
-
-    tree.keyPressEvent = on_key_press
+    _wire_kb(tree, lambda item: on_item_clicked(item, 0))
     tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def _show_tree_menu(pos):
@@ -253,30 +182,7 @@ def _show_malote_dialog(label: MaloteLabel):
         elif action == retorno_action:
             _show_date_dialog(label, malote, "arrival", _populate_tree)
         elif action == delete_action and delete_action is not None:
-            from src.gui.styles import colors
-
-            confirm_dlg = QDialog(parent)
-            confirm_dlg.setWindowTitle("Excluir Malote")
-            confirm_dlg.setMinimumWidth(340)
-            confirm_layout = QVBoxLayout(confirm_dlg)
-            confirm_layout.setSpacing(16)
-            confirm_layout.addWidget(HeadingLabel("Excluir Malote"))
-            confirm_layout.addSpacing(4)
-            msg = QLabel(f'Excluir malote "{format_malote_date(malote)}"?')
-            msg.setWordWrap(True)
-            c = colors()
-            msg.setStyleSheet(f"color: {c['text_primary']}; font-size: 13px;")
-            confirm_layout.addWidget(msg)
-            confirm_btn_row = QHBoxLayout()
-            confirm_btn_row.addStretch()
-            confirm_cancel = make_button("Cancelar", "flat")
-            confirm_cancel.clicked.connect(confirm_dlg.reject)
-            confirm_btn_row.addWidget(confirm_cancel)
-            confirm_delete_btn = make_button("Excluir", "destructive")
-            confirm_delete_btn.clicked.connect(confirm_dlg.accept)
-            confirm_btn_row.addWidget(confirm_delete_btn)
-            confirm_layout.addLayout(confirm_btn_row)
-            if confirm_dlg.exec() != QDialog.DialogCode.Accepted:
+            if not confirm_delete_dialog(parent, "Excluir Malote", f'Excluir malote "{format_malote_date(malote)}"?'):
                 return
 
             deleted = mw.db.delete_malote(malote.id)

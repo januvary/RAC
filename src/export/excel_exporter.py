@@ -31,7 +31,7 @@ def _format_item(name: str) -> str:
     brand = paren.group(1).strip().upper()
     digit = re.search(r"\d", name)
     if not digit:
-        return name
+        return brand
     dosage = name[digit.start() : paren.start()].strip()
     return f"{brand} {dosage}"
 
@@ -80,28 +80,30 @@ class ExcelExporter:
         for tipo, tab_name in TIPO_LABELS.items():
             ws = wb.create_sheet(title=tab_name)
 
-            subtitle = f"{TIPO_TITLES[tipo]} - {date_display}"
-
-            ws["A1"] = "USAFA OCIAN"
+            ws["A1"] = f"USAFA OCIAN - {date_display}"
             ws.merge_cells("A1:B1")
-            ws["A2"] = subtitle
+            ws["A2"] = TIPO_TITLES[tipo]
             ws.merge_cells("A2:B2")
 
             tipo_registros = [r for r in registros if r.tipo == tipo]
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
             for reg in tipo_registros:
-                formatted_items = [_format_item(name) for name in reg.items]
-                items_str = "\n".join(formatted_items)
-                ws.append(
-                    [
-                        reg.paciente_name or "",
-                        items_str,
+                for process_items in reg.processes:
+                    formatted_items = [
+                        _format_item(name).replace(" ", "\u00A0")
+                        for name in process_items
                     ]
-                )
+                    items_str = " / ".join(formatted_items)
+                    ws.append(
+                        [
+                            reg.paciente_name or "",
+                            items_str,
+                        ]
+                    )
 
-            ws.column_dimensions["A"].width = 35
-            ws.column_dimensions["B"].width = 57
+            ws.column_dimensions["A"].width = 45
+            ws.column_dimensions["B"].width = 70
 
             main_font = Font(name="Arial", size=11)
             title1_font = Font(name="Arial", size=20)

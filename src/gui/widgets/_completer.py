@@ -5,11 +5,13 @@ from PySide6.QtWidgets import (
     QComboBox,
     QLineEdit,
     QWidget,
+    QStyledItemDelegate,
 )
 from PySide6.QtCore import Qt, QTimer, QEvent
-from PySide6.QtGui import QPainter, QFontMetrics
+from PySide6.QtGui import QPainter, QFontMetrics, QColor
+from PySide6.QtWidgets import QCompleter, QStyleOptionViewItem, QStyle
 
-from PySide6.QtWidgets import QCompleter
+from src.gui.styles import colors
 
 
 class _SearchCompleter(QCompleter):
@@ -87,13 +89,21 @@ class _NoScrollComboBox(QComboBox):
 
 
 class _CenteredComboBox(_NoScrollComboBox):
-    _tipo_bg: str = ""
+    _popup_bg: str = ""
+    _hide_current: bool = False
+
+    def setHideCurrentItem(self, hide: bool):
+        self._hide_current = hide
 
     def showPopup(self):
+        if self._hide_current:
+            for i in range(self.count()):
+                self.view().setRowHidden(i, i == self.currentIndex())
         super().showPopup()
         popup = self.findChild(QWidget)
-        if popup and self._tipo_bg:
-            popup.setStyleSheet(f"background-color: {self._tipo_bg}; border: none;")
+        if popup:
+            bg = self._popup_bg or colors()["bg_card"]
+            popup.setStyleSheet(f"background-color: {bg}; border: none;")
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -110,3 +120,18 @@ class _CenteredComboBox(_NoScrollComboBox):
 
         painter.drawText(int(x), int(y), text)
         painter.end()
+
+
+class _ThemedComboDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        c = colors()
+        painter.save()
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor(c["selection_bg"]))
+            painter.setPen(QColor(c["selection_text"]))
+        else:
+            painter.setPen(QColor(c["text_primary"]))
+        painter.setFont(option.font)
+        painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()

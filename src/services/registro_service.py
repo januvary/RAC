@@ -21,7 +21,7 @@ class SaveResult:
 @dataclass
 class EditContext:
     registro: Registro
-    item_ids: list[int]
+    items: list[tuple[int, int]]
 
 
 class RegistroService:
@@ -33,7 +33,7 @@ class RegistroService:
         tipo: str,
         paciente_name: str,
         malote_id: int,
-        item_ids: list[int],
+        items: list[tuple[int, int]],
         edit_id: int | None = None,
         waiting_docs: bool = False,
         paciente_id: int | None = None,
@@ -66,7 +66,7 @@ class RegistroService:
                 malote_id=malote_id,
                 waiting_docs=waiting_docs,
             )
-            self._db.set_registro_items(edit_id, item_ids)
+            self._db.set_registro_items(edit_id, items)
             return SaveResult(registro_id=edit_id, is_update=True)
 
         existing = self._db.find_registro(tipo, resolved_id, malote_id)
@@ -78,7 +78,7 @@ class RegistroService:
                 malote_id=malote_id,
                 waiting_docs=waiting_docs,
             )
-            self._db.set_registro_items(existing.id, item_ids)
+            self._db.set_registro_items(existing.id, items)
             return SaveResult(registro_id=existing.id, is_update=True)
 
         try:
@@ -95,14 +95,14 @@ class RegistroService:
                     malote_id=malote_id,
                     waiting_docs=waiting_docs,
                 )
-                self._db.set_registro_items(existing.id, item_ids)
+                self._db.set_registro_items(existing.id, items)
                 return SaveResult(registro_id=existing.id, is_update=True)
             raise DuplicateRecordError(
                 f"Duplicate: tipo={tipo}, paciente_id={resolved_id}, malote_id={malote_id}"
             )
         if new_reg.id is None:
             raise RuntimeError("Failed to create registro")
-        self._db.set_registro_items(new_reg.id, item_ids)
+        self._db.set_registro_items(new_reg.id, items)
         return SaveResult(registro_id=new_reg.id, is_update=False)
 
     def delete(self, registro_id: int) -> None:
@@ -119,5 +119,5 @@ class RegistroService:
         items = self._db.get_items_for_registro(registro_id)
         return EditContext(
             registro=reg,
-            item_ids=[item.item_id for item in items if item.item_id is not None],
+            items=[(item.item_id, item.process_group) for item in items if item.item_id is not None],
         )
