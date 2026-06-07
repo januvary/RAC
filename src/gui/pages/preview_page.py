@@ -83,10 +83,11 @@ class PreviewPage(BasePage):
             table.horizontalHeader().setSectionResizeMode(
                 0, QHeaderView.ResizeMode.ResizeToContents
             )
-            table.horizontalHeader().setFixedHeight(0)
+            table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
             table.verticalHeader().setVisible(False)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
             table.setAlternatingRowColors(True)
             table.setCursor(Qt.CursorShape.PointingHandCursor)
             table.setStyleSheet(self._table_style(tipo))
@@ -116,6 +117,8 @@ class PreviewPage(BasePage):
                     table.setItem(row, 1, meds_item)
 
             table.resizeRowsToContents()
+            table.setSortingEnabled(True)
+
             table.cellDoubleClicked.connect(
                 lambda r, c, t=table: self._on_row_double_clicked(t, r)
             )
@@ -191,6 +194,16 @@ class PreviewPage(BasePage):
         if row >= 0:
             self._on_row_double_clicked(table, row)
 
+    def _get_selected_ids(self, table: QTableWidget) -> list[int]:
+        ids = []
+        for row in table.selectionModel().selectedRows():
+            item = table.item(row.row(), 0)
+            if item:
+                reg_id = item.data(Qt.ItemDataRole.UserRole)
+                if reg_id is not None:
+                    ids.append(reg_id)
+        return ids
+
     def _show_row_menu(self, table: QTableWidget, current_tipo: str, pos):
         row = table.rowAt(pos.y())
         if row < 0:
@@ -202,6 +215,12 @@ class PreviewPage(BasePage):
         if reg_id is None:
             return
 
+        if not table.selectionModel().isRowSelected(row, table.rootIndex()):
+            table.selectRow(row)
+
+        selected_ids = self._get_selected_ids(table)
+        is_multi = len(selected_ids) > 1
+
         menu = QMenu(self)
         editar_menu = menu.addMenu("Editar")
 
@@ -211,7 +230,7 @@ class PreviewPage(BasePage):
                 continue
             action = tipo_menu.addAction(TIPO_LABELS.get(tipo, tipo))
             action.triggered.connect(
-                lambda _checked=False, rid=reg_id, t=tipo: self._change_tipo(rid, t)
+                lambda _checked=False, ids=selected_ids, t=tipo: self._change_tipo(ids, t)
             )
 
         active = self._mw.state.get_active_malote()
@@ -223,47 +242,53 @@ class PreviewPage(BasePage):
                 display = format_malote_date(m)
                 action = malote_menu.addAction(display)
                 action.triggered.connect(
-                    lambda _checked=False, rid=reg_id, mid=m.id: self._move_to_malote(
-                        rid, mid
+                    lambda _checked=False, ids=selected_ids, mid=m.id: self._move_to_malote(
+                        ids, mid
                     )
                 )
 
-        nome_action = editar_menu.addAction("Nome do paciente")
-        nome_action.triggered.connect(
-            lambda _checked=False, rid=reg_id: self._edit_paciente_name(rid)
-        )
+        if not is_multi:
+            nome_action = editar_menu.addAction("Nome do paciente")
+            nome_action.triggered.connect(
+                lambda _checked=False, rid=reg_id: self._edit_paciente_name(rid)
+            )
 
         editar_menu.addSeparator()
-        excluir_action = editar_menu.addAction("Excluir")
+        label = f"Excluir ({len(selected_ids)})" if is_multi else "Excluir"
+        excluir_action = editar_menu.addAction(label)
         excluir_action.triggered.connect(
-            lambda _checked=False, rid=reg_id: self._confirm_delete(rid)
+            lambda _checked=False, ids=selected_ids: self._confirm_delete(ids)
         )
 
         menu.exec(table.viewport().mapToGlobal(pos))
 
-    def _change_tipo(self, reg_id: int, new_tipo: str):
-        try:
-            self._mw.db.update_registro(reg_id, tipo=new_tipo)
-            self.refresh()
-            self._toast("Tipo alterado", "positive")
-        except DuplicateRecordError:
-            self._toast("Registro já existe nesse tipo para esse paciente", "warning")
-        except Exception as e:
-            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
-            self._toast(f"Erro: {e}", "negative")
+    def _change_tipo(self, reg_ids: list[int], new_tipo: str):
+        errors = 0
+        for rid in reg_ids:
+            try:
+                self._mw.db.update_registro(rid, tipo=new_tipo)
+            except DuplicateRecordError:
+                errors += 1
+        self.refresh()
+        if errors:
+            self._toast(f"{errors} registro(s) duplicado(s) ignorado(s)", "warning")
+        else:
+            count = len(reg_ids)
+            self._toast(f"{count} registro(s) alterado(s)" if count > 1 else "Tipo alterado", "positive")
 
-    def _move_to_malote(self, reg_id: int, new_malote_id: int):
-        try:
-            self._mw.db.update_registro(reg_id, malote_id=new_malote_id)
-            self.refresh()
-            self._toast("Registro movido", "positive")
-        except DuplicateRecordError:
-            self._toast(
-                "Registro já existe nesse malote para esse paciente e tipo", "warning"
-            )
-        except Exception as e:
-            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
-            self._toast(f"Erro: {e}", "negative")
+    def _move_to_malote(self, reg_ids: list[int], new_malote_id: int):
+        errors = 0
+        for rid in reg_ids:
+            try:
+                self._mw.db.update_registro(rid, malote_id=new_malote_id)
+            except DuplicateRecordError:
+                errors += 1
+        self.refresh()
+        if errors:
+            self._toast(f"{errors} registro(s) duplicado(s) ignorado(s)", "warning")
+        else:
+            count = len(reg_ids)
+            self._toast(f"{count} registro(s) movido(s)" if count > 1 else "Registro movido", "positive")
 
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
@@ -285,8 +310,23 @@ class PreviewPage(BasePage):
             ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
             self._toast(f"Erro: {e}", "negative")
 
-    def _confirm_delete(self, reg_id: int):
-        delete_registro_with_undo(self, self._mw.db, reg_id, self.refresh)
+    def _confirm_delete(self, reg_ids: list[int]):
+        if len(reg_ids) == 1:
+            delete_registro_with_undo(self, self._mw.db, reg_ids[0], self.refresh)
+        else:
+            if not confirm_delete_dialog(
+                self, "Excluir Registros", f"Excluir {len(reg_ids)} registros selecionados?"
+            ):
+                return
+            try:
+                service = RegistroService(self._mw.db)
+                for rid in reg_ids:
+                    service.delete(rid)
+                self.refresh()
+                self._toast(f"{len(reg_ids)} registros excluidos", "info")
+            except Exception as e:
+                ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
+                self._toast(f"Erro: {e}", "negative")
 
     @staticmethod
     def _table_style(tipo: str) -> str:
@@ -310,6 +350,18 @@ class PreviewPage(BasePage):
             QTableWidget::item:selected {{
                 background-color: {c["selection_bg"]};
                 color: {c["selection_text"]};
+            }}
+            QHeaderView::section {{
+                background: {c["bg_card"]};
+                color: {c["text_secondary"]};
+                font-size: 11px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border: none;
+                border-bottom: 1px solid {c["gridline"]};
+            }}
+            QHeaderView::section:hover {{
+                color: {hex_color};
             }}
         """
 

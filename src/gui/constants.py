@@ -22,9 +22,9 @@ TIPO_SYMBOLS = {
 
 SHORTCUT_LABELS: dict[str, tuple[str, str]] = {
     "save": ("Ctrl+S", "Salvar"),
-    "export": ("Ctrl+E", "↗  Exportar Planilha"),
+    "export": ("Ctrl+E", "Exportar Planilha"),
     "back": ("Esc", "Voltar"),
-    "preview": ("Ctrl+G", "◉  Visualizar Malote"),
+    "preview": ("Ctrl+G", "Visualizar Malote"),
     "lists": ("Ctrl+T", "Gerenciar Listas"),
     "stats": ("Ctrl+Y", "Estatisticas"),
     "add_item": ("Ctrl+F", "+ Adicionar Item"),

@@ -9,7 +9,7 @@ import sqlite3
 from typing import Optional
 from datetime import datetime
 
-from andaime.database import BaseDatabase, _db_op
+from andaime.database import BaseDatabase, db_op
 from andaime.paths import resolve_db_path
 from andaime.error_handler import ErrorHandler, ErrorLevel
 from andaime.text import to_upper_normalized
@@ -154,7 +154,7 @@ class RACDatabase(BaseDatabase):
 
     # ========== MALOTE ==========
 
-    @_db_op("write")
+    @db_op("write")
     def create_malote(self, date: str, arrival_date: str | None = None) -> Malote:
         with self._cursor() as cur:
             cur.execute("SELECT id, arrival_date FROM malotes WHERE date = ?", (date,))
@@ -170,14 +170,14 @@ class RACDatabase(BaseDatabase):
             self._commit()
             return Malote(id=cur.lastrowid, date=date, arrival_date=arrival_date)
 
-    @_db_op("read")
+    @db_op("read")
     def get_malote_by_id(self, malote_id: int) -> Optional[Malote]:
         with self._cursor() as cur:
             cur.execute("SELECT * FROM malotes WHERE id = ?", (malote_id,))
             row = cur.fetchone()
             return Malote.from_row(dict(row)) if row else None
 
-    @_db_op("read")
+    @db_op("read")
     def get_recent_malotes(self, limit: int = 5) -> list[Malote]:
         with self._cursor() as cur:
             cur.execute(
@@ -186,13 +186,13 @@ class RACDatabase(BaseDatabase):
             )
             return [Malote.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("read")
+    @db_op("read")
     def get_all_malotes(self) -> list[Malote]:
         with self._cursor() as cur:
             cur.execute("SELECT * FROM malotes ORDER BY date DESC, id DESC")
             return [Malote.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("write")
+    @db_op("write")
     def update_malote(
         self, malote_id: int, date: str | None = None, arrival_date: str | None = None
     ) -> bool:
@@ -212,7 +212,7 @@ class RACDatabase(BaseDatabase):
             self._commit()
             return cur.rowcount > 0
 
-    @_db_op("write")
+    @db_op("write")
     def delete_malote(self, malote_id: int) -> bool:
         with self._cursor() as cur:
             cur.execute(
@@ -227,7 +227,7 @@ class RACDatabase(BaseDatabase):
 
     # ========== PACIENTE ==========
 
-    @_db_op("write")
+    @db_op("write")
     def create_paciente(self, name: str) -> Paciente:
         normalized = to_upper_normalized(name.strip())
         with self._cursor() as cur:
@@ -235,14 +235,14 @@ class RACDatabase(BaseDatabase):
             self._commit()
             return Paciente(id=cur.lastrowid, name=normalized)
 
-    @_db_op("read")
+    @db_op("read")
     def get_paciente_by_id(self, paciente_id: int) -> Optional[Paciente]:
         with self._cursor() as cur:
             cur.execute("SELECT * FROM pacientes WHERE id = ?", (paciente_id,))
             row = cur.fetchone()
             return Paciente.from_row(dict(row)) if row else None
 
-    @_db_op("read")
+    @db_op("read")
     def find_paciente_by_name(self, name: str) -> Optional[Paciente]:
         with self._cursor() as cur:
             cur.execute(
@@ -252,7 +252,7 @@ class RACDatabase(BaseDatabase):
             row = cur.fetchone()
             return Paciente.from_row(dict(row)) if row else None
 
-    @_db_op("read")
+    @db_op("read")
     def search_pacientes(self, query: str, limit: int = 10) -> list[Paciente]:
         with self._cursor() as cur:
             normalized = to_upper_normalized(query)
@@ -262,7 +262,7 @@ class RACDatabase(BaseDatabase):
             )
             return [Paciente.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("write")
+    @db_op("write")
     def update_paciente(self, paciente_id: int, name: str) -> bool:
         with self._cursor() as cur:
             cur.execute(
@@ -272,7 +272,7 @@ class RACDatabase(BaseDatabase):
             self._commit()
             return cur.rowcount > 0
 
-    @_db_op("write")
+    @db_op("write")
     def delete_paciente(self, paciente_id: int) -> bool:
         with self._cursor() as cur:
             cur.execute(
@@ -287,7 +287,7 @@ class RACDatabase(BaseDatabase):
 
     # ========== REGISTRO ==========
 
-    @_db_op("write")
+    @db_op("write")
     def create_registro(
         self,
         tipo: str,
@@ -312,7 +312,7 @@ class RACDatabase(BaseDatabase):
                 waiting_docs=waiting_docs,
             )
 
-    @_db_op("read")
+    @db_op("read")
     def get_registro_by_id(self, registro_id: int) -> Optional[Registro]:
         with self._cursor() as cur:
             cur.execute(
@@ -326,7 +326,7 @@ class RACDatabase(BaseDatabase):
             row = cur.fetchone()
             return Registro.from_row(dict(row)) if row else None
 
-    @_db_op("read")
+    @db_op("read")
     def find_registro(
         self, tipo: str, paciente_id: int, malote_id: int
     ) -> Optional[Registro]:
@@ -343,7 +343,7 @@ class RACDatabase(BaseDatabase):
             row = cur.fetchone()
             return Registro.from_row(dict(row)) if row else None
 
-    @_db_op("read")
+    @db_op("read")
     def get_registros_by_malote(self, malote_id: int) -> list[Registro]:
         with self._cursor() as cur:
             cur.execute(
@@ -356,7 +356,7 @@ class RACDatabase(BaseDatabase):
             )
             return [Registro.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("read")
+    @db_op("read")
     def get_registros_by_malote_and_tipo(
         self, malote_id: int, tipo: str
     ) -> list[Registro]:
@@ -371,7 +371,7 @@ class RACDatabase(BaseDatabase):
             )
             return [Registro.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("write")
+    @db_op("write")
     def update_registro(self, registro_id: int, **fields) -> bool:
         allowed = {"tipo", "paciente_id", "malote_id", "waiting_docs"}
         updates = {}
@@ -403,14 +403,14 @@ class RACDatabase(BaseDatabase):
                     f"malote_id={updates.get('malote_id')}"
                 )
 
-    @_db_op("write")
+    @db_op("write")
     def delete_registro(self, registro_id: int) -> bool:
         with self._cursor() as cur:
             cur.execute("DELETE FROM registros WHERE id = ?", (registro_id,))
             self._commit()
             return cur.rowcount > 0
 
-    @_db_op("read")
+    @db_op("read")
     def search_registros_by_patient(
         self, query: str, active_malote_id: int | None = None, limit: int = 20
     ) -> list[Registro]:
@@ -433,7 +433,7 @@ class RACDatabase(BaseDatabase):
 
     # ========== REGISTRO ITEMS ==========
 
-    @_db_op("write")
+    @db_op("write")
     def set_registro_items(
         self, registro_id: int, items: list[tuple[int, int]]
     ) -> None:
@@ -449,7 +449,7 @@ class RACDatabase(BaseDatabase):
                 )
             self._commit()
 
-    @_db_op("read")
+    @db_op("read")
     def get_items_for_registro(self, registro_id: int) -> list[RegistroItem]:
         with self._cursor() as cur:
             cur.execute(
@@ -462,7 +462,7 @@ class RACDatabase(BaseDatabase):
             )
             return [RegistroItem.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("read")
+    @db_op("read")
     def get_items_for_paciente(self, paciente_id: int) -> list[ItemCatalog]:
         with self._cursor() as cur:
             cur.execute(
@@ -478,13 +478,13 @@ class RACDatabase(BaseDatabase):
 
     # ========== ITEMS CATALOG ==========
 
-    @_db_op("read")
+    @db_op("read")
     def get_all_items(self) -> list[ItemCatalog]:
         with self._cursor() as cur:
             cur.execute("SELECT * FROM items_catalog ORDER BY name COLLATE NOCASE")
             return [ItemCatalog.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("read")
+    @db_op("read")
     def search_items(self, query: str, limit: int = 10) -> list[ItemCatalog]:
         with self._cursor() as cur:
             normalized = to_upper_normalized(query)
@@ -494,7 +494,7 @@ class RACDatabase(BaseDatabase):
             )
             return [ItemCatalog.from_row(dict(r)) for r in cur.fetchall()]
 
-    @_db_op("write")
+    @db_op("write")
     def create_item(self, name: str, unidade: str = "un") -> ItemCatalog:
         normalized = to_upper_normalized(name.strip())
         with self._cursor() as cur:
@@ -505,7 +505,7 @@ class RACDatabase(BaseDatabase):
             self._commit()
             return ItemCatalog(id=cur.lastrowid, name=normalized, unidade=unidade)
 
-    @_db_op("write")
+    @db_op("write")
     def update_item(self, item_id: int, name: str) -> bool:
         with self._cursor() as cur:
             cur.execute(
@@ -515,7 +515,7 @@ class RACDatabase(BaseDatabase):
             self._commit()
             return cur.rowcount > 0
 
-    @_db_op("write")
+    @db_op("write")
     def delete_item(self, item_id: int) -> bool:
         with self._cursor() as cur:
             cur.execute(
@@ -530,7 +530,7 @@ class RACDatabase(BaseDatabase):
 
     # ========== PACIENTE (listagem) ==========
 
-    @_db_op("read")
+    @db_op("read")
     def get_all_pacientes(self) -> list[Paciente]:
         with self._cursor() as cur:
             cur.execute("SELECT * FROM pacientes ORDER BY name COLLATE NOCASE")
@@ -538,7 +538,7 @@ class RACDatabase(BaseDatabase):
 
     # ========== EXPORT HELPERS ==========
 
-    @_db_op("read")
+    @db_op("read")
     def get_registros_with_items_by_malote(
         self, malote_id: int
     ) -> list[RegistroExport]:
@@ -600,7 +600,7 @@ class RACDatabase(BaseDatabase):
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         return where, params
 
-    @_db_op("read")
+    @db_op("read")
     def get_stats_summary(
         self,
         tipo: str | None = None,
@@ -632,7 +632,7 @@ class RACDatabase(BaseDatabase):
                 "total_malotes": row["total_malotes"] or 0,
             }
 
-    @_db_op("read")
+    @db_op("read")
     def get_stats_by_tipo(
         self,
         date_from: str | None = None,
@@ -662,7 +662,7 @@ class RACDatabase(BaseDatabase):
                 row["items"] = item_map.get(row["tipo"], 0)
             return tipo_rows
 
-    @_db_op("read")
+    @db_op("read")
     def get_stats_top_medications(
         self,
         tipo: str | None = None,
@@ -682,7 +682,7 @@ class RACDatabase(BaseDatabase):
             )
             return [dict(r) for r in cur.fetchall()]
 
-    @_db_op("read")
+    @db_op("read")
     def get_stats_top_patients(
         self,
         tipo: str | None = None,
@@ -717,7 +717,7 @@ class RACDatabase(BaseDatabase):
                 row["items"] = dict(cur.fetchone())["items"] or 0
             return patient_rows
 
-    @_db_op("read")
+    @db_op("read")
     def get_stats_malote_timeline(
         self,
         tipo: str | None = None,

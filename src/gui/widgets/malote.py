@@ -8,14 +8,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
-    QTreeWidget,
-    QTreeWidgetItem,
     QLineEdit,
     QMenu,
 )
 from PySide6.QtCore import Qt, Signal
 
-from src.gui.styles import colors
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets.toast import show_toast

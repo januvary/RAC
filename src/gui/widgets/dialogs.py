@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QDialog,
 )
-from PySide6.QtCore import Qt
 
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel

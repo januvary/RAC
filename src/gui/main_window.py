@@ -49,6 +49,10 @@ class MainWindow(QMainWindow):
         self.db = RACDatabase()
         self.state = RACStateManager()
 
+        saved_theme = self.config.get("theme", "light")
+        from src.gui.styles import set_theme
+        set_theme(saved_theme)
+
         stay_on_page = self.config.get("stay_on_page", False)
         self.state.set_stay_on_page(stay_on_page)
 
@@ -61,25 +65,28 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
 
     def eventFilter(self, obj, event):
-        etype = event.type()
-        if etype == QEvent.Type.KeyPress:
-            if (
-                event.key() == Qt.Key.Key_Shift
-                and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-            ):
-                self._toggle_shortcut_peek(True)
-            elif (
-                event.key() == Qt.Key.Key_Control
-                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-            ):
-                self._toggle_shortcut_peek(True)
-        elif etype == QEvent.Type.KeyRelease:
-            if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control):
-                mods = event.modifiers()
-                has_ctrl = mods & Qt.KeyboardModifier.ControlModifier
-                has_shift = mods & Qt.KeyboardModifier.ShiftModifier
-                if not (has_ctrl and has_shift):
-                    self._toggle_shortcut_peek(False)
+        try:
+            etype = event.type()
+            if etype == QEvent.Type.KeyPress:
+                if (
+                    event.key() == Qt.Key.Key_Shift
+                    and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+                ):
+                    self._toggle_shortcut_peek(True)
+                elif (
+                    event.key() == Qt.Key.Key_Control
+                    and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                ):
+                    self._toggle_shortcut_peek(True)
+            elif etype == QEvent.Type.KeyRelease:
+                if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control):
+                    mods = event.modifiers()
+                    has_ctrl = mods & Qt.KeyboardModifier.ControlModifier
+                    has_shift = mods & Qt.KeyboardModifier.ShiftModifier
+                    if not (has_ctrl and has_shift):
+                        self._toggle_shortcut_peek(False)
+        except Exception:
+            pass
         return super().eventFilter(obj, event)
 
     def _toggle_shortcut_peek(self, show: bool):

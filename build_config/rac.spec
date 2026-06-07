@@ -70,7 +70,8 @@ a = Analysis(
         "src.utils.config", "src.utils.text_utils", "src.utils.date_calculator",
         "src.export.excel_exporter",
         "andaime", "andaime.config", "andaime.database",
-        "andaime.dates", "andaime.data",
+         "andaime.dates",
+
         "andaime.error_handler", "andaime.paths", "andaime.text",
         "holidays",
         "json", "sqlite3", "shutil", "traceback", "unicodedata",

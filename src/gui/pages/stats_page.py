@@ -12,13 +12,15 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QDialog,
     QTreeWidgetItem,
+    QLineEdit,
+    QFileDialog,
 )
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 
 from src.gui.widgets import (
-    SectionLabel,
     make_button,
     BasePage,
 )
@@ -30,6 +32,8 @@ from src.gui.widgets._malote_tree import (
 )
 from src.gui.constants import TIPO_LABELS
 from src.gui.styles import colors
+from src.export.excel_exporter import ExcelExporter, SavePathError
+from andaime.error_handler import ErrorHandler
 
 _CANCELLED = object()
 
@@ -84,6 +88,13 @@ class StatsPage(BasePage):
         layout.addSpacing(10)
 
         self._build_medications_table(layout)
+        layout.addSpacing(16)
+
+        export_btn = make_button("Exportar Estatisticas", "positive")
+        export_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        export_btn.setFixedHeight(44)
+        export_btn.clicked.connect(self._on_export)
+        layout.addWidget(export_btn)
 
     def _build_header(self, layout: QVBoxLayout):
         h = self._add_back_button(layout)
@@ -151,27 +162,39 @@ class StatsPage(BasePage):
         layout.addLayout(row)
 
     def _build_medications_table(self, layout: QVBoxLayout):
-        layout.addWidget(SectionLabel("Medicamentos"))
         layout.addSpacing(8)
 
-        self._meds_table = QTableWidget(0, 2)
-        self._meds_table.setHorizontalHeaderLabels(["Medicamento", "Registros"])
+        self._meds_search = QLineEdit()
+        self._meds_search.setPlaceholderText("Buscar medicamento...")
+        self._meds_search.setFixedHeight(20)
+        layout.addWidget(self._meds_search)
+        layout.addSpacing(18)
+
+        self._meds_table = QTableWidget(0, 3)
+        self._meds_table.setHorizontalHeaderLabels(["Medicamento", "Registros", "%"])
         self._meds_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch
         )
         self._meds_table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Fixed
         )
-        self._meds_table.horizontalHeader().resizeSection(1, 80)
+        self._meds_table.horizontalHeader().resizeSection(1, 90)
+        self._meds_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Fixed
+        )
+        self._meds_table.horizontalHeader().resizeSection(2, 90)
         self._meds_table.horizontalHeader().setFixedHeight(28)
         self._meds_table.verticalHeader().setVisible(False)
         self._meds_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._meds_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self._meds_table.setAlternatingRowColors(True)
         self._meds_table.verticalHeader().setDefaultSectionSize(32)
-        self._meds_table.setMinimumHeight(28 + 32 * 6)
+        self._meds_table.setMinimumHeight(28 + 32 * 8)
         self._style_table(self._meds_table)
         layout.addWidget(self._meds_table)
+
+        self._meds_search.textChanged.connect(self._filter_meds_table)
+        self._shortcut_searches.append(("Buscar medicamento", self._meds_search))
 
     def _load_stats(self):
         db = self._mw.db
@@ -191,6 +214,7 @@ class StatsPage(BasePage):
 
     def _fill_meds_table(self, rows: list[dict]):
         self._meds_table.setRowCount(0)
+        total = sum(r["registros"] for r in rows) or 1
         for r in rows:
             row = self._meds_table.rowCount()
             self._meds_table.insertRow(row)
@@ -198,6 +222,57 @@ class StatsPage(BasePage):
             self._meds_table.setItem(
                 row, 1, self._cell(str(r["registros"]), center=True)
             )
+            pct = r["registros"] / total * 100
+            self._meds_table.setItem(
+                row, 2, self._cell(f"{pct:.1f}%", center=True)
+            )
+
+    def _filter_meds_table(self, text: str):
+        query = text.strip().lower()
+        for row in range(self._meds_table.rowCount()):
+            match = False
+            if not query:
+                match = True
+            else:
+                for col in range(self._meds_table.columnCount()):
+                    item = self._meds_table.item(row, col)
+                    if item and query in item.text().lower():
+                        match = True
+                        break
+            self._meds_table.setRowHidden(row, not match)
+
+    def _on_export(self):
+        exporter = ExcelExporter(self._mw.db)
+        try:
+            result = exporter.export_stats(
+                date_from=self._date_from, date_to=self._date_to
+            )
+            if result:
+                self._toast(f"Exportado: {result}", "positive")
+            else:
+                self._toast("Nenhum dado para exportar", "warning")
+        except SavePathError:
+            folder = QFileDialog.getExistingDirectory(
+                self,
+                "Selecionar pasta para salvar",
+                str(Path.home()),
+            )
+            if not folder:
+                return
+            self._mw.config.set("save_path", folder)
+            try:
+                result = exporter.export_stats(
+                    date_from=self._date_from, date_to=self._date_to
+                )
+                if result:
+                    self._toast(f"Exportado: {result}", "positive")
+                else:
+                    self._toast("Nenhum dado para exportar", "warning")
+            except SavePathError as e:
+                self._toast(f"Erro ao exportar: {e}", "negative")
+        except Exception as e:
+            ErrorHandler.handle_error(e, context="Exportação", show_dialog=False)
+            self._toast(f"Erro ao exportar: {e}", "negative")
 
     @staticmethod
     def _cell(text: str, center: bool = False) -> QTableWidgetItem:

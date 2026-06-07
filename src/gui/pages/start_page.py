@@ -11,9 +11,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QGridLayout,
     QSizePolicy,
     QFileDialog,
+    QFrame,
 )
 from PySide6.QtCore import Qt
 
@@ -28,6 +28,7 @@ from src.gui.widgets import (
 )
 from src.gui.constants import (
     TIPO_LABELS,
+    TIPO_HEX,
     SHORTCUT_LABELS,
     TIPO_SHORTCUT_KEYS,
     TIPO_SYMBOLS,
@@ -43,6 +44,7 @@ class StartPage(BasePage):
     def __init__(self, main_window):
         super().__init__(main_window)
         self._pre_search_malote = None
+        self._sep_line: QFrame | None = None
         self._build_ui()
 
     def _build_ui(self):
@@ -54,12 +56,8 @@ class StartPage(BasePage):
         layout.addSpacing(8)
         self._build_search(layout)
         layout.addSpacing(20)
-        layout.addWidget(SectionLabel("Criar novo registro"))
-        layout.addSpacing(8)
-        self._build_tipo_grid(layout)
-        layout.addSpacing(28)
 
-        self._build_export(layout)
+        self._build_columns(layout)
 
     def _build_malote_header(self, layout: QVBoxLayout):
         h = QHBoxLayout()
@@ -87,62 +85,74 @@ class StartPage(BasePage):
             ("Nome do paciente...", self._search_combo._line_edit),
         ]
 
-    def _build_tipo_grid(self, layout: QVBoxLayout):
-        grid_widget = QWidget()
-        grid = QGridLayout(grid_widget)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(5)
+    def _build_columns(self, layout: QVBoxLayout):
+        from src.gui.styles import colors as _colors, faded_tipo_color
+
+        c = _colors()
+
+        columns = QHBoxLayout()
+        columns.setSpacing(0)
+
+        left = QVBoxLayout()
+        left.setSpacing(8)
+        left.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+
+        left_label = SectionLabel("Criar novo registro")
+        left.addWidget(left_label)
 
         self._tipo_btns: list[TipoButton] = []
-        for i, tipo_key in enumerate(TIPO_LABELS):
-            row, col = divmod(i, 2)
+        for tipo_key in TIPO_LABELS:
             btn = TipoButton(tipo_key)
             btn.clicked_tipo.connect(self._on_tipo_click)
+            btn.setFixedHeight(54)
+            faded = faded_tipo_color(TIPO_HEX[tipo_key])
+            btn.setStyleSheet(self._flat_btn_style(c, "left", faded))
             self._tipo_btns.append(btn)
-            grid.addWidget(btn, row, col)
+            left.addWidget(btn)
 
-        layout.addWidget(grid_widget)
+        left.addSpacing(24)
 
-    def _build_export(self, layout: QVBoxLayout):
+        columns.addLayout(left)
+        columns.addSpacing(8)
+
+        self._sep_line = QFrame()
+        self._sep_line.setFrameShape(QFrame.Shape.VLine)
+        self._sep_line.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self._sep_line.setStyleSheet(f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;")
+        columns.addWidget(self._sep_line)
+
+        columns.addSpacing(8)
+
+        right = QVBoxLayout()
+        right.setSpacing(8)
+        right.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+
+        right_label = SectionLabel("Op\u00e7\u00f5es")
+        right_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        right.addWidget(right_label)
+
         self._shortcut_widgets = {}
 
-        row = QHBoxLayout()
-        row.setSpacing(4)
+        for key, handler in [
+            ("preview", self._on_preview),
+            ("export", self._on_export),
+            ("lists", self._on_lists),
+            ("stats", self._on_stats),
+        ]:
+            _, label = SHORTCUT_LABELS[key]
+            btn = make_button(label, "flat")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedHeight(54)
+            btn.setStyleSheet(self._flat_btn_style(c, "right"))
+            btn.clicked.connect(handler)
+            right.addWidget(btn)
+            self._shortcut_widgets[key] = btn
 
-        _, preview_label = SHORTCUT_LABELS["preview"]
-        preview_btn = make_button(preview_label, "primary")
-        preview_btn.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        preview_btn.setFixedHeight(54)
-        preview_btn.clicked.connect(self._on_preview)
-        row.addWidget(preview_btn)
-        self._shortcut_widgets["preview"] = preview_btn
+        right.addSpacing(24)
 
-        _, export_label = SHORTCUT_LABELS["export"]
-        btn = make_button(export_label, "positive")
-        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        btn.setFixedHeight(54)
-        btn.clicked.connect(self._on_export)
-        row.addWidget(btn)
-        self._shortcut_widgets["export"] = btn
-
-        layout.addLayout(row)
-        layout.addSpacing(7)
-
-        manage_btn = make_button("Gerenciar Listas", "flat")
-        manage_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        manage_btn.setFixedHeight(54)
-        manage_btn.clicked.connect(self._on_lists)
-        layout.addWidget(manage_btn)
-        self._shortcut_widgets["lists"] = manage_btn
-
-        stats_btn = make_button("Estatisticas", "flat")
-        stats_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        stats_btn.setFixedHeight(54)
-        stats_btn.clicked.connect(self._on_stats)
-        layout.addWidget(stats_btn)
-        self._shortcut_widgets["stats"] = stats_btn
+        columns.addLayout(right)
+        layout.addLayout(columns)
+        layout.addLayout(columns)
 
     def refresh(self):
         if self._pre_search_malote is not None:
@@ -227,10 +237,30 @@ class StartPage(BasePage):
     def _on_stats(self):
         self._mw.navigate_to("stats")
 
+    @staticmethod
+    def _flat_btn_style(c: dict, align: str, color: str | None = None) -> str:
+        text_color = color if color else c["text_secondary"]
+        hover_color = c["text_primary"] if not color else ""
+        hover = f'color: {hover_color};' if hover_color else ''
+        return (
+            f'QPushButton {{ background: transparent; border: 1px solid {c["border_light"]}; '
+            f'border-radius: 6px; padding: 12px 20px; text-align: {align}; '
+            f'color: {text_color}; }}'
+            f'QPushButton:hover {{ background: {c["bg_hover"]}; {hover} }}'
+            f'QPushButton:pressed {{ background: {c["bg_pressed"]}; }}'
+        )
+
     def _on_theme_changed(self):
         self._malote_label.refresh()
+        from src.gui.styles import colors as _colors, faded_tipo_color
+        c = _colors()
         for btn in self._tipo_btns:
-            btn.refresh_style()
+            faded = faded_tipo_color(TIPO_HEX[btn.tipo_key])
+            btn.setStyleSheet(self._flat_btn_style(c, "left", faded))
+        for btn in self._shortcut_widgets.values():
+            btn.setStyleSheet(self._flat_btn_style(c, "right"))
+        if self._sep_line:
+            self._sep_line.setStyleSheet(f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;")
 
     def set_shortcuts_visible(self, show: bool):
         super().set_shortcuts_visible(show)

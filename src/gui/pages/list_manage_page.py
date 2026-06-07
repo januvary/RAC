@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QLineEdit,
-    QSizePolicy,
 )
 from PySide6.QtCore import Qt
 

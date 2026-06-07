@@ -25,11 +25,15 @@ def _load_bundled_fonts():
                 db.addApplicationFont(str(f))
 
 
+def _get_app_icon_path():
+    return Path(__file__).parent / "src" / "gui" / "img" / "folder-1486.svg"
+
+
 def main():
     andaime.init("RAC", "RACRegistros", root=Path(__file__).parent)
 
     from PySide6.QtWidgets import QApplication
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QIcon
 
     from src.utils.config import RACConfig
     from andaime.config import ConfigManager
@@ -38,6 +42,10 @@ def main():
     from src.gui.styles import set_theme, get_stylesheet
 
     app = QApplication(sys.argv)
+
+    icon_path = _get_app_icon_path()
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     _load_bundled_fonts()
 
