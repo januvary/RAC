@@ -29,7 +29,48 @@ def _get_app_icon_path():
     return Path(__file__).parent / "src" / "gui" / "img" / "folder-1486.svg"
 
 
+def _apply_pending_update():
+    from src.utils.updater import apply_pending_update
+
+    if apply_pending_update():
+        print("[RAC] Pending update applied.")
+
+
+def _start_update_check(window):
+    from src.utils.updater import UpdateCheckWorker
+    from src.gui.widgets.toast import show_toast
+
+    worker = UpdateCheckWorker(parent=window)
+
+    def _on_available(tag, notes, url):
+        show_toast(
+            f"Update {tag} available. Downloading...",
+            "info",
+            window,
+            timeout_ms=4000,
+        )
+
+    def _on_downloaded(tag):
+        show_toast(
+            f"Update {tag} ready. Restart to apply.",
+            "info",
+            window,
+            timeout_ms=8000,
+        )
+
+    def _on_failed(msg):
+        print(f"[RAC] Update check failed: {msg}")
+
+    worker.update_available.connect(_on_available)
+    worker.update_downloaded.connect(_on_downloaded)
+    worker.update_failed.connect(_on_failed)
+    worker.no_update.connect(lambda: print("[RAC] No update available."))
+    worker.start()
+
+
 def main():
+    _apply_pending_update()
+
     andaime.init("RAC", "RACRegistros", root=Path(__file__).parent)
 
     from PySide6.QtWidgets import QApplication
@@ -64,6 +105,8 @@ def main():
     window.init_backend()
     window.navigate_to("start")
     window.show()
+
+    _start_update_check(window)
 
     sys.exit(app.exec())
 
