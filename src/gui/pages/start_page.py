@@ -5,14 +5,12 @@ Start Page — malote header, search, tipo buttons, export
 """
 
 from contextlib import suppress
-from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QSizePolicy,
-    QFileDialog,
     QFrame,
 )
 from PySide6.QtCore import Qt
@@ -25,6 +23,7 @@ from src.gui.widgets import (
     MaloteLabel,
     ThemeToggleButton,
     BasePage,
+    export_with_fallback,
 )
 from src.gui.constants import (
     TIPO_LABELS,
@@ -33,9 +32,8 @@ from src.gui.constants import (
     TIPO_SHORTCUT_KEYS,
     TIPO_SYMBOLS,
 )
-from andaime.error_handler import ErrorHandler
 
-from src.export.excel_exporter import ExcelExporter, SavePathError
+from src.export.excel_exporter import ExcelExporter
 from src.models import Malote
 from src.utils.text_utils import format_malote_date
 
@@ -188,51 +186,30 @@ class StartPage(BasePage):
                 self._pre_search_malote = self._mw.state.get_active_malote()
                 tipo = reg.tipo
                 self._mw.navigate_to("entry", tipo=tipo, edit_id=reg_id)
-
-    def _on_tipo_click(self, tipo_key: str):
+    
+    def _require_malote(self) -> bool:
         if not self._mw.state.has_active_malote():
             self._toast("Selecione um malote primeiro!", "warning")
-            return
+            return False
+        return True
+    
+    def _on_tipo_click(self, tipo_key: str):
+        if not self._require_malote(): return
         self._mw.navigate_to("entry", tipo=tipo_key)
 
     def _on_preview(self):
-        if not self._mw.state.has_active_malote():
-            self._toast("Selecione um malote primeiro!", "warning")
-            return
+        if not self._require_malote(): return
         self._mw.navigate_to("preview")
 
     def _on_export(self):
-        if not self._mw.state.has_active_malote():
-            self._toast("Selecione um malote primeiro!", "warning")
-            return
+        if not self._require_malote(): return
         malote = self._mw.state.get_active_malote()
         exporter = ExcelExporter(self._mw.db)
-        try:
-            result = exporter.export_malote(malote.id)
-            if result:
-                self._toast(f"Exportado: {result}", "positive")
-            else:
-                self._toast("Nenhum registro para exportar", "warning")
-        except SavePathError:
-            folder = QFileDialog.getExistingDirectory(
-                self,
-                "Selecionar pasta para salvar",
-                str(Path.home()),
-            )
-            if not folder:
-                return
-            self._mw.config.set("save_path", folder)
-            try:
-                result = exporter.export_malote(malote.id)
-                if result:
-                    self._toast(f"Exportado: {result}", "positive")
-                else:
-                    self._toast("Nenhum registro para exportar", "warning")
-            except SavePathError as e:
-                self._toast(f"Erro ao exportar: {e}", "negative")
-        except Exception as e:
-            ErrorHandler.handle_error(e, context="Exportação", show_dialog=False)
-            self._toast(f"Erro ao exportar: {e}", "negative")
+        export_with_fallback(
+            self,
+            lambda: exporter.export_malote(malote.id),
+            "Nenhum registro para exportar",
+        )
 
     def _on_lists(self):
         self._mw.navigate_to("lists")

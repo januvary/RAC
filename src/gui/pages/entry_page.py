@@ -24,6 +24,7 @@ from src.gui.widgets import (
     BasePage,
     delete_registro_with_undo,
 )
+from src.gui.widgets.buttons import make_icon_button
 from src.models import Registro
 from src.services.registro_service import RegistroService
 from src.services.exceptions import ValidationError, DuplicateRecordError
@@ -206,16 +207,10 @@ class EntryPage(BasePage):
 
     def _update_registro_status(self, editing: bool):
         c = colors()
-        if editing:
-            self._status_label.setText("Editando registro")
-            self._status_label.setStyleSheet(
-                f"color: {c['text_secondary']}; font-size: 12px; font-style: italic;"
-            )
-        else:
-            self._status_label.setText("Novo registro")
-            self._status_label.setStyleSheet(
-                f"color: {c['text_secondary']}; font-size: 12px; font-style: italic;"
-            )
+        self._status_label.setText("Editando registro" if editing else "Novo registro")
+        self._status_label.setStyleSheet(
+            f"color: {c['text_secondary']}; font-size: 12px; font-style: italic;"
+        )
 
     def _add_item_row(self, item_id: int | None = None, process_group: int = 1):
         row = QWidget()
@@ -224,9 +219,7 @@ class EntryPage(BasePage):
         row_h.setContentsMargins(0, 0, 0, 0)
         row_h.setSpacing(2)
 
-        group_btn = make_button(str(process_group), "positive")
-        group_btn.setFixedWidth(40)
-        group_btn.setStyleSheet("padding: 9px 0; font-size: 14px; font-weight: 600;")
+        group_btn = make_icon_button(str(process_group), "positive", font_size=14)
         group_btn.setToolTip("Grupo do item (clique p/ alterar)")
         group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         pg = process_group
@@ -249,9 +242,7 @@ class EntryPage(BasePage):
             combo.set_current_by_data(str(item_id))
         row_h.addWidget(combo)
 
-        remove_btn = make_button("\u00d7", "positive")
-        remove_btn.setFixedWidth(40)
-        remove_btn.setStyleSheet("padding: 9px 0; font-size: 16px; font-weight: 600;")
+        remove_btn = make_icon_button("\u00d7", "positive", font_size=16)
         remove_btn.setToolTip("Remover item")
         remove_btn.clicked.connect(lambda _checked=False, w=row: self._remove_item(w))
         row_h.addWidget(remove_btn)

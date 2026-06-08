@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QLabel,
     QDialog,
+    QPushButton,
 )
 
 from src.gui.widgets.buttons import make_button
@@ -16,6 +17,17 @@ from src.gui.styles import colors
 from src.gui.widgets.toast import show_toast
 from src.services.registro_service import RegistroService
 from andaime.error_handler import ErrorHandler
+
+
+def make_dialog_button_row(actions: list[tuple[str, str]]) -> tuple[QHBoxLayout, list[QPushButton]]:
+    btn_row = QHBoxLayout()
+    btn_row.addStretch()
+    buttons = []
+    for label, role in actions:
+        btn = make_button(label, role)
+        btn_row.addWidget(btn)
+        buttons.append(btn)
+    return btn_row, buttons
 
 
 def confirm_delete_dialog(
@@ -40,14 +52,12 @@ def confirm_delete_dialog(
     msg.setStyleSheet(f"color: {c['text_secondary']}; font-size: 13px;")
     layout.addWidget(msg)
 
-    btn_row = QHBoxLayout()
-    btn_row.addStretch()
-    cancel = make_button("Cancelar", "flat")
+    btn_row, [cancel, delete_btn] = make_dialog_button_row([
+        ("Cancelar", "flat"),
+        (destructive_label, "negative"),
+    ])
     cancel.clicked.connect(dlg.reject)
-    btn_row.addWidget(cancel)
-    delete_btn = make_button(destructive_label, "negative")
     delete_btn.clicked.connect(dlg.accept)
-    btn_row.addWidget(delete_btn)
     layout.addLayout(btn_row)
 
     return dlg.exec() == QDialog.DialogCode.Accepted
@@ -77,13 +87,11 @@ def open_input_dialog(
         input_field.selectAll()
     layout.addWidget(input_field)
 
-    btn_row = QHBoxLayout()
-    btn_row.addStretch()
-    cancel = make_button("Cancelar", "flat")
+    btn_row, [cancel, confirm] = make_dialog_button_row([
+        ("Cancelar", "flat"),
+        (confirm_label, "primary"),
+    ])
     cancel.clicked.connect(dlg.reject)
-    btn_row.addWidget(cancel)
-    confirm = make_button(confirm_label, "primary")
-    btn_row.addWidget(confirm)
     layout.addLayout(btn_row)
 
     input_field.returnPressed.connect(dlg.accept)

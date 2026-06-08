@@ -11,11 +11,12 @@ from src.gui.widgets.inputs import (
 )
 from src.gui.widgets.toast import show_toast, ToastMixin
 from src.gui.widgets.malote import MaloteLabel
-from src.gui.widgets.base_page import BasePage
+from src.gui.widgets.base_page import BasePage, make_tab, make_hbox, export_with_fallback
 from src.gui.widgets.dialogs import (
     confirm_delete_dialog,
     open_input_dialog,
     delete_registro_with_undo,
+    make_dialog_button_row,
 )
 
 __all__ = [
@@ -34,7 +35,11 @@ __all__ = [
     "ToastMixin",
     "MaloteLabel",
     "BasePage",
+    "make_tab",
+    "make_hbox",
+    "export_with_fallback",
     "confirm_delete_dialog",
     "open_input_dialog",
     "delete_registro_with_undo",
+    "make_dialog_button_row",
 ]

@@ -186,31 +186,17 @@ QPushButton:pressed {{
     background-color: {c["bg_pressed"]};
 }}
 
-QPushButton[btnrole="primary"] {{
+QPushButton[btnrole="primary"], QPushButton[btnrole="positive"] {{
     background-color: {c["bg_card"]};
     border: 1px solid {c["border_light"]};
     border-radius: 6px;
     color: {c["text_primary"]};
 }}
-QPushButton[btnrole="primary"]:hover {{
+QPushButton[btnrole="primary"]:hover, QPushButton[btnrole="positive"]:hover {{
     background-color: {c["bg_card_alt"]};
     border-color: {c["border"]};
 }}
-QPushButton[btnrole="primary"]:pressed {{
-    background-color: {c["bg_hover"]};
-}}
-
-QPushButton[btnrole="positive"] {{
-    background-color: {c["bg_card"]};
-    border: 1px solid {c["border_light"]};
-    border-radius: 6px;
-    color: {c["text_primary"]};
-}}
-QPushButton[btnrole="positive"]:hover {{
-    background-color: {c["bg_card_alt"]};
-    border-color: {c["border"]};
-}}
-QPushButton[btnrole="positive"]:pressed {{
+QPushButton[btnrole="primary"]:pressed, QPushButton[btnrole="positive"]:pressed {{
     background-color: {c["bg_hover"]};
 }}
 
@@ -475,9 +461,57 @@ QLabel[toastkind="negative"] {{
     color: {c["toast_negative_fg"]};
     border: 1px solid {c["toast_negative_fg"]}33;
 }}
-QLabel[toastkind="info"] {{
-    background-color: {c["toast_info_bg"]};
-    color: {c["toast_info_fg"]};
-    border: 1px solid {c["toast_info_fg"]}33;
-}}
-"""
+        QLabel[toastkind="info"] {{
+            background-color: {c["toast_info_bg"]};
+            color: {c["toast_info_fg"]};
+            border: 1px solid {c["toast_info_fg"]}33;
+        }}
+    """
+
+
+def tab_style_qss(accent_color: str = "#3B82F6") -> str:
+    c = colors()
+    return f"""
+        QTabWidget::pane {{
+            border: 1px solid {c["border_light"]};
+            border-radius: 6px;
+            background: {c["bg_card"]};
+        }}
+        QTabBar::tab {{
+            padding: 8px 20px;
+            border: 1px solid {c["border_light"]};
+            border-bottom: none;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            background: {c["bg_card_alt"]};
+            color: {c["text_secondary"]};
+            font-size: 13px;
+            font-weight: 500;
+            margin-right: 2px;
+        }}
+        QTabBar::tab:selected {{
+            background: {c["bg_card"]};
+            color: {accent_color};
+            border-bottom: 2px solid {c["bg_card"]};
+            font-weight: 600;
+        }}
+        QTabBar::tab:hover {{
+            background: {c["bg_hover"]};
+            color: {c["text_primary"]};
+        }}
+    """
+
+
+def filter_table_rows(table, text: str):
+    query = text.strip().lower()
+    for row in range(table.rowCount()):
+        match = False
+        if not query:
+            match = True
+        else:
+            for col in range(table.columnCount()):
+                item = table.item(row, col)
+                if item and query in item.text().lower():
+                    match = True
+                    break
+        table.setRowHidden(row, not match)

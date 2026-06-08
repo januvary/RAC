@@ -121,3 +121,54 @@ class BasePage(QWidget, ToastMixin):
 
         layout.addLayout(h)
         return h
+
+
+def make_tab(margins=(16, 16, 16, 16), spacing=12):
+    from PySide6.QtWidgets import QWidget, QVBoxLayout
+
+    tab = QWidget()
+    layout = QVBoxLayout(tab)
+    layout.setContentsMargins(*margins)
+    layout.setSpacing(spacing)
+    return tab, layout
+
+
+def make_hbox(margins=(0, 0, 0, 0), spacing=8):
+    from PySide6.QtWidgets import QHBoxLayout
+
+    h = QHBoxLayout()
+    h.setContentsMargins(*margins)
+    h.setSpacing(spacing)
+    return h
+
+
+def export_with_fallback(page, export_fn, no_data_msg="Nenhum dado para exportar"):
+    from PySide6.QtWidgets import QFileDialog
+    from pathlib import Path
+    from src.export.excel_exporter import SavePathError
+    from andaime.error_handler import ErrorHandler
+
+    try:
+        result = export_fn()
+        if result:
+            page._toast(f"Exportado: {result}", "positive")
+        else:
+            page._toast(no_data_msg, "warning")
+    except SavePathError:
+        folder = QFileDialog.getExistingDirectory(
+            page, "Selecionar pasta para salvar", str(Path.home()),
+        )
+        if not folder:
+            return
+        page._mw.config.set("save_path", folder)
+        try:
+            result = export_fn()
+            if result:
+                page._toast(f"Exportado: {result}", "positive")
+            else:
+                page._toast(no_data_msg, "warning")
+        except SavePathError as e:
+            page._toast(f"Erro ao exportar: {e}", "negative")
+    except Exception as e:
+        ErrorHandler.handle_error(e, context="Exportação", show_dialog=False)
+        page._toast(f"Erro ao exportar: {e}", "negative")

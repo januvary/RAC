@@ -22,9 +22,10 @@ from src.gui.widgets import (
     open_input_dialog,
     delete_registro_with_undo,
     confirm_delete_dialog,
+    make_tab,
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS
-from src.gui.styles import colors, faded_tipo_color
+from src.gui.styles import colors, faded_tipo_color, tab_style_qss, filter_table_rows
 from andaime.error_handler import ErrorHandler
 
 from src.utils.text_utils import format_malote_date
@@ -61,7 +62,7 @@ class PreviewPage(BasePage):
         self._tabs = QTabWidget()
         self._tabs.setMinimumHeight(550)
         self._tab_tipo_keys: list[str] = []
-        self._tabs.setStyleSheet(self._tab_style(list(TIPO_LABELS)[0]))
+        self._tabs.setStyleSheet(tab_style_qss())
         self._tab_searches: dict[int, QLineEdit] = {}
         self._shortcut_searches: list[tuple[str, QLineEdit]] = []
 
@@ -69,10 +70,7 @@ class PreviewPage(BasePage):
             tipo_registros = [r for r in registros if r.tipo == tipo]
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
-            tab = QWidget()
-            tab_layout = QVBoxLayout(tab)
-            tab_layout.setContentsMargins(16, 16, 16, 16)
-            tab_layout.setSpacing(12)
+            tab, tab_layout = make_tab()
 
             search = QLineEdit()
             search.setPlaceholderText("Buscar paciente ou medicamento...")
@@ -95,7 +93,7 @@ class PreviewPage(BasePage):
             tab_layout.addWidget(table)
 
             search.textChanged.connect(
-                lambda text, t=table: self._filter_table(t, text)
+                lambda text, t=table: filter_table_rows(t, text)
             )
 
             for reg in tipo_registros:
@@ -141,7 +139,7 @@ class PreviewPage(BasePage):
     def _on_tab_changed(self, idx):
         if 0 <= idx < len(self._tab_tipo_keys):
             tipo_key = self._tab_tipo_keys[idx]
-            self._tabs.setStyleSheet(self._tab_style(tipo_key))
+            self._tabs.setStyleSheet(tab_style_qss(faded_tipo_color(TIPO_HEX.get(tipo_key, ""))))
 
     def refresh(self):
         self._malote_label.refresh()
@@ -164,20 +162,6 @@ class PreviewPage(BasePage):
         if not isinstance(container_layout, QVBoxLayout):
             return
         self._build_tabs(container_layout)
-
-    def _filter_table(self, table: QTableWidget, text: str):
-        query = text.strip().lower()
-        for row in range(table.rowCount()):
-            match = False
-            if not query:
-                match = True
-            else:
-                for col in range(table.columnCount()):
-                    item = table.item(row, col)
-                    if item and query in item.text().lower():
-                        match = True
-                        break
-            table.setRowHidden(row, not match)
 
     def _on_row_double_clicked(self, table: QTableWidget, row: int):
         item = table.item(row, 0)
@@ -375,40 +359,6 @@ class PreviewPage(BasePage):
             }}
             QHeaderView::section:hover {{
                 color: {hex_color};
-            }}
-        """
-
-    @staticmethod
-    def _tab_style(tipo_key: str) -> str:
-        c = colors()
-        faded = faded_tipo_color(TIPO_HEX.get(tipo_key, ""))
-        return f"""
-            QTabWidget::pane {{
-                border: 1px solid {c["border_light"]};
-                border-radius: 6px;
-                background: {c["bg_card"]};
-            }}
-            QTabBar::tab {{
-                padding: 8px 20px;
-                border: 1px solid {c["border_light"]};
-                border-bottom: none;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                background: {c["bg_card_alt"]};
-                color: {c["text_secondary"]};
-                font-size: 13px;
-                font-weight: 500;
-                margin-right: 2px;
-            }}
-            QTabBar::tab:selected {{
-                background: {c["bg_card"]};
-                color: {faded};
-                border-bottom: 2px solid {c["bg_card"]};
-                font-weight: 600;
-            }}
-            QTabBar::tab:hover {{
-                background: {c["bg_hover"]};
-                color: {c["text_primary"]};
             }}
         """
 

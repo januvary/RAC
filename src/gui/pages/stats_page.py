@@ -13,16 +13,16 @@ from PySide6.QtWidgets import (
     QDialog,
     QTreeWidgetItem,
     QLineEdit,
-    QFileDialog,
 )
 from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtCore import Qt
 
 from src.gui.widgets import (
     make_button,
     BasePage,
+    make_dialog_button_row,
+    export_with_fallback,
 )
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets._malote_tree import (
@@ -31,9 +31,8 @@ from src.gui.widgets._malote_tree import (
     wire_tree_keyboard,
 )
 from src.gui.constants import TIPO_LABELS
-from src.gui.styles import colors
-from src.export.excel_exporter import ExcelExporter, SavePathError
-from andaime.error_handler import ErrorHandler
+from src.gui.styles import colors, filter_table_rows
+from src.export.excel_exporter import ExcelExporter
 
 _CANCELLED = object()
 
@@ -228,51 +227,16 @@ class StatsPage(BasePage):
             self._meds_table.setItem(row, 2, self._cell(f"{pct:.1f}%", center=True))
 
     def _filter_meds_table(self, text: str):
-        query = text.strip().lower()
-        for row in range(self._meds_table.rowCount()):
-            match = False
-            if not query:
-                match = True
-            else:
-                for col in range(self._meds_table.columnCount()):
-                    item = self._meds_table.item(row, col)
-                    if item and query in item.text().lower():
-                        match = True
-                        break
-            self._meds_table.setRowHidden(row, not match)
+        filter_table_rows(self._meds_table, text)
 
     def _on_export(self):
         exporter = ExcelExporter(self._mw.db)
-        try:
-            result = exporter.export_stats(
+        _export_with_fallback(
+            self,
+            lambda: exporter.export_stats(
                 date_from=self._date_from, date_to=self._date_to
-            )
-            if result:
-                self._toast(f"Exportado: {result}", "positive")
-            else:
-                self._toast("Nenhum dado para exportar", "warning")
-        except SavePathError:
-            folder = QFileDialog.getExistingDirectory(
-                self,
-                "Selecionar pasta para salvar",
-                str(Path.home()),
-            )
-            if not folder:
-                return
-            self._mw.config.set("save_path", folder)
-            try:
-                result = exporter.export_stats(
-                    date_from=self._date_from, date_to=self._date_to
-                )
-                if result:
-                    self._toast(f"Exportado: {result}", "positive")
-                else:
-                    self._toast("Nenhum dado para exportar", "warning")
-            except SavePathError as e:
-                self._toast(f"Erro ao exportar: {e}", "negative")
-        except Exception as e:
-            ErrorHandler.handle_error(e, context="Exportação", show_dialog=False)
-            self._toast(f"Erro ao exportar: {e}", "negative")
+            ),
+        )
 
     @staticmethod
     def _cell(text: str, center: bool = False) -> QTableWidgetItem:
@@ -362,12 +326,9 @@ def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
 
     layout.addWidget(tree)
 
-    btn_row = QHBoxLayout()
-    btn_row.addStretch()
-    close_btn = make_button("Cancelar", "flat")
+    btn_row, [close_btn] = make_dialog_button_row([("Cancelar", "flat")])
     close_btn.setAutoDefault(False)
     close_btn.clicked.connect(dlg.reject)
-    btn_row.addWidget(close_btn)
     layout.addLayout(btn_row)
 
     dlg.exec()

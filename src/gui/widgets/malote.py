@@ -18,7 +18,7 @@ from PySide6.QtCore import Qt, Signal
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets.toast import show_toast
-from src.gui.widgets.dialogs import confirm_delete_dialog
+from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row
 
 
 class MaloteLabel(QWidget):
@@ -259,12 +259,11 @@ def _show_new_malote_dialog(label: MaloteLabel):
     date_input.selectAll()
     layout.addWidget(date_input)
 
-    btn_row = QHBoxLayout()
-    btn_row.addStretch()
-    cancel = make_button("Cancelar", "flat")
+    btn_row, [cancel, create] = make_dialog_button_row([
+        ("Cancelar", "flat"),
+        ("Criar", "primary"),
+    ])
     cancel.clicked.connect(dlg.reject)
-    btn_row.addWidget(cancel)
-    create = make_button("Criar", "primary")
 
     def do_create():
         iso = parse_date(date_input.text())
@@ -292,7 +291,6 @@ def _show_new_malote_dialog(label: MaloteLabel):
             show_toast(f"Erro: {e}", "negative", label)
 
     create.clicked.connect(do_create)
-    btn_row.addWidget(create)
     layout.addLayout(btn_row)
 
     date_input.returnPressed.connect(do_create)
@@ -343,12 +341,11 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
         date_input.selectAll()
     layout.addWidget(date_input)
 
-    btn_row = QHBoxLayout()
-    btn_row.addStretch()
-    cancel = make_button("Cancelar", "flat")
+    btn_row, [cancel, save] = make_dialog_button_row([
+        ("Cancelar", "flat"),
+        ("Salvar", "primary"),
+    ])
     cancel.clicked.connect(dlg.reject)
-    btn_row.addWidget(cancel)
-    save = make_button("Salvar", "primary")
 
     def do_save():
         iso = parse_date(date_input.text())
@@ -380,7 +377,6 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
             show_toast(f"Erro: {e}", "negative", label)
 
     save.clicked.connect(do_save)
-    btn_row.addWidget(save)
     layout.addLayout(btn_row)
 
     date_input.returnPressed.connect(do_save)

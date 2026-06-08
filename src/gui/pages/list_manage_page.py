@@ -20,8 +20,9 @@ from src.gui.widgets import (
     BasePage,
     confirm_delete_dialog,
     open_input_dialog,
+    make_tab,
 )
-from src.gui.styles import colors
+from src.gui.styles import colors, tab_style_qss
 
 
 class ListManagePage(BasePage):
@@ -38,7 +39,7 @@ class ListManagePage(BasePage):
     def _build_tabs(self, layout: QVBoxLayout):
         self._tabs = QTabWidget()
         self._tabs.setMinimumHeight(500)
-        self._tabs.setStyleSheet(self._tab_style())
+        self._tabs.setStyleSheet(tab_style_qss())
 
         self._build_items_tab()
         self._build_pacientes_tab()
@@ -46,10 +47,7 @@ class ListManagePage(BasePage):
         layout.addWidget(self._tabs)
 
     def _build_items_tab(self):
-        tab = QWidget()
-        tab_layout = QVBoxLayout(tab)
-        tab_layout.setContentsMargins(16, 16, 16, 16)
-        tab_layout.setSpacing(12)
+        tab, tab_layout = make_tab()
 
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
@@ -85,10 +83,7 @@ class ListManagePage(BasePage):
         self._tabs.addTab(tab, "Medicamentos")
 
     def _build_pacientes_tab(self):
-        tab = QWidget()
-        tab_layout = QVBoxLayout(tab)
-        tab_layout.setContentsMargins(16, 16, 16, 16)
-        tab_layout.setSpacing(12)
+        tab, tab_layout = make_tab()
 
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
@@ -285,35 +280,4 @@ class ListManagePage(BasePage):
             }}
         """
 
-    @staticmethod
-    def _tab_style() -> str:
-        c = colors()
-        return f"""
-            QTabWidget::pane {{
-                border: 1px solid {c["border_light"]};
-                border-radius: 6px;
-                background: {c["bg_card"]};
-            }}
-            QTabBar::tab {{
-                padding: 8px 20px;
-                border: 1px solid {c["border_light"]};
-                border-bottom: none;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                background: {c["bg_card_alt"]};
-                color: {c["text_secondary"]};
-                font-size: 13px;
-                font-weight: 500;
-                margin-right: 2px;
-            }}
-            QTabBar::tab:selected {{
-                background: {c["bg_card"]};
-                color: #3B82F6;
-                border-bottom: 2px solid {c["bg_card"]};
-                font-weight: 600;
-            }}
-            QTabBar::tab:hover {{
-                background: {c["bg_hover"]};
-                color: {c["text_primary"]};
-            }}
-        """
+

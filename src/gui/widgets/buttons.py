@@ -15,6 +15,13 @@ def make_button(text: str, role: str, parent=None) -> QPushButton:
     return btn
 
 
+def make_icon_button(text: str, role: str, width: int = 40, font_size: int = 14) -> QPushButton:
+    btn = make_button(text, role)
+    btn.setFixedWidth(width)
+    btn.setStyleSheet(f"padding: 9px 0; font-size: {font_size}px; font-weight: 600;")
+    return btn
+
+
 class TipoButton(QPushButton):
     clicked_tipo = Signal(str)
 
