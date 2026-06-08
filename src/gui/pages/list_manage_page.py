@@ -57,6 +57,15 @@ class ListManagePage(BasePage):
         self._item_search.setPlaceholderText("Buscar medicamento...")
         self._item_search.textChanged.connect(self._filter_items)
         search_row.addWidget(self._item_search)
+        edit_btn = make_button("Editar", "primary")
+        edit_btn.clicked.connect(self._edit_selected_item)
+        search_row.addWidget(edit_btn)
+        add_btn = make_button("Adicionar", "primary")
+        add_btn.clicked.connect(self._add_item)
+        search_row.addWidget(add_btn)
+        del_btn = make_button("Excluir", "negative")
+        del_btn.clicked.connect(self._delete_selected_item)
+        search_row.addWidget(del_btn)
         tab_layout.addLayout(search_row)
 
         self._shortcut_searches = [
@@ -67,22 +76,10 @@ class ListManagePage(BasePage):
         self._item_list.setAlternatingRowColors(True)
         self._item_list.setStyleSheet(self._list_style())
         self._item_list.itemDoubleClicked.connect(self._edit_item)
-        self.register_keyboard_nav(self._item_list, self._item_search, lambda _: self._edit_selected_item())
+        self.register_keyboard_nav(
+            self._item_list, self._item_search, lambda _: self._edit_selected_item()
+        )
         tab_layout.addWidget(self._item_list)
-
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
-        btn_row.addStretch()
-        edit_btn = make_button("Editar", "flat")
-        edit_btn.clicked.connect(self._edit_selected_item)
-        btn_row.addWidget(edit_btn)
-        add_btn = make_button("Adicionar", "primary")
-        add_btn.clicked.connect(self._add_item)
-        btn_row.addWidget(add_btn)
-        del_btn = make_button("Excluir", "destructive")
-        del_btn.clicked.connect(self._delete_selected_item)
-        btn_row.addWidget(del_btn)
-        tab_layout.addLayout(btn_row)
 
         self._load_items()
         self._tabs.addTab(tab, "Medicamentos")
@@ -99,6 +96,15 @@ class ListManagePage(BasePage):
         self._paciente_search.setPlaceholderText("Buscar paciente...")
         self._paciente_search.textChanged.connect(self._filter_pacientes)
         search_row.addWidget(self._paciente_search)
+        edit_btn = make_button("Editar", "primary")
+        edit_btn.clicked.connect(self._edit_selected_paciente)
+        search_row.addWidget(edit_btn)
+        add_btn = make_button("Adicionar", "primary")
+        add_btn.clicked.connect(self._add_paciente)
+        search_row.addWidget(add_btn)
+        del_btn = make_button("Excluir", "negative")
+        del_btn.clicked.connect(self._delete_selected_paciente)
+        search_row.addWidget(del_btn)
         tab_layout.addLayout(search_row)
 
         self._shortcut_searches.append(
@@ -109,22 +115,12 @@ class ListManagePage(BasePage):
         self._paciente_list.setAlternatingRowColors(True)
         self._paciente_list.setStyleSheet(self._list_style())
         self._paciente_list.itemDoubleClicked.connect(self._edit_paciente)
-        self.register_keyboard_nav(self._paciente_list, self._paciente_search, lambda _: self._edit_selected_paciente())
+        self.register_keyboard_nav(
+            self._paciente_list,
+            self._paciente_search,
+            lambda _: self._edit_selected_paciente(),
+        )
         tab_layout.addWidget(self._paciente_list)
-
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
-        btn_row.addStretch()
-        edit_btn = make_button("Editar", "flat")
-        edit_btn.clicked.connect(self._edit_selected_paciente)
-        btn_row.addWidget(edit_btn)
-        add_btn = make_button("Adicionar", "primary")
-        add_btn.clicked.connect(self._add_paciente)
-        btn_row.addWidget(add_btn)
-        del_btn = make_button("Excluir", "destructive")
-        del_btn.clicked.connect(self._delete_selected_paciente)
-        btn_row.addWidget(del_btn)
-        tab_layout.addLayout(btn_row)
 
         self._load_pacientes()
         self._tabs.addTab(tab, "Pacientes")

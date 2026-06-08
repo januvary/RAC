@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
+from typing import Callable
 
 from src.gui.widgets.toast import ToastMixin
 from src.gui.widgets.buttons import make_button
@@ -21,8 +22,8 @@ class BasePage(QWidget, ToastMixin):
         super().__init__()
         self._mw = main_window
         self._shortcut_widgets: dict = {}
-        self._shortcut_searches: list[tuple[str, object]] = []
-        self._keyboard_nav: list[tuple[QWidget, QLineEdit, callable]] = []
+        self._shortcut_searches: list[tuple[str, QLineEdit]] = []
+        self._keyboard_nav: list[tuple[QWidget, QLineEdit, Callable]] = []
 
     def _scaffold(self) -> QVBoxLayout:
         outer = QVBoxLayout(self)
@@ -44,7 +45,9 @@ class BasePage(QWidget, ToastMixin):
         outer.addWidget(container)
         return layout
 
-    def register_keyboard_nav(self, widget: QWidget, search: QLineEdit, on_enter: callable):
+    def register_keyboard_nav(
+        self, widget: QWidget, search: QLineEdit, on_enter: Callable
+    ):
         widget.installEventFilter(self)
         search.installEventFilter(self)
         self._keyboard_nav.append((widget, search, on_enter))
@@ -62,7 +65,11 @@ class BasePage(QWidget, ToastMixin):
                 new_row = 0
             elif new_row >= count:
                 new_row = count - 1
-        widget.setCurrentCell(new_row, 0) if hasattr(widget, "setCurrentCell") else widget.setCurrentRow(new_row)
+        (
+            widget.setCurrentCell(new_row, 0)
+            if hasattr(widget, "setCurrentCell")
+            else widget.setCurrentRow(new_row)
+        )
 
     def eventFilter(self, obj, event):
         if isinstance(event, QKeyEvent) and event.type() == event.Type.KeyPress:
@@ -99,7 +106,9 @@ class BasePage(QWidget, ToastMixin):
                 f"{placeholder} (Ctrl+R)" if show else placeholder
             )
 
-    def _add_back_button(self, layout: QVBoxLayout, target: str = "start") -> QHBoxLayout:
+    def _add_back_button(
+        self, layout: QVBoxLayout, target: str = "start"
+    ) -> QHBoxLayout:
         h = QHBoxLayout()
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)

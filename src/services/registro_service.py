@@ -119,5 +119,9 @@ class RegistroService:
         items = self._db.get_items_for_registro(registro_id)
         return EditContext(
             registro=reg,
-            items=[(item.item_id, item.process_group) for item in items if item.item_id is not None],
+            items=[
+                (item.item_id, item.process_group)
+                for item in items
+                if item.item_id is not None
+            ],
         )

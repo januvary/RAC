@@ -173,7 +173,9 @@ class _TipoComboDelegate(QStyledItemDelegate):
         text = index.data(Qt.ItemDataRole.DisplayRole)
         painter.save()
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, option.palette.color(QPalette.ColorRole.Highlight))
+            painter.fillRect(
+                option.rect, option.palette.color(QPalette.ColorRole.Highlight)
+            )
             painter.setPen(option.palette.color(QPalette.ColorRole.HighlightedText))
         else:
             if tipo_key:

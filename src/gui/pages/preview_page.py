@@ -21,6 +21,7 @@ from src.gui.widgets import (
     BasePage,
     open_input_dialog,
     delete_registro_with_undo,
+    confirm_delete_dialog,
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS
 from src.gui.styles import colors, faded_tipo_color
@@ -108,7 +109,7 @@ class PreviewPage(BasePage):
                     table.setItem(row, 0, name_item)
 
                     formatted = [
-                        _format_item(name).replace(" ", "\u00A0")
+                        _format_item(name).replace(" ", "\u00a0")
                         for name in process_items
                     ]
                     items_str = " / ".join(formatted)
@@ -187,7 +188,9 @@ class PreviewPage(BasePage):
             return
         reg = self._mw.db.get_registro_by_id(reg_id)
         if reg:
-            self._mw.navigate_to("entry", tipo=reg.tipo, edit_id=reg_id, return_to="preview")
+            self._mw.navigate_to(
+                "entry", tipo=reg.tipo, edit_id=reg_id, return_to="preview"
+            )
 
     def _on_enter(self, table: QTableWidget):
         row = table.currentRow()
@@ -230,7 +233,9 @@ class PreviewPage(BasePage):
                 continue
             action = tipo_menu.addAction(TIPO_LABELS.get(tipo, tipo))
             action.triggered.connect(
-                lambda _checked=False, ids=selected_ids, t=tipo: self._change_tipo(ids, t)
+                lambda _checked=False, ids=selected_ids, t=tipo: self._change_tipo(
+                    ids, t
+                )
             )
 
         active = self._mw.state.get_active_malote()
@@ -274,7 +279,10 @@ class PreviewPage(BasePage):
             self._toast(f"{errors} registro(s) duplicado(s) ignorado(s)", "warning")
         else:
             count = len(reg_ids)
-            self._toast(f"{count} registro(s) alterado(s)" if count > 1 else "Tipo alterado", "positive")
+            self._toast(
+                f"{count} registro(s) alterado(s)" if count > 1 else "Tipo alterado",
+                "positive",
+            )
 
     def _move_to_malote(self, reg_ids: list[int], new_malote_id: int):
         errors = 0
@@ -288,7 +296,10 @@ class PreviewPage(BasePage):
             self._toast(f"{errors} registro(s) duplicado(s) ignorado(s)", "warning")
         else:
             count = len(reg_ids)
-            self._toast(f"{count} registro(s) movido(s)" if count > 1 else "Registro movido", "positive")
+            self._toast(
+                f"{count} registro(s) movido(s)" if count > 1 else "Registro movido",
+                "positive",
+            )
 
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
@@ -315,7 +326,9 @@ class PreviewPage(BasePage):
             delete_registro_with_undo(self, self._mw.db, reg_ids[0], self.refresh)
         else:
             if not confirm_delete_dialog(
-                self, "Excluir Registros", f"Excluir {len(reg_ids)} registros selecionados?"
+                self,
+                "Excluir Registros",
+                f"Excluir {len(reg_ids)} registros selecionados?",
             ):
                 return
             try:

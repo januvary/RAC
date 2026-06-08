@@ -117,8 +117,12 @@ class StartPage(BasePage):
 
         self._sep_line = QFrame()
         self._sep_line.setFrameShape(QFrame.Shape.VLine)
-        self._sep_line.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self._sep_line.setStyleSheet(f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;")
+        self._sep_line.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
+        )
+        self._sep_line.setStyleSheet(
+            f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;"
+        )
         columns.addWidget(self._sep_line)
 
         columns.addSpacing(8)
@@ -133,25 +137,24 @@ class StartPage(BasePage):
 
         self._shortcut_widgets = {}
 
-        for key, handler in [
+        for key, handler in (
             ("preview", self._on_preview),
             ("export", self._on_export),
             ("lists", self._on_lists),
             ("stats", self._on_stats),
-        ]:
+        ):
             _, label = SHORTCUT_LABELS[key]
-            btn = make_button(label, "flat")
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedHeight(54)
-            btn.setStyleSheet(self._flat_btn_style(c, "right"))
-            btn.clicked.connect(handler)
-            right.addWidget(btn)
-            self._shortcut_widgets[key] = btn
+            shortcut_btn = make_button(label, "flat")
+            shortcut_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            shortcut_btn.setFixedHeight(54)
+            shortcut_btn.setStyleSheet(self._flat_btn_style(c, "right"))
+            shortcut_btn.clicked.connect(handler)
+            right.addWidget(shortcut_btn)
+            self._shortcut_widgets[key] = shortcut_btn
 
         right.addSpacing(24)
 
         columns.addLayout(right)
-        layout.addLayout(columns)
         layout.addLayout(columns)
 
     def refresh(self):
@@ -239,13 +242,13 @@ class StartPage(BasePage):
 
     @staticmethod
     def _flat_btn_style(c: dict, align: str, color: str | None = None) -> str:
-        text_color = color if color else c["text_secondary"]
+        text_color = color or c["text_secondary"]
         hover_color = c["text_primary"] if not color else ""
-        hover = f'color: {hover_color};' if hover_color else ''
+        hover = f"color: {hover_color};" if hover_color else ""
         return (
-            f'QPushButton {{ background: transparent; border: 1px solid {c["border_light"]}; '
-            f'border-radius: 6px; padding: 12px 20px; text-align: {align}; '
-            f'color: {text_color}; }}'
+            f'QPushButton {{ background: transparent; border: 1px solid {c["border"]}; '
+            f"border-radius: 6px; padding: 12px 20px; text-align: {align}; "
+            f"color: {text_color}; }}"
             f'QPushButton:hover {{ background: {c["bg_hover"]}; {hover} }}'
             f'QPushButton:pressed {{ background: {c["bg_pressed"]}; }}'
         )
@@ -253,6 +256,7 @@ class StartPage(BasePage):
     def _on_theme_changed(self):
         self._malote_label.refresh()
         from src.gui.styles import colors as _colors, faded_tipo_color
+
         c = _colors()
         for btn in self._tipo_btns:
             faded = faded_tipo_color(TIPO_HEX[btn.tipo_key])
@@ -260,7 +264,9 @@ class StartPage(BasePage):
         for btn in self._shortcut_widgets.values():
             btn.setStyleSheet(self._flat_btn_style(c, "right"))
         if self._sep_line:
-            self._sep_line.setStyleSheet(f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;")
+            self._sep_line.setStyleSheet(
+                f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;"
+            )
 
     def set_shortcuts_visible(self, show: bool):
         super().set_shortcuts_visible(show)

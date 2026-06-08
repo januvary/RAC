@@ -23,8 +23,6 @@ from src.gui.widgets import (
     make_button,
     BasePage,
     delete_registro_with_undo,
-    _CenteredComboBox,
-    _ThemedComboDelegate,
 )
 from src.models import Registro
 from src.services.registro_service import RegistroService
@@ -36,7 +34,13 @@ from src.gui.styles import colors
 
 
 class EntryPage(BasePage):
-    def __init__(self, main_window, tipo: str, edit_id: int | None = None, return_to: str = "start"):
+    def __init__(
+        self,
+        main_window,
+        tipo: str,
+        edit_id: int | None = None,
+        return_to: str = "start",
+    ):
         super().__init__(main_window)
         self._tipo = tipo
         self._edit_id: int | None = edit_id
@@ -218,7 +222,22 @@ class EntryPage(BasePage):
         row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row_h = QHBoxLayout(row)
         row_h.setContentsMargins(0, 0, 0, 0)
-        row_h.setSpacing(6)
+        row_h.setSpacing(2)
+
+        group_btn = make_button(str(process_group), "positive")
+        group_btn.setFixedWidth(40)
+        group_btn.setStyleSheet("padding: 9px 0; font-size: 14px; font-weight: 600;")
+        group_btn.setToolTip("Grupo do item (clique p/ alterar)")
+        group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        pg = process_group
+
+        def _cycle_group(_checked=False, _btn=group_btn):
+            nonlocal pg
+            pg = (pg % 5) + 1
+            _btn.setText(str(pg))
+
+        group_btn.clicked.connect(_cycle_group)
+        row_h.addWidget(group_btn)
 
         combo = SearchableComboBox(
             "Buscar item...",
@@ -230,33 +249,12 @@ class EntryPage(BasePage):
             combo.set_current_by_data(str(item_id))
         row_h.addWidget(combo)
 
-        remove_btn = QPushButton("\u00d7")
-        remove_btn.setProperty("btnrole", "remove")
-        remove_btn.setFixedSize(28, 28)
-        remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        remove_btn = make_button("\u00d7", "positive")
+        remove_btn.setFixedWidth(40)
+        remove_btn.setStyleSheet("padding: 9px 0; font-size: 16px; font-weight: 600;")
+        remove_btn.setToolTip("Remover item")
         remove_btn.clicked.connect(lambda _checked=False, w=row: self._remove_item(w))
         row_h.addWidget(remove_btn)
-
-        process_combo = _CenteredComboBox()
-        process_combo.setItemDelegate(_ThemedComboDelegate(process_combo))
-        process_combo.setHideCurrentItem(True)
-        for i in range(1, 6):
-            process_combo.addItem(str(i))
-        process_combo.setFixedSize(28, 28)
-        process_combo.setCurrentIndex(process_group - 1)
-        process_combo.setCursor(Qt.CursorShape.PointingHandCursor)
-        process_combo.setToolTip("Grupo do processo")
-        process_combo.setStyleSheet(
-            "QComboBox { background: transparent; border: none; color: "
-            + colors()["text_secondary"]
-            + "; font-size: 13px; font-weight: 600; padding: 0; }"
-            "QComboBox:hover { color: "
-            + colors()["text_primary"]
-            + "; }"
-            "QComboBox::drop-down { border: none; width: 0; }"
-            "QComboBox::down-arrow { image: none; width: 0; }"
-        )
-        row_h.addWidget(process_combo)
 
         self._items_container.addWidget(row)
         return combo
@@ -316,8 +314,12 @@ class EntryPage(BasePage):
             data = combo.current_data() if combo else None
             if not data:
                 continue
-            process_combo = frame.findChild(_CenteredComboBox)
-            pg = process_combo.currentIndex() + 1 if process_combo else 1
+            group_btn = None
+            for child in frame.findChildren(QPushButton):
+                if child.text().isdigit():
+                    group_btn = child
+                    break
+            pg = int(group_btn.text()) if group_btn else 1
             items.append((int(data), pg))
         return items
 
@@ -436,9 +438,12 @@ class EntryPage(BasePage):
 
         def navigate_start():
             from PySide6.QtCore import QTimer
+
             QTimer.singleShot(800, lambda: self._mw.navigate_to(self._return_to))
 
         delete_registro_with_undo(
-            self, self._mw.db, self._edit_id,
+            self,
+            self._mw.db,
+            self._edit_id,
             on_refresh=navigate_start,
         )

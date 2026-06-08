@@ -91,7 +91,7 @@ class ExcelExporter:
             for reg in tipo_registros:
                 for process_items in reg.processes:
                     formatted_items = [
-                        _format_item(name).replace(" ", "\u00A0")
+                        _format_item(name).replace(" ", "\u00a0")
                         for name in process_items
                     ]
                     items_str = " / ".join(formatted_items)
@@ -109,9 +109,7 @@ class ExcelExporter:
             title1_font = Font(name="Arial", size=20)
             title2_font = Font(name="Arial", size=16)
             center = Alignment(horizontal="center", vertical="center")
-            left_wrap = Alignment(
-                horizontal="left", vertical="center", wrap_text=True
-            )
+            left_wrap = Alignment(horizontal="left", vertical="center", wrap_text=True)
             thin_border = Border(
                 left=Side(style="thin"),
                 right=Side(style="thin"),
@@ -206,7 +204,9 @@ class ExcelExporter:
             return None
 
         tipo_rows = self._db.get_stats_by_tipo(date_from=date_from, date_to=date_to)
-        med_rows = self._db.get_stats_top_medications(date_from=date_from, date_to=date_to)
+        med_rows = self._db.get_stats_top_medications(
+            date_from=date_from, date_to=date_to
+        )
         if not tipo_rows and not med_rows:
             return None
 
@@ -240,7 +240,9 @@ class ExcelExporter:
                         parts.append(d)
             date_range = " - ".join(parts)
 
-        ws["A1"] = f"USAFA OCIAN - Estatísticas{f' ({date_range})' if date_range else ''}"
+        ws["A1"] = (
+            f"USAFA OCIAN - Estatísticas{f' ({date_range})' if date_range else ''}"
+        )
         ws.merge_cells("A1:C1")
 
         ws.append(["Tipo", "Registros", "Pacientes"])
@@ -253,7 +255,13 @@ class ExcelExporter:
         total = sum(m["registros"] for m in med_rows) or 1
         for med in med_rows:
             pct = f"{med['registros'] / total * 100:.1f}%"
-            ws.append([_format_item(med["medicamento"]).replace(" ", "\u00A0"), med["registros"], pct])
+            ws.append(
+                [
+                    _format_item(med["medicamento"]).replace(" ", "\u00a0"),
+                    med["registros"],
+                    pct,
+                ]
+            )
 
         ws.column_dimensions["A"].width = 45
         ws.column_dimensions["B"].width = 20
@@ -289,13 +297,17 @@ class ExcelExporter:
                 parts = []
                 if date_from:
                     try:
-                        parts.append(datetime.fromisoformat(date_from).strftime("%d-%m-%Y"))
+                        parts.append(
+                            datetime.fromisoformat(date_from).strftime("%d-%m-%Y")
+                        )
                     except ValueError:
                         parts.append(date_from)
                 parts.append("a")
                 if date_to:
                     try:
-                        parts.append(datetime.fromisoformat(date_to).strftime("%d-%m-%Y"))
+                        parts.append(
+                            datetime.fromisoformat(date_to).strftime("%d-%m-%Y")
+                        )
                     except ValueError:
                         parts.append(date_to)
                 date_label = f"_{'_'.join(parts)}"

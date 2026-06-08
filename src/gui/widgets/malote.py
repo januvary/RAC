@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from contextlib import suppress
+
 from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
@@ -118,15 +120,13 @@ def _show_malote_dialog(label: MaloteLabel):
             except (ValueError, TypeError):
                 arrival_str = None
         if arrival_str:
-            try:
+            with suppress(ValueError, TypeError):
                 arrival = datetime.fromisoformat(arrival_str).date()
                 child.setText(1, f"\u279c {arrival.strftime('%d/%m/%Y')}")
                 child.setTextAlignment(1, Qt.AlignmentFlag.AlignRight)
                 font = child.font(1)
                 font.setPointSize(font.pointSize() - 1)
                 child.setFont(1, font)
-            except (ValueError, TypeError):
-                pass
 
     def _populate_tree():
         malotes = mw.db.get_all_malotes()
@@ -179,7 +179,11 @@ def _show_malote_dialog(label: MaloteLabel):
         elif action == retorno_action:
             _show_date_dialog(label, malote, "arrival", _populate_tree)
         elif action == delete_action and delete_action is not None:
-            if not confirm_delete_dialog(parent, "Excluir Malote", f'Excluir malote "{format_malote_date(malote)}"?'):
+            if not confirm_delete_dialog(
+                parent,
+                "Excluir Malote",
+                f'Excluir malote "{format_malote_date(malote)}"?',
+            ):
                 return
 
             deleted = mw.db.delete_malote(malote.id)
@@ -243,19 +247,15 @@ def _show_new_malote_dialog(label: MaloteLabel):
 
     date_input = QLineEdit()
     date_input.setPlaceholderText("dd/mm ou dd/mm/aa")
-    try:
+    with suppress(Exception):
         from datetime import date as date_cls
 
         existing = set()
         for m in mw.db.get_all_malotes():
-            try:
+            with suppress(ValueError, TypeError):
                 existing.add(datetime.fromisoformat(m.date).date())
-            except (ValueError, TypeError):
-                pass
         suggested = next_send_date(existing)
         date_input.setText(suggested.strftime("%d/%m/%Y"))
-    except Exception:
-        pass
     date_input.selectAll()
     layout.addWidget(date_input)
 
@@ -273,12 +273,10 @@ def _show_new_malote_dialog(label: MaloteLabel):
             return
         try:
             arrival_iso = None
-            try:
+            with suppress(ValueError, TypeError):
                 send_dt = date_cls.fromisoformat(iso)
                 arrival = calculate_arrival_date(send_dt)
                 arrival_iso = arrival.isoformat()
-            except (ValueError, TypeError):
-                pass
             current = mw.state.get_active_malote()
             malote = mw.db.create_malote(iso, arrival_date=arrival_iso)
             mw.state.set_active_malote(malote)
@@ -315,14 +313,12 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
         title = "Data de Retorno"
         current_iso = malote.arrival_date or ""
         if not current_iso:
-            try:
+            with suppress(ValueError, TypeError):
                 from src.utils.date_calculator import calculate_arrival_date
                 from datetime import date as date_cls
 
                 send_dt = date_cls.fromisoformat(malote.date)
                 current_iso = calculate_arrival_date(send_dt).isoformat()
-            except (ValueError, TypeError):
-                pass
 
     dlg = QDialog(parent)
     dlg.setWindowTitle(title)

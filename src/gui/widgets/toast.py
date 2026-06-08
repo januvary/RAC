@@ -8,7 +8,14 @@ from src.gui.styles import colors
 
 
 class _ToastWidget(QWidget):
-    def __init__(self, message: str, kind: str = "info", action_label: str | None = None, action_callback=None, parent=None):
+    def __init__(
+        self,
+        message: str,
+        kind: str = "info",
+        action_label: str | None = None,
+        action_callback=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setProperty("toastkind", kind)
         self._action_callback = action_callback
@@ -51,7 +58,14 @@ class _ToastWidget(QWidget):
         self.deleteLater()
 
 
-def show_toast(message: str, kind: str, parent: QWidget, action_label: str | None = None, action_callback=None, timeout_ms: int = 3000):
+def show_toast(
+    message: str,
+    kind: str,
+    parent: QWidget,
+    action_label: str | None = None,
+    action_callback=None,
+    timeout_ms: int = 3000,
+):
     win = parent.window()
     toast = _ToastWidget(message, kind, action_label, action_callback, win)
     toast.adjustSize()

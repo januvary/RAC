@@ -40,7 +40,10 @@ DEFINITIVE_CATALOG: list[tuple[str, str]] = [
     ("azatioprina 50 mg", "un"),
     ("baricitinibe 2 mg", "un"),
     ("baricitinibe 4 mg", "un"),
-    ("beclometasona + formoterol + glicopirrônio 100 µg + 6 µg + 12,5 µg (trimbow)", "un"),
+    (
+        "beclometasona + formoterol + glicopirrônio 100 µg + 6 µg + 12,5 µg (trimbow)",
+        "un",
+    ),
     ("betainterferona 12.000.000 UI", "un"),
     ("betainterferona 44 mcg", "un"),
     ("bezafibrato 200 mg", "un"),

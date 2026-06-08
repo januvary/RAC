@@ -273,7 +273,9 @@ class TestRegistroItems:
     def test_set_items_replaces(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
         db.set_registro_items(r.id, [(catalog_items[0].id, 1)])
-        db.set_registro_items(r.id, [(catalog_items[1].id, 1), (catalog_items[2].id, 1)])
+        db.set_registro_items(
+            r.id, [(catalog_items[1].id, 1), (catalog_items[2].id, 1)]
+        )
         items = db.get_items_for_registro(r.id)
         assert len(items) == 2
 

@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
+import operator
 from typing import Callable, Any
 
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QObject
+from PySide6.QtGui import QKeyEvent
 
 from src.gui.styles import colors
 
@@ -42,7 +44,7 @@ def populate_malote_tree(
         except (ValueError, TypeError):
             dt = datetime.now()
         sorted_malotes.append((m, dt))
-    sorted_malotes.sort(key=lambda x: x[1], reverse=True)
+    sorted_malotes.sort(key=operator.itemgetter(1), reverse=True)
 
     for m, dt in sorted_malotes:
         year = dt.year
@@ -111,12 +113,14 @@ def make_malote_tree() -> QTreeWidget:
 
 
 def wire_tree_keyboard(tree: QTreeWidget, on_activate) -> None:
-    def _on_key(event):
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            item = tree.currentItem()
-            if item:
-                on_activate(item)
-        else:
-            QTreeWidget.keyPressEvent(tree, event)
+    class _KeyFilter(QObject):
+        def eventFilter(self, obj, event):
+            if isinstance(event, QKeyEvent) and event.type() == event.Type.KeyPress:
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    item = tree.currentItem()
+                    if item:
+                        on_activate(item)
+                        return True
+            return super().eventFilter(obj, event)
 
-    tree.keyPressEvent = _on_key
+    tree.installEventFilter(_KeyFilter(tree))

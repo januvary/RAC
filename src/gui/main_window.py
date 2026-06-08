@@ -4,6 +4,8 @@
 Main Window — QStackedWidget page navigation
 """
 
+from contextlib import suppress
+
 from PySide6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout
 from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QShortcut, QKeySequence
@@ -51,6 +53,7 @@ class MainWindow(QMainWindow):
 
         saved_theme = self.config.get("theme", "light")
         from src.gui.styles import set_theme
+
         set_theme(saved_theme)
 
         stay_on_page = self.config.get("stay_on_page", False)
@@ -65,7 +68,7 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
 
     def eventFilter(self, obj, event):
-        try:
+        with suppress(Exception):
             etype = event.type()
             if etype == QEvent.Type.KeyPress:
                 if (
@@ -85,8 +88,6 @@ class MainWindow(QMainWindow):
                     has_shift = mods & Qt.KeyboardModifier.ShiftModifier
                     if not (has_ctrl and has_shift):
                         self._toggle_shortcut_peek(False)
-        except Exception:
-            pass
         return super().eventFilter(obj, event)
 
     def _toggle_shortcut_peek(self, show: bool):
@@ -150,7 +151,9 @@ class MainWindow(QMainWindow):
             self._stack.removeWidget(w)
             w.deleteLater()
 
-    def _show_entry_page(self, tipo: str, edit_id: int | None = None, return_to: str = "start"):
+    def _show_entry_page(
+        self, tipo: str, edit_id: int | None = None, return_to: str = "start"
+    ):
         from src.gui.pages.entry_page import EntryPage
 
         self._clear_above_start()

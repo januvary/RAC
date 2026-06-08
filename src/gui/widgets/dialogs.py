@@ -45,7 +45,7 @@ def confirm_delete_dialog(
     cancel = make_button("Cancelar", "flat")
     cancel.clicked.connect(dlg.reject)
     btn_row.addWidget(cancel)
-    delete_btn = make_button(destructive_label, "destructive")
+    delete_btn = make_button(destructive_label, "negative")
     delete_btn.clicked.connect(dlg.accept)
     btn_row.addWidget(delete_btn)
     layout.addLayout(btn_row)
@@ -110,6 +110,7 @@ def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):
         on_refresh()
 
         if snapshot:
+
             def undo():
                 r, old_items = snapshot
                 new_reg = db.create_registro(
@@ -123,7 +124,14 @@ def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):
                     db.set_registro_items(new_reg.id, item_tuples)
                 on_refresh()
 
-            show_toast("Registro excluido", "info", page, action_label="Desfazer", action_callback=undo, timeout_ms=5000)
+            show_toast(
+                "Registro excluido",
+                "info",
+                page,
+                action_label="Desfazer",
+                action_callback=undo,
+                timeout_ms=5000,
+            )
         else:
             show_toast("Registro excluido", "info", page)
     except Exception as e:

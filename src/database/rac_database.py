@@ -6,6 +6,7 @@ SQLite database layer for Registros Alto Custo
 """
 
 import sqlite3
+import operator
 from typing import Optional
 from datetime import datetime
 
@@ -570,7 +571,7 @@ class RACDatabase(BaseDatabase):
                 groups_map[reg_id].setdefault(pg, []).append(item_name)
 
         for reg_id, groups in groups_map.items():
-            sorted_groups = sorted(groups.items(), key=lambda x: x[0])
+            sorted_groups = sorted(groups.items(), key=operator.itemgetter(0))
             registros_map[reg_id].processes = [
                 items for _, items in sorted_groups if items
             ]

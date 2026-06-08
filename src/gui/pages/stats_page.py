@@ -82,13 +82,13 @@ class StatsPage(BasePage):
     def _build_ui(self):
         layout = self._scaffold()
         self._build_header(layout)
-        layout.addSpacing(16)
+        layout.addSpacing(12)
 
         self._build_tipo_cards(layout)
         layout.addSpacing(10)
 
         self._build_medications_table(layout)
-        layout.addSpacing(16)
+        layout.addSpacing(12)
 
         export_btn = make_button("Exportar Estatisticas", "positive")
         export_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -142,11 +142,13 @@ class StatsPage(BasePage):
     def _update_date_buttons(self):
         self._from_btn.setText(
             datetime.fromisoformat(self._date_from).strftime("%d/%m/%Y")
-            if self._date_from else "Inicio"
+            if self._date_from
+            else "Inicio"
         )
         self._to_btn.setText(
             datetime.fromisoformat(self._date_to).strftime("%d/%m/%Y")
-            if self._date_to else "Fim"
+            if self._date_to
+            else "Fim"
         )
 
     def _build_tipo_cards(self, layout: QVBoxLayout):
@@ -223,9 +225,7 @@ class StatsPage(BasePage):
                 row, 1, self._cell(str(r["registros"]), center=True)
             )
             pct = r["registros"] / total * 100
-            self._meds_table.setItem(
-                row, 2, self._cell(f"{pct:.1f}%", center=True)
-            )
+            self._meds_table.setItem(row, 2, self._cell(f"{pct:.1f}%", center=True))
 
     def _filter_meds_table(self, text: str):
         query = text.strip().lower()
@@ -284,8 +284,7 @@ class StatsPage(BasePage):
     @staticmethod
     def _style_table(table: QTableWidget) -> None:
         c = colors()
-        table.setStyleSheet(
-            f"""
+        table.setStyleSheet(f"""
             QTableWidget {{
                 border: 1px solid {c['border_light']};
                 border-radius: 6px;
@@ -309,8 +308,7 @@ class StatsPage(BasePage):
                 border: none;
                 border-bottom: 1px solid {c['border_light']};
             }}
-        """
-        )
+        """)
 
 
 _RESET_SENTINEL = object()
@@ -346,7 +344,7 @@ def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
         prepend_items=[reset_item],
     )
 
-    selected_date = [_CANCELLED]
+    selected_date: list[str | None] = [None]
 
     def on_item_clicked(item, _column):
         data = item.data(0, Qt.ItemDataRole.UserRole)
