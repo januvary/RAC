@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-RAC Entry Point (PySide6 native desktop)
-"""
 
 import sys
 import os
@@ -40,7 +37,10 @@ def _start_update_check(window):
     from src.utils.updater import UpdateCheckWorker
     from src.gui.widgets.toast import show_toast
 
-    worker = UpdateCheckWorker(parent=window)
+    from src.utils.updater import REPO
+    from src import __version__
+
+    worker = UpdateCheckWorker(REPO, __version__, parent=window)
 
     def _on_available(tag, notes, url):
         show_toast(
@@ -78,6 +78,7 @@ def main():
 
     from src.utils.config import RACConfig
     from andaime.config import ConfigManager
+
     ConfigManager.init(RACConfig)
 
     from src.gui.styles import set_theme, get_stylesheet

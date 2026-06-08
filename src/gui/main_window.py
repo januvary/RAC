@@ -151,43 +151,33 @@ class MainWindow(QMainWindow):
             self._stack.removeWidget(w)
             w.deleteLater()
 
+    def _push_page(self, page_class, *args, **kwargs):
+        self._clear_above_start()
+        page = page_class(self, *args, **kwargs)
+        self._stack.addWidget(page)
+        self._stack.setCurrentWidget(page)
+
     def _show_entry_page(
         self, tipo: str, edit_id: int | None = None, return_to: str = "start"
     ):
         from src.gui.pages.entry_page import EntryPage
 
-        self._clear_above_start()
-
-        page = EntryPage(self, tipo, edit_id, return_to)
-        self._stack.addWidget(page)
-        self._stack.setCurrentWidget(page)
+        self._push_page(EntryPage, tipo, edit_id, return_to)
 
     def _show_preview_page(self):
         from src.gui.pages.preview_page import PreviewPage
 
-        self._clear_above_start()
-
-        page = PreviewPage(self)
-        self._stack.addWidget(page)
-        self._stack.setCurrentWidget(page)
+        self._push_page(PreviewPage)
 
     def _show_list_manage_page(self):
         from src.gui.pages.list_manage_page import ListManagePage
 
-        self._clear_above_start()
-
-        page = ListManagePage(self)
-        self._stack.addWidget(page)
-        self._stack.setCurrentWidget(page)
+        self._push_page(ListManagePage)
 
     def _show_stats_page(self):
         from src.gui.pages.stats_page import StatsPage
 
-        self._clear_above_start()
-
-        page = StatsPage(self)
-        self._stack.addWidget(page)
-        self._stack.setCurrentWidget(page)
+        self._push_page(StatsPage)
 
     _TIPO_SHORTCUTS = {
         0: "entrada",
@@ -310,26 +300,21 @@ class MainWindow(QMainWindow):
         if isinstance(page, EntryPage):
             page._auto_switch.toggle()
 
-    def _shortcut_preview(self):
+    def _navigate_from_start(self, target: str):
         page = self._current_page()
         from src.gui.pages.start_page import StartPage
 
         if isinstance(page, StartPage):
-            self.navigate_to("preview")
+            self.navigate_to(target)
+
+    def _shortcut_preview(self):
+        self._navigate_from_start("preview")
 
     def _shortcut_lists(self):
-        page = self._current_page()
-        from src.gui.pages.start_page import StartPage
-
-        if isinstance(page, StartPage):
-            self.navigate_to("lists")
+        self._navigate_from_start("lists")
 
     def _shortcut_stats(self):
-        page = self._current_page()
-        from src.gui.pages.start_page import StartPage
-
-        if isinstance(page, StartPage):
-            self.navigate_to("stats")
+        self._navigate_from_start("stats")
 
     def _shortcut_tipo_by_key(self, tipo: str):
         page = self._current_page()

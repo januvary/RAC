@@ -25,6 +25,7 @@ from src.gui.widgets import (
     export_with_fallback,
 )
 from src.gui.widgets.labels import HeadingLabel
+from src.gui.widgets.dialogs import scaffold_dialog
 from src.gui.widgets._malote_tree import (
     make_malote_tree,
     populate_malote_tree,
@@ -231,7 +232,7 @@ class StatsPage(BasePage):
 
     def _on_export(self):
         exporter = ExcelExporter(self._mw.db)
-        _export_with_fallback(
+        export_with_fallback(
             self,
             lambda: exporter.export_stats(
                 date_from=self._date_from, date_to=self._date_to
@@ -284,15 +285,8 @@ def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
 
     reset_label = "Início" if side == "from" else "Fim"
 
-    dlg = QDialog(parent)
-    dlg.setWindowTitle("Selecionar Data")
-    dlg.setMinimumWidth(320)
+    dlg, layout = scaffold_dialog(parent, "Selecionar Data", min_width=320)
     dlg.setMinimumHeight(300)
-
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(12)
-
-    layout.addWidget(HeadingLabel("Selecionar Data"))
 
     tree = make_malote_tree()
 

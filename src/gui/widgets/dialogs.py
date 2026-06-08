@@ -19,6 +19,16 @@ from src.services.registro_service import RegistroService
 from andaime.error_handler import ErrorHandler
 
 
+def scaffold_dialog(parent, title, spacing=12, min_width=340):
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(title)
+    dlg.setMinimumWidth(min_width)
+    layout = QVBoxLayout(dlg)
+    layout.setSpacing(spacing)
+    layout.addWidget(HeadingLabel(title))
+    return dlg, layout
+
+
 def make_dialog_button_row(actions: list[tuple[str, str]]) -> tuple[QHBoxLayout, list[QPushButton]]:
     btn_row = QHBoxLayout()
     btn_row.addStretch()
@@ -36,14 +46,7 @@ def confirm_delete_dialog(
     message: str,
     destructive_label: str = "Excluir",
 ) -> bool:
-    dlg = QDialog(parent)
-    dlg.setWindowTitle(title)
-    dlg.setMinimumWidth(340)
-
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(12)
-
-    layout.addWidget(HeadingLabel(title))
+    dlg, layout = scaffold_dialog(parent, title)
     layout.addSpacing(4)
 
     msg = QLabel(message)
@@ -70,14 +73,7 @@ def open_input_dialog(
     initial: str = "",
     confirm_label: str = "Confirmar",
 ) -> str | None:
-    dlg = QDialog(parent)
-    dlg.setWindowTitle(title)
-    dlg.setMinimumWidth(340)
-
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(16)
-
-    layout.addWidget(HeadingLabel(title))
+    dlg, layout = scaffold_dialog(parent, title, spacing=16)
     layout.addSpacing(4)
 
     input_field = QLineEdit()

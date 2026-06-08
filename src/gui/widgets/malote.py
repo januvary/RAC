@@ -18,7 +18,13 @@ from PySide6.QtCore import Qt, Signal
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets.toast import show_toast
-from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row
+from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row, scaffold_dialog
+
+def _activate_malote_if_changed(mw, malote, label):
+    current = mw.state.get_active_malote()
+    if not current or current.id != malote.id or current.date != malote.date:
+        mw.state.set_active_malote(malote)
+        label.malote_changed.emit()
 
 
 class MaloteLabel(QWidget):
@@ -142,12 +148,10 @@ def _show_malote_dialog(label: MaloteLabel):
     def on_item_clicked(item, _column):
         malote = item.data(0, Qt.ItemDataRole.UserRole)
         if malote:
-            current = mw.state.get_active_malote()
             mw.state.set_active_malote(malote)
             dlg.accept()
             label.refresh()
-            if not current or current.id != malote.id or current.date != malote.date:
-                label.malote_changed.emit()
+            _activate_malote_if_changed(mw, malote, label)
         else:
             item.setExpanded(not item.isExpanded())
 
@@ -236,14 +240,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
     parent = label.window()
     mw = label._mw
 
-    dlg = QDialog(parent)
-    dlg.setWindowTitle("Novo Malote")
-    dlg.setMinimumWidth(340)
-
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(16)
-
-    layout.addWidget(HeadingLabel("Novo Malote"))
+    dlg, layout = scaffold_dialog(parent, "Novo Malote", spacing=16)
 
     date_input = QLineEdit()
     date_input.setPlaceholderText("dd/mm ou dd/mm/aa")
@@ -276,13 +273,10 @@ def _show_new_malote_dialog(label: MaloteLabel):
                 send_dt = date_cls.fromisoformat(iso)
                 arrival = calculate_arrival_date(send_dt)
                 arrival_iso = arrival.isoformat()
-            current = mw.state.get_active_malote()
             malote = mw.db.create_malote(iso, arrival_date=arrival_iso)
-            mw.state.set_active_malote(malote)
+            _activate_malote_if_changed(mw, malote, label)
             dlg.accept()
             label.refresh()
-            if not current or current.id != malote.id or current.date != malote.date:
-                label.malote_changed.emit()
             show_toast(
                 f"Malote criado: {format_malote_date(malote)}", "positive", label
             )
@@ -318,14 +312,7 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
                 send_dt = date_cls.fromisoformat(malote.date)
                 current_iso = calculate_arrival_date(send_dt).isoformat()
 
-    dlg = QDialog(parent)
-    dlg.setWindowTitle(title)
-    dlg.setMinimumWidth(340)
-
-    layout = QVBoxLayout(dlg)
-    layout.setSpacing(16)
-
-    layout.addWidget(HeadingLabel(title))
+    dlg, layout = scaffold_dialog(parent, title, spacing=16)
     layout.addSpacing(4)
 
     date_input = QLineEdit()

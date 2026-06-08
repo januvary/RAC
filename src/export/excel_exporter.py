@@ -27,34 +27,105 @@ class SavePathError(Exception):
 def _format_item(name: str) -> str:
     paren = re.search(r"\(([^)]+)\)\s*$", name)
     if not paren:
-        return name
-    brand = paren.group(1).strip().upper()
-    digit = re.search(r"\d", name)
-    if not digit:
-        return brand
-    dosage = name[digit.start() : paren.start()].strip()
-    return f"{brand} {dosage}"
+        result = name
+    else:
+        brand = paren.group(1).strip().upper()
+        digit = re.search(r"\d", name)
+        if not digit:
+            result = brand
+        else:
+            dosage = name[digit.start() : paren.start()].strip()
+            result = f"{brand} {dosage}"
+    return result.replace(" ", "\u00a0")
+
+
+def _ensure_openpyxl():
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        ErrorHandler.log(
+            "openpyxl não instalado",
+            level=ErrorLevel.ERROR,
+            context="Exportação",
+        )
+        return None
+
+
+def _make_excel_styles():
+    from openpyxl.styles import Alignment, Border, Font, Side
+
+    return {
+        "main_font": Font(name="Arial", size=11),
+        "title1_font": Font(name="Arial", size=20),
+        "title2_font": Font(name="Arial", size=16),
+        "center": Alignment(horizontal="center", vertical="center"),
+        "left_wrap": Alignment(horizontal="left", vertical="center", wrap_text=True),
+        "thin_border": Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        ),
+    }
+
+
+def _apply_page_setup(ws):
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.pageOrder = "downThenOver"
+    ws.sheet_view.showGridLines = False
+    ws.print_options.horizontalCentered = True
+    ws.print_options.verticalCentered = False
 
 
 class ExcelExporter:
     def __init__(self, db: RACDatabase) -> None:
         self._db = db
 
-    def export_malote(self, malote_id: int) -> Optional[str]:
+    def _save_workbook(self, wb, base_filename, date_label="", log_label="Planilha exportada"):
         try:
-            import openpyxl  # type: ignore[import-untyped]
-            from openpyxl.styles import (  # type: ignore[import-untyped]
-                Alignment,
-                Border,
-                Font,
-                Side,
-            )
-        except ImportError:
+            timestamp = datetime.now().strftime("%H%M%S")
+            if date_label:
+                filename = f"{base_filename}_{date_label}_{timestamp}.xlsx"
+            else:
+                filename = f"{base_filename}_{timestamp}.xlsx"
+
+            from andaime.config import ConfigManager
+
+            config = ConfigManager()
+            save_path = config.get("save_path", Path.home() / "Downloads")
+
+            if isinstance(save_path, str):
+                save_path = Path(save_path)
+
+            save_path.mkdir(parents=True, exist_ok=True)
+            full_path = save_path / filename
+
+            wb.save(str(full_path))
+
             ErrorHandler.log(
-                "openpyxl não instalado",
-                level=ErrorLevel.ERROR,
+                f"{log_label}: {full_path}",
+                level=ErrorLevel.INFO,
                 context="Exportação",
             )
+
+            return str(full_path)
+
+        except Exception as e:
+            ErrorHandler.handle_error(
+                e,
+                context="Exportação",
+                recovery_hint="Verifique permissões de escrita no diretório de salvamento",
+            )
+            raise SavePathError(str(e)) from e
+
+    def export_malote(self, malote_id: int) -> Optional[str]:
+        openpyxl = _ensure_openpyxl()
+        if openpyxl is None:
             return None
 
         registros = self._db.get_registros_with_items_by_malote(malote_id)
@@ -77,6 +148,8 @@ class ExcelExporter:
         if active_sheet is not None:
             wb.remove(active_sheet)
 
+        styles = _make_excel_styles()
+
         for tipo, tab_name in TIPO_LABELS.items():
             ws = wb.create_sheet(title=tab_name)
 
@@ -91,7 +164,7 @@ class ExcelExporter:
             for reg in tipo_registros:
                 for process_items in reg.processes:
                     formatted_items = [
-                        _format_item(name).replace(" ", "\u00a0")
+                        _format_item(name)
                         for name in process_items
                     ]
                     items_str = " / ".join(formatted_items)
@@ -105,102 +178,37 @@ class ExcelExporter:
             ws.column_dimensions["A"].width = 45
             ws.column_dimensions["B"].width = 70
 
-            main_font = Font(name="Arial", size=11)
-            title1_font = Font(name="Arial", size=20)
-            title2_font = Font(name="Arial", size=16)
-            center = Alignment(horizontal="center", vertical="center")
-            left_wrap = Alignment(horizontal="left", vertical="center", wrap_text=True)
-            thin_border = Border(
-                left=Side(style="thin"),
-                right=Side(style="thin"),
-                top=Side(style="thin"),
-                bottom=Side(style="thin"),
-            )
-
             for cell in ws[1]:
-                cell.font = title1_font
-                cell.alignment = center
-                cell.border = thin_border
+                cell.font = styles["title1_font"]
+                cell.alignment = styles["center"]
+                cell.border = styles["thin_border"]
             ws.row_dimensions[1].height = 30
 
             for cell in ws[2]:
-                cell.font = title2_font
-                cell.alignment = center
-                cell.border = thin_border
+                cell.font = styles["title2_font"]
+                cell.alignment = styles["center"]
+                cell.border = styles["thin_border"]
             ws.row_dimensions[2].height = 26
 
             for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
                 for cell in row:
-                    cell.font = main_font
-                    cell.alignment = left_wrap
+                    cell.font = styles["main_font"]
+                    cell.alignment = styles["left_wrap"]
                     if cell.value is not None:
-                        cell.border = thin_border
+                        cell.border = styles["thin_border"]
 
-            ws.page_setup.paperSize = ws.PAPERSIZE_A4
-            ws.page_setup.orientation = "portrait"
-            ws.page_setup.fitToWidth = 1
-            ws.page_setup.fitToHeight = 0
-            ws.sheet_properties.pageSetUpPr.fitToPage = True
+            _apply_page_setup(ws)
 
-            ws.page_setup.pageOrder = "downThenOver"
-            ws.sheet_view.showGridLines = False
-
-            ws.print_options.horizontalCentered = True
-            ws.print_options.verticalCentered = False
-
-        try:
-            timestamp = datetime.now().strftime("%H%M%S")
-            safe_date = date_display.replace("/", "-")
-            filename = f"Malote_{safe_date}_{timestamp}.xlsx"
-
-            from andaime.config import ConfigManager
-
-            config = ConfigManager()
-            save_path = config.get("save_path", Path.home() / "Downloads")
-
-            if isinstance(save_path, str):
-                save_path = Path(save_path)
-
-            save_path.mkdir(parents=True, exist_ok=True)
-            full_path = save_path / filename
-
-            wb.save(str(full_path))
-
-            ErrorHandler.log(
-                f"Planilha exportada: {full_path}",
-                level=ErrorLevel.INFO,
-                context="Exportação",
-            )
-
-            return str(full_path)
-
-        except Exception as e:
-            ErrorHandler.handle_error(
-                e,
-                context="Exportação",
-                recovery_hint="Verifique permissões de escrita no diretório de salvamento",
-            )
-            raise SavePathError(str(e)) from e
+        safe_date = date_display.replace("/", "-")
+        return self._save_workbook(wb, "Malote", safe_date)
 
     def export_stats(
         self,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> Optional[str]:
-        try:
-            import openpyxl
-            from openpyxl.styles import (
-                Alignment,
-                Border,
-                Font,
-                Side,
-            )
-        except ImportError:
-            ErrorHandler.log(
-                "openpyxl não instalado",
-                level=ErrorLevel.ERROR,
-                context="Exportação",
-            )
+        openpyxl = _ensure_openpyxl()
+        if openpyxl is None:
             return None
 
         tipo_rows = self._db.get_stats_by_tipo(date_from=date_from, date_to=date_to)
@@ -215,19 +223,7 @@ class ExcelExporter:
         if ws is not None:
             ws.title = "Estatísticas"
 
-        main_font = Font(name="Arial", size=11)
-        title1_font = Font(name="Arial", size=20)
-        title2_font = Font(name="Arial", size=16)
-        center = Alignment(horizontal="center", vertical="center")
-        left_wrap = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        thin_border = Border(
-            left=Side(style="thin"),
-            right=Side(style="thin"),
-            top=Side(style="thin"),
-            bottom=Side(style="thin"),
-        )
-
-        from src.constants import TIPO_LABELS
+        styles = _make_excel_styles()
 
         date_range = ""
         if date_from or date_to:
@@ -257,7 +253,7 @@ class ExcelExporter:
             pct = f"{med['registros'] / total * 100:.1f}%"
             ws.append(
                 [
-                    _format_item(med["medicamento"]).replace(" ", "\u00a0"),
+                    _format_item(med["medicamento"]),
                     med["registros"],
                     pct,
                 ]
@@ -268,76 +264,37 @@ class ExcelExporter:
         ws.column_dimensions["C"].width = 15
 
         for cell in ws[1]:
-            cell.font = title1_font
-            cell.alignment = center
-            cell.border = thin_border
+            cell.font = styles["title1_font"]
+            cell.alignment = styles["center"]
+            cell.border = styles["thin_border"]
         ws.row_dimensions[1].height = 30
 
         for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
             for cell in row:
-                cell.font = main_font
-                cell.alignment = left_wrap
+                cell.font = styles["main_font"]
+                cell.alignment = styles["left_wrap"]
                 if cell.value is not None:
-                    cell.border = thin_border
+                    cell.border = styles["thin_border"]
 
-        ws.page_setup.paperSize = ws.PAPERSIZE_A4
-        ws.page_setup.orientation = "portrait"
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
-        ws.sheet_properties.pageSetUpPr.fitToPage = True
-        ws.page_setup.pageOrder = "downThenOver"
-        ws.sheet_view.showGridLines = False
-        ws.print_options.horizontalCentered = True
-        ws.print_options.verticalCentered = False
+        _apply_page_setup(ws)
 
-        try:
-            timestamp = datetime.now().strftime("%H%M%S")
-            date_label = ""
-            if date_from or date_to:
-                parts = []
-                if date_from:
-                    try:
-                        parts.append(
-                            datetime.fromisoformat(date_from).strftime("%d-%m-%Y")
-                        )
-                    except ValueError:
-                        parts.append(date_from)
-                parts.append("a")
-                if date_to:
-                    try:
-                        parts.append(
-                            datetime.fromisoformat(date_to).strftime("%d-%m-%Y")
-                        )
-                    except ValueError:
-                        parts.append(date_to)
-                date_label = f"_{'_'.join(parts)}"
-            filename = f"Estatisticas{date_label}_{timestamp}.xlsx"
-
-            from andaime.config import ConfigManager
-
-            config = ConfigManager()
-            save_path = config.get("save_path", Path.home() / "Downloads")
-
-            if isinstance(save_path, str):
-                save_path = Path(save_path)
-
-            save_path.mkdir(parents=True, exist_ok=True)
-            full_path = save_path / filename
-
-            wb.save(str(full_path))
-
-            ErrorHandler.log(
-                f"Estatísticas exportadas: {full_path}",
-                level=ErrorLevel.INFO,
-                context="Exportação",
-            )
-
-            return str(full_path)
-
-        except Exception as e:
-            ErrorHandler.handle_error(
-                e,
-                context="Exportação",
-                recovery_hint="Verifique permissões de escrita no diretório de salvamento",
-            )
-            raise SavePathError(str(e)) from e
+        date_label = ""
+        if date_from or date_to:
+            parts = []
+            if date_from:
+                try:
+                    parts.append(
+                        datetime.fromisoformat(date_from).strftime("%d-%m-%Y")
+                    )
+                except ValueError:
+                    parts.append(date_from)
+            parts.append("a")
+            if date_to:
+                try:
+                    parts.append(
+                        datetime.fromisoformat(date_to).strftime("%d-%m-%Y")
+                    )
+                except ValueError:
+                    parts.append(date_to)
+            date_label = "_".join(parts)
+        return self._save_workbook(wb, "Estatisticas", date_label, "Estatísticas exportadas")

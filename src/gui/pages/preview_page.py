@@ -107,7 +107,7 @@ class PreviewPage(BasePage):
                     table.setItem(row, 0, name_item)
 
                     formatted = [
-                        _format_item(name).replace(" ", "\u00a0")
+                        _format_item(name)
                         for name in process_items
                     ]
                     items_str = " / ".join(formatted)
@@ -251,11 +251,11 @@ class PreviewPage(BasePage):
 
         menu.exec(table.viewport().mapToGlobal(pos))
 
-    def _change_tipo(self, reg_ids: list[int], new_tipo: str):
+    def _batch_update(self, reg_ids, update_fn, singular_msg, plural_verb):
         errors = 0
         for rid in reg_ids:
             try:
-                self._mw.db.update_registro(rid, tipo=new_tipo)
+                update_fn(rid)
             except DuplicateRecordError:
                 errors += 1
         self.refresh()
@@ -264,26 +264,25 @@ class PreviewPage(BasePage):
         else:
             count = len(reg_ids)
             self._toast(
-                f"{count} registro(s) alterado(s)" if count > 1 else "Tipo alterado",
+                f"{count} registro(s) {plural_verb}" if count > 1 else singular_msg,
                 "positive",
             )
 
+    def _change_tipo(self, reg_ids: list[int], new_tipo: str):
+        self._batch_update(
+            reg_ids,
+            lambda rid: self._mw.db.update_registro(rid, tipo=new_tipo),
+            "Tipo alterado",
+            "alterado(s)",
+        )
+
     def _move_to_malote(self, reg_ids: list[int], new_malote_id: int):
-        errors = 0
-        for rid in reg_ids:
-            try:
-                self._mw.db.update_registro(rid, malote_id=new_malote_id)
-            except DuplicateRecordError:
-                errors += 1
-        self.refresh()
-        if errors:
-            self._toast(f"{errors} registro(s) duplicado(s) ignorado(s)", "warning")
-        else:
-            count = len(reg_ids)
-            self._toast(
-                f"{count} registro(s) movido(s)" if count > 1 else "Registro movido",
-                "positive",
-            )
+        self._batch_update(
+            reg_ids,
+            lambda rid: self._mw.db.update_registro(rid, malote_id=new_malote_id),
+            "Registro movido",
+            "movido(s)",
+        )
 
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
