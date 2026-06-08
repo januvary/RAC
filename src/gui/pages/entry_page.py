@@ -21,6 +21,7 @@ from src.gui.widgets import (
     TipoCombo,
     MaloteLabel,
     make_button,
+    make_hbox,
     BasePage,
     delete_registro_with_undo,
 )
@@ -28,7 +29,6 @@ from src.gui.widgets.buttons import make_icon_button
 from src.models import Registro
 from src.services.registro_service import RegistroService
 from src.services.exceptions import ValidationError, DuplicateRecordError
-from andaime.error_handler import ErrorHandler
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
@@ -99,9 +99,7 @@ class EntryPage(BasePage):
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
     def _build_patient_section(self, layout: QVBoxLayout):
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
+        h = make_hbox()
 
         self._paciente_combo = SearchableComboBox(
             "Nome do Paciente", on_search=self._search_pacientes
@@ -215,9 +213,8 @@ class EntryPage(BasePage):
     def _add_item_row(self, item_id: int | None = None, process_group: int = 1):
         row = QWidget()
         row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        row_h = QHBoxLayout(row)
-        row_h.setContentsMargins(0, 0, 0, 0)
-        row_h.setSpacing(2)
+        row_h = make_hbox(spacing=2)
+        row.setLayout(row_h)
 
         group_btn = make_icon_button(str(process_group), "positive", font_size=14)
         group_btn.setToolTip("Grupo do item (clique p/ alterar)")
@@ -398,8 +395,7 @@ class EntryPage(BasePage):
             )
             return
         except Exception as e:
-            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
-            self._toast(f"Erro ao salvar: {e}", "negative")
+            self._handle_error(e, context="Registro")
             return
 
         msg = "Registro editado!" if result.is_update else "Registro salvo!"

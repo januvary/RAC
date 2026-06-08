@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt, Signal
 
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
+from src.gui.widgets.base_page import make_hbox
 from src.gui.widgets.toast import show_toast
 from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row, scaffold_dialog
 
@@ -34,9 +35,8 @@ class MaloteLabel(QWidget):
         super().__init__(parent)
         self._mw = main_window
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout = make_hbox(spacing=6)
+        self.setLayout(layout)
 
         self._shortcut_hint = QLabel("")
         self._shortcut_hint.setFixedHeight(28)

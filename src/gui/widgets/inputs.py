@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QSizePolicy,
     QWidget,
     QLineEdit,
@@ -19,6 +18,7 @@ from src.gui.widgets._completer import (
     _CenteredComboBox,
     _ThemedComboDelegate,
 )
+from src.gui.widgets.base_page import make_hbox
 from src.gui.constants import TIPO_LABELS, TIPO_SYMBOLS, TIPO_HEX
 from src.gui.styles import colors, faded_tipo_color
 from andaime.text import normalize_text
@@ -43,9 +43,8 @@ class SearchableComboBox(QWidget):
         self._options: dict[str, str] = {}
         self._search_labels: dict[str, str] = {}
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout = make_hbox(spacing=0)
+        self.setLayout(layout)
 
         self._model = QStringListModel(self)
         self._completer = _SearchCompleter(self._model, self)
@@ -198,9 +197,8 @@ class TipoCombo(QWidget):
         super().__init__(parent)
         self._tipo = current_tipo
 
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(6)
+        self._layout = make_hbox(spacing=6)
+        self.setLayout(self._layout)
 
         self.setFixedHeight(28)
 

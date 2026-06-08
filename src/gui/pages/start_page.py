@@ -20,6 +20,7 @@ from src.gui.widgets import (
     SearchableComboBox,
     TipoButton,
     make_button,
+    make_hbox,
     MaloteLabel,
     ThemeToggleButton,
     BasePage,
@@ -58,9 +59,7 @@ class StartPage(BasePage):
         self._build_columns(layout)
 
     def _build_malote_header(self, layout: QVBoxLayout):
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
+        h = make_hbox()
 
         theme_btn = ThemeToggleButton()
         h.addWidget(theme_btn, 0, Qt.AlignmentFlag.AlignTop)

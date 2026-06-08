@@ -502,6 +502,60 @@ def tab_style_qss(accent_color: str = "#3B82F6") -> str:
     """
 
 
+def data_view_style_qss(
+    widget_type="QTableWidget",
+    border="none",
+    item_padding="8px 12px",
+    include_selected=True,
+    include_hover=False,
+    header_bg_key="bg_card",
+    header_padding="4px 8px",
+    header_border_key="gridline",
+    extra_header_hover="",
+    outline="",
+):
+    c = colors()
+    selected_block = ""
+    if include_selected:
+        selected_block = f"""
+        {widget_type}::item:selected {{
+            background-color: {c["selection_bg"]};
+            color: {c["selection_text"]};
+        }}"""
+    hover_block = ""
+    if include_hover:
+        hover_block = f"""
+        {widget_type}::item:hover {{
+            background-color: {c["bg_hover"]};
+        }}"""
+    outline_rule = f"\n            outline: {outline};" if outline else ""
+    return f"""
+        {widget_type} {{
+            border: {border};
+            border-radius: 6px;
+            background: transparent;
+            alternate-background-color: {c["table_alt_bg"]};
+            gridline-color: {c["gridline"]};
+            font-size: 13px;
+            color: {c["text_primary"]};{outline_rule}
+        }}
+        {widget_type}::item {{
+            padding: {item_padding};
+            border-bottom: 1px solid {c["gridline"]};
+            color: {c["text_primary"]};
+        }}{selected_block}{hover_block}
+        QHeaderView::section {{
+            background: {c[header_bg_key]};
+            color: {c["text_secondary"]};
+            font-size: 11px;
+            font-weight: 600;
+            padding: {header_padding};
+            border: none;
+            border-bottom: 1px solid {c[header_border_key]};
+        }}{extra_header_hover}
+    """
+
+
 def filter_table_rows(table, text: str):
     query = text.strip().lower()
     for row in range(table.rowCount()):

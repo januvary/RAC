@@ -25,8 +25,7 @@ from src.gui.widgets import (
     make_tab,
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS
-from src.gui.styles import colors, faded_tipo_color, tab_style_qss, filter_table_rows
-from andaime.error_handler import ErrorHandler
+from src.gui.styles import colors, faded_tipo_color, tab_style_qss, filter_table_rows, data_view_style_qss
 
 from src.utils.text_utils import format_malote_date
 from src.services.exceptions import DuplicateRecordError
@@ -89,7 +88,7 @@ class PreviewPage(BasePage):
             table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
             table.setAlternatingRowColors(True)
             table.setCursor(Qt.CursorShape.PointingHandCursor)
-            table.setStyleSheet(self._table_style(tipo))
+            table.setStyleSheet(data_view_style_qss(extra_header_hover=f"\n            QHeaderView::section:hover {{ color: {TIPO_HEX.get(tipo, '#3B82F6')}; }}"))
             tab_layout.addWidget(table)
 
             search.textChanged.connect(
@@ -284,10 +283,6 @@ class PreviewPage(BasePage):
             "movido(s)",
         )
 
-    def _handle_error(self, e, context="Registro"):
-        ErrorHandler.handle_error(e, context=context, show_dialog=False)
-        self._toast(f"Erro: {e}", "negative")
-
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
         if not reg or not reg.paciente_id:
@@ -325,43 +320,6 @@ class PreviewPage(BasePage):
                 self._toast(f"{len(reg_ids)} registros excluidos", "info")
             except Exception as e:
                 self._handle_error(e)
-
-    @staticmethod
-    def _table_style(tipo: str) -> str:
-        hex_color = TIPO_HEX.get(tipo, "#3B82F6")
-        c = colors()
-        return f"""
-            QTableWidget {{
-                border: none;
-                border-radius: 6px;
-                background: transparent;
-                alternate-background-color: {c["table_alt_bg"]};
-                gridline-color: {c["gridline"]};
-                font-size: 13px;
-                color: {c["text_primary"]};
-            }}
-            QTableWidget::item {{
-                padding: 8px 12px;
-                border-bottom: 1px solid {c["gridline"]};
-                color: {c["text_primary"]};
-            }}
-            QTableWidget::item:selected {{
-                background-color: {c["selection_bg"]};
-                color: {c["selection_text"]};
-            }}
-            QHeaderView::section {{
-                background: {c["bg_card"]};
-                color: {c["text_secondary"]};
-                font-size: 11px;
-                font-weight: 600;
-                padding: 4px 8px;
-                border: none;
-                border-bottom: 1px solid {c["gridline"]};
-            }}
-            QHeaderView::section:hover {{
-                color: {hex_color};
-            }}
-        """
 
     def set_shortcuts_visible(self, show: bool):
         super().set_shortcuts_visible(show)

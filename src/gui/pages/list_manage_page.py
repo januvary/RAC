@@ -22,7 +22,7 @@ from src.gui.widgets import (
     open_input_dialog,
     make_tab,
 )
-from src.gui.styles import colors, tab_style_qss
+from src.gui.styles import colors, tab_style_qss, data_view_style_qss
 
 
 class _CrudTab:
@@ -44,32 +44,6 @@ class _CrudTab:
         self.search = None
         self.widget = None
         self._build(tab_title, search_placeholder)
-
-    @staticmethod
-    def _list_style() -> str:
-        c = colors()
-        return f"""
-            QListWidget {{
-                border: none;
-                border-radius: 6px;
-                background: transparent;
-                alternate-background-color: {c["table_alt_bg"]};
-                font-size: 13px;
-                color: {c["text_primary"]};
-                outline: none;
-            }}
-            QListWidget::item {{
-                padding: 8px 12px;
-                border-bottom: 1px solid {c["gridline"]};
-            }}
-            QListWidget::item:selected {{
-                background-color: {c["selection_bg"]};
-                color: {c["selection_text"]};
-            }}
-            QListWidget::item:hover {{
-                background-color: {c["bg_hover"]};
-            }}
-        """
 
     def _build(self, tab_title, search_placeholder):
         tab, tab_layout = make_tab()
@@ -93,7 +67,7 @@ class _CrudTab:
 
         self.list_widget = QListWidget()
         self.list_widget.setAlternatingRowColors(True)
-        self.list_widget.setStyleSheet(self._list_style())
+        self.list_widget.setStyleSheet(data_view_style_qss(widget_type="QListWidget", include_selected=True, include_hover=True, outline="none"))
         self.list_widget.itemDoubleClicked.connect(self._edit)
         self._page.register_keyboard_nav(
             self.list_widget, self.search, lambda _: self.edit_selected()

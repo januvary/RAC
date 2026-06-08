@@ -106,12 +106,15 @@ class BasePage(QWidget, ToastMixin):
                 f"{placeholder} (Ctrl+R)" if show else placeholder
             )
 
+    def _handle_error(self, e, context="App"):
+        from andaime.error_handler import ErrorHandler
+        ErrorHandler.handle_error(e, context=context, show_dialog=False)
+        self._toast(f"Erro: {e}", "negative")
+
     def _add_back_button(
         self, layout: QVBoxLayout, target: str = "start"
     ) -> QHBoxLayout:
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(8)
+        h = make_hbox()
 
         back_btn = make_button("Voltar", "flat")
         back_btn.clicked.connect(lambda: self._mw.navigate_to(target))

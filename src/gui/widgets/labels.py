@@ -6,10 +6,10 @@ from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QWidget,
-    QHBoxLayout,
 )
 from src.gui.constants import TIPO_HEX, TIPO_SYMBOLS, TIPO_LABELS
 from src.gui.styles import colors
+from src.gui.widgets.base_page import make_hbox
 
 
 class Separator(QFrame):
@@ -41,9 +41,8 @@ class TipoLabel(QWidget):
         symbol = TIPO_SYMBOLS[tipo_key]
         label = TIPO_LABELS[tipo_key]
 
-        h = QHBoxLayout(self)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(6)
+        h = make_hbox(spacing=6)
+        self.setLayout(h)
 
         dot = QLabel("\u25cf")
         dot.setStyleSheet(f"color: {hex_color}; font-size: 14px; border: none;")

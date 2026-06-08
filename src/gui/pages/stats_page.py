@@ -32,7 +32,7 @@ from src.gui.widgets._malote_tree import (
     wire_tree_keyboard,
 )
 from src.gui.constants import TIPO_LABELS
-from src.gui.styles import colors, filter_table_rows
+from src.gui.styles import colors, filter_table_rows, data_view_style_qss
 from src.export.excel_exporter import ExcelExporter
 
 _CANCELLED = object()
@@ -192,7 +192,7 @@ class StatsPage(BasePage):
         self._meds_table.setAlternatingRowColors(True)
         self._meds_table.verticalHeader().setDefaultSectionSize(32)
         self._meds_table.setMinimumHeight(28 + 32 * 8)
-        self._style_table(self._meds_table)
+        self._meds_table.setStyleSheet(data_view_style_qss(border=f"1px solid {colors()['border_light']}", item_padding="6px 10px", include_selected=False, header_bg_key="bg_card_alt", header_padding="4px 10px", header_border_key="border_light"))
         layout.addWidget(self._meds_table)
 
         self._meds_search.textChanged.connect(self._filter_meds_table)
@@ -246,34 +246,9 @@ class StatsPage(BasePage):
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         return item
 
-    @staticmethod
-    def _style_table(table: QTableWidget) -> None:
-        c = colors()
-        table.setStyleSheet(f"""
-            QTableWidget {{
-                border: 1px solid {c['border_light']};
-                border-radius: 6px;
-                background: transparent;
-                alternate-background-color: {c['table_alt_bg']};
-                gridline-color: {c['gridline']};
-                font-size: 13px;
-                color: {c['text_primary']};
-            }}
-            QTableWidget::item {{
-                padding: 6px 10px;
-                border-bottom: 1px solid {c['gridline']};
-                color: {c['text_primary']};
-            }}
-            QHeaderView::section {{
-                background: {c['bg_card_alt']};
-                color: {c['text_secondary']};
-                font-size: 11px;
-                font-weight: 600;
-                padding: 4px 10px;
-                border: none;
-                border-bottom: 1px solid {c['border_light']};
-            }}
-        """)
+
+
+
 
 
 _RESET_SENTINEL = object()
