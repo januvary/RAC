@@ -82,6 +82,23 @@ def _apply_page_setup(ws):
     ws.print_options.verticalCentered = False
 
 
+def _style_title_row(ws, row_num, styles, font_key="title1_font", height=30):
+    for cell in ws[row_num]:
+        cell.font = styles[font_key]
+        cell.alignment = styles["center"]
+        cell.border = styles["thin_border"]
+    ws.row_dimensions[row_num].height = height
+
+
+def _style_data_rows(ws, start_row, styles):
+    for row in ws.iter_rows(min_row=start_row, max_row=ws.max_row):
+        for cell in row:
+            cell.font = styles["main_font"]
+            cell.alignment = styles["left_wrap"]
+            if cell.value is not None:
+                cell.border = styles["thin_border"]
+
+
 class ExcelExporter:
     def __init__(self, db: RACDatabase) -> None:
         self._db = db
@@ -178,24 +195,9 @@ class ExcelExporter:
             ws.column_dimensions["A"].width = 45
             ws.column_dimensions["B"].width = 70
 
-            for cell in ws[1]:
-                cell.font = styles["title1_font"]
-                cell.alignment = styles["center"]
-                cell.border = styles["thin_border"]
-            ws.row_dimensions[1].height = 30
-
-            for cell in ws[2]:
-                cell.font = styles["title2_font"]
-                cell.alignment = styles["center"]
-                cell.border = styles["thin_border"]
-            ws.row_dimensions[2].height = 26
-
-            for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
-                for cell in row:
-                    cell.font = styles["main_font"]
-                    cell.alignment = styles["left_wrap"]
-                    if cell.value is not None:
-                        cell.border = styles["thin_border"]
+            _style_title_row(ws, 1, styles)
+            _style_title_row(ws, 2, styles, "title2_font", 26)
+            _style_data_rows(ws, 3, styles)
 
             _apply_page_setup(ws)
 
@@ -263,18 +265,8 @@ class ExcelExporter:
         ws.column_dimensions["B"].width = 20
         ws.column_dimensions["C"].width = 15
 
-        for cell in ws[1]:
-            cell.font = styles["title1_font"]
-            cell.alignment = styles["center"]
-            cell.border = styles["thin_border"]
-        ws.row_dimensions[1].height = 30
-
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-            for cell in row:
-                cell.font = styles["main_font"]
-                cell.alignment = styles["left_wrap"]
-                if cell.value is not None:
-                    cell.border = styles["thin_border"]
+        _style_title_row(ws, 1, styles)
+        _style_data_rows(ws, 2, styles)
 
         _apply_page_setup(ws)
 

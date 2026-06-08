@@ -241,15 +241,7 @@ class MainWindow(QMainWindow):
 
     def _shortcut_malote_dialog(self):
         page = self._current_page()
-        from src.gui.pages.start_page import StartPage
-        from src.gui.pages.preview_page import PreviewPage
-        from src.gui.pages.entry_page import EntryPage
-
-        if isinstance(page, StartPage):
-            page._malote_label.open_dialog()
-        elif isinstance(page, PreviewPage):
-            page._malote_label.open_dialog()
-        elif isinstance(page, EntryPage):
+        if hasattr(page, '_malote_label'):
             page._malote_label.open_dialog()
 
     def _shortcut_focus_search(self):

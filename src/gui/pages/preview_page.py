@@ -284,6 +284,10 @@ class PreviewPage(BasePage):
             "movido(s)",
         )
 
+    def _handle_error(self, e, context="Registro"):
+        ErrorHandler.handle_error(e, context=context, show_dialog=False)
+        self._toast(f"Erro: {e}", "negative")
+
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
         if not reg or not reg.paciente_id:
@@ -301,8 +305,7 @@ class PreviewPage(BasePage):
             self.refresh()
             self._toast("Nome do paciente atualizado", "positive")
         except Exception as e:
-            ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
-            self._toast(f"Erro: {e}", "negative")
+            self._handle_error(e)
 
     def _confirm_delete(self, reg_ids: list[int]):
         if len(reg_ids) == 1:
@@ -321,8 +324,7 @@ class PreviewPage(BasePage):
                 self.refresh()
                 self._toast(f"{len(reg_ids)} registros excluidos", "info")
             except Exception as e:
-                ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
-                self._toast(f"Erro: {e}", "negative")
+                self._handle_error(e)
 
     @staticmethod
     def _table_style(tipo: str) -> str:

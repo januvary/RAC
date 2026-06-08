@@ -5,6 +5,8 @@ import sys
 import os
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import andaime
@@ -34,34 +36,50 @@ def _apply_pending_update():
 
 
 def _start_update_check(window):
-    from src.utils.updater import UpdateCheckWorker
-    from src.gui.widgets.toast import show_toast
-
+    from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
+    from src.utils.updater import UpdateCheckWorker, restart_app
     from src.utils.updater import REPO
     from src import __version__
+    from src.gui.widgets.buttons import make_button
+    from src.gui.widgets.labels import HeadingLabel
+    from src.gui.styles import colors
 
     worker = UpdateCheckWorker(REPO, __version__, parent=window)
 
-    def _on_available(tag, notes, url):
-        show_toast(
-            f"Update {tag} available. Downloading...",
-            "info",
-            window,
-            timeout_ms=4000,
-        )
-
     def _on_downloaded(tag):
-        show_toast(
-            f"Update {tag} ready. Restart to apply.",
-            "info",
-            window,
-            timeout_ms=8000,
-        )
+        dlg = QDialog(window)
+        dlg.setWindowTitle("Atualização disponível")
+        dlg.setMinimumWidth(380)
+        dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(12)
+        layout.addWidget(HeadingLabel(f"Atualização {tag}"))
+
+        c = colors()
+        msg = QLabel("Uma nova versão foi baixada e está pronta para uso.\nReinicie o aplicativo para aplicar a atualização.")
+        msg.setWordWrap(True)
+        msg.setStyleSheet(f"color: {c['text_secondary']}; font-size: 13px;")
+        layout.addWidget(msg)
+        layout.addSpacing(8)
+
+        from PySide6.QtWidgets import QHBoxLayout
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        later = make_button("Mais tarde", "flat")
+        later.clicked.connect(dlg.reject)
+        btn_row.addWidget(later)
+        restart = make_button("Reiniciar", "primary")
+        restart.clicked.connect(dlg.accept)
+        btn_row.addWidget(restart)
+        layout.addLayout(btn_row)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            restart_app()
 
     def _on_failed(msg):
         print(f"[RAC] Update check failed: {msg}")
 
-    worker.update_available.connect(_on_available)
     worker.update_downloaded.connect(_on_downloaded)
     worker.update_failed.connect(_on_failed)
     worker.no_update.connect(lambda: print("[RAC] No update available."))

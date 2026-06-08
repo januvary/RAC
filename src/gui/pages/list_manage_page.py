@@ -25,234 +25,25 @@ from src.gui.widgets import (
 from src.gui.styles import colors, tab_style_qss
 
 
-class ListManagePage(BasePage):
-    def __init__(self, main_window):
-        super().__init__(main_window)
-        self._build_ui()
-
-    def _build_ui(self):
-        layout = self._scaffold()
-        self._add_back_button(layout)
-        layout.addSpacing(20)
-        self._build_tabs(layout)
-
-    def _build_tabs(self, layout: QVBoxLayout):
-        self._tabs = QTabWidget()
-        self._tabs.setMinimumHeight(500)
-        self._tabs.setStyleSheet(tab_style_qss())
-
-        self._build_items_tab()
-        self._build_pacientes_tab()
-
-        layout.addWidget(self._tabs)
-
-    def _build_items_tab(self):
-        tab, tab_layout = make_tab()
-
-        search_row = QHBoxLayout()
-        search_row.setSpacing(8)
-        self._item_search = QLineEdit()
-        self._item_search.setPlaceholderText("Buscar medicamento...")
-        self._item_search.textChanged.connect(self._filter_items)
-        search_row.addWidget(self._item_search)
-        edit_btn = make_button("Editar", "primary")
-        edit_btn.clicked.connect(self._edit_selected_item)
-        search_row.addWidget(edit_btn)
-        add_btn = make_button("Adicionar", "primary")
-        add_btn.clicked.connect(self._add_item)
-        search_row.addWidget(add_btn)
-        del_btn = make_button("Excluir", "negative")
-        del_btn.clicked.connect(self._delete_selected_item)
-        search_row.addWidget(del_btn)
-        tab_layout.addLayout(search_row)
-
-        self._shortcut_searches = [
-            ("Buscar medicamento...", self._item_search),
-        ]
-
-        self._item_list = QListWidget()
-        self._item_list.setAlternatingRowColors(True)
-        self._item_list.setStyleSheet(self._list_style())
-        self._item_list.itemDoubleClicked.connect(self._edit_item)
-        self.register_keyboard_nav(
-            self._item_list, self._item_search, lambda _: self._edit_selected_item()
-        )
-        tab_layout.addWidget(self._item_list)
-
-        self._load_items()
-        self._tabs.addTab(tab, "Medicamentos")
-
-    def _build_pacientes_tab(self):
-        tab, tab_layout = make_tab()
-
-        search_row = QHBoxLayout()
-        search_row.setSpacing(8)
-        self._paciente_search = QLineEdit()
-        self._paciente_search.setPlaceholderText("Buscar paciente...")
-        self._paciente_search.textChanged.connect(self._filter_pacientes)
-        search_row.addWidget(self._paciente_search)
-        edit_btn = make_button("Editar", "primary")
-        edit_btn.clicked.connect(self._edit_selected_paciente)
-        search_row.addWidget(edit_btn)
-        add_btn = make_button("Adicionar", "primary")
-        add_btn.clicked.connect(self._add_paciente)
-        search_row.addWidget(add_btn)
-        del_btn = make_button("Excluir", "negative")
-        del_btn.clicked.connect(self._delete_selected_paciente)
-        search_row.addWidget(del_btn)
-        tab_layout.addLayout(search_row)
-
-        self._shortcut_searches.append(
-            ("Buscar paciente...", self._paciente_search),
-        )
-
-        self._paciente_list = QListWidget()
-        self._paciente_list.setAlternatingRowColors(True)
-        self._paciente_list.setStyleSheet(self._list_style())
-        self._paciente_list.itemDoubleClicked.connect(self._edit_paciente)
-        self.register_keyboard_nav(
-            self._paciente_list,
-            self._paciente_search,
-            lambda _: self._edit_selected_paciente(),
-        )
-        tab_layout.addWidget(self._paciente_list)
-
-        self._load_pacientes()
-        self._tabs.addTab(tab, "Pacientes")
-
-    def _load_items(self):
-        self._all_items = self._mw.db.get_all_items()
-        self._populate_items(self._all_items)
-
-    def _populate_items(self, items):
-        self._item_list.clear()
-        for item in items:
-            list_item = QListWidgetItem(item.name)
-            list_item.setData(Qt.ItemDataRole.UserRole, item.id)
-            self._item_list.addItem(list_item)
-
-    def _filter_items(self, text: str):
-        query = text.strip().lower()
-        if not query:
-            self._populate_items(self._all_items)
-            return
-        filtered = [i for i in self._all_items if query in i.name.lower()]
-        self._populate_items(filtered)
-
-    def _add_item(self):
-        name = open_input_dialog(self, "Adicionar Medicamento", "Nome do medicamento")
-        if not name:
-            return
-        try:
-            self._mw.db.create_item(name)
-            self._load_items()
-            self._item_search.clear()
-            self._toast("Medicamento adicionado", "positive")
-        except Exception:
-            self._toast("Erro: nome já existe ou inválido", "negative")
-
-    def _edit_item(self, item: QListWidgetItem):
-        item_id = item.data(Qt.ItemDataRole.UserRole)
-        old_name = item.text()
-        new_name = open_input_dialog(
-            self, "Editar Medicamento", "Nome do medicamento", initial=old_name
-        )
-        if not new_name or new_name == old_name:
-            return
-        try:
-            self._mw.db.update_item(item_id, new_name)
-            self._load_items()
-            self._item_search.clear()
-            self._toast("Medicamento atualizado", "positive")
-        except Exception:
-            self._toast("Erro: nome já existe ou inválido", "negative")
-
-    def _edit_selected_item(self):
-        current = self._item_list.currentItem()
-        if current:
-            self._edit_item(current)
-
-    def _delete_selected_item(self):
-        current = self._item_list.currentItem()
-        if not current:
-            return
-        item_id = current.data(Qt.ItemDataRole.UserRole)
-        name = current.text()
-        if not confirm_delete_dialog(self, "Excluir Medicamento", f'Excluir "{name}"?'):
-            return
-        if self._mw.db.delete_item(item_id):
-            self._load_items()
-            self._item_search.clear()
-            self._toast("Medicamento excluído", "positive")
-        else:
-            self._toast("Não é possível excluir: medicamento em uso", "warning")
-
-    def _load_pacientes(self):
-        self._all_pacientes = self._mw.db.get_all_pacientes()
-        self._populate_pacientes(self._all_pacientes)
-
-    def _populate_pacientes(self, pacientes):
-        self._paciente_list.clear()
-        for p in pacientes:
-            list_item = QListWidgetItem(p.name)
-            list_item.setData(Qt.ItemDataRole.UserRole, p.id)
-            self._paciente_list.addItem(list_item)
-
-    def _filter_pacientes(self, text: str):
-        query = text.strip().lower()
-        if not query:
-            self._populate_pacientes(self._all_pacientes)
-            return
-        filtered = [p for p in self._all_pacientes if query in p.name.lower()]
-        self._populate_pacientes(filtered)
-
-    def _add_paciente(self):
-        name = open_input_dialog(self, "Adicionar Paciente", "Nome do paciente")
-        if not name:
-            return
-        try:
-            self._mw.db.create_paciente(name)
-            self._load_pacientes()
-            self._paciente_search.clear()
-            self._toast("Paciente adicionado", "positive")
-        except Exception:
-            self._toast("Erro: nome já existe ou inválido", "negative")
-
-    def _edit_paciente(self, item: QListWidgetItem):
-        paciente_id = item.data(Qt.ItemDataRole.UserRole)
-        old_name = item.text()
-        new_name = open_input_dialog(
-            self, "Editar Paciente", "Nome do paciente", initial=old_name
-        )
-        if not new_name or new_name == old_name:
-            return
-        try:
-            self._mw.db.update_paciente(paciente_id, new_name)
-            self._load_pacientes()
-            self._paciente_search.clear()
-            self._toast("Paciente atualizado", "positive")
-        except Exception:
-            self._toast("Erro: nome já existe ou inválido", "negative")
-
-    def _edit_selected_paciente(self):
-        current = self._paciente_list.currentItem()
-        if current:
-            self._edit_paciente(current)
-
-    def _delete_selected_paciente(self):
-        current = self._paciente_list.currentItem()
-        if not current:
-            return
-        paciente_id = current.data(Qt.ItemDataRole.UserRole)
-        name = current.text()
-        if not confirm_delete_dialog(self, "Excluir Paciente", f'Excluir "{name}"?'):
-            return
-        if self._mw.db.delete_paciente(paciente_id):
-            self._load_pacientes()
-            self._paciente_search.clear()
-            self._toast("Paciente excluído", "positive")
-        else:
-            self._toast("Não é possível excluir: paciente com registros", "warning")
+class _CrudTab:
+    def __init__(self, page, db, tab_title, search_placeholder,
+                 entity_label, entity_label_lower,
+                 db_get_all, db_create, db_update, db_delete,
+                 delete_in_use_msg):
+        self._page = page
+        self._db = db
+        self._entity_label = entity_label
+        self._entity_label_lower = entity_label_lower
+        self._db_get_all = db_get_all
+        self._db_create = db_create
+        self._db_update = db_update
+        self._db_delete = db_delete
+        self._delete_in_use_msg = delete_in_use_msg
+        self._all_items = []
+        self.list_widget = None
+        self.search = None
+        self.widget = None
+        self._build(tab_title, search_placeholder)
 
     @staticmethod
     def _list_style() -> str:
@@ -280,4 +71,159 @@ class ListManagePage(BasePage):
             }}
         """
 
+    def _build(self, tab_title, search_placeholder):
+        tab, tab_layout = make_tab()
 
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText(search_placeholder)
+        self.search.textChanged.connect(self.filter)
+        search_row.addWidget(self.search)
+        edit_btn = make_button("Editar", "primary")
+        edit_btn.clicked.connect(self.edit_selected)
+        search_row.addWidget(edit_btn)
+        add_btn = make_button("Adicionar", "primary")
+        add_btn.clicked.connect(self.add)
+        search_row.addWidget(add_btn)
+        del_btn = make_button("Excluir", "negative")
+        del_btn.clicked.connect(self.delete_selected)
+        search_row.addWidget(del_btn)
+        tab_layout.addLayout(search_row)
+
+        self.list_widget = QListWidget()
+        self.list_widget.setAlternatingRowColors(True)
+        self.list_widget.setStyleSheet(self._list_style())
+        self.list_widget.itemDoubleClicked.connect(self._edit)
+        self._page.register_keyboard_nav(
+            self.list_widget, self.search, lambda _: self.edit_selected()
+        )
+        tab_layout.addWidget(self.list_widget)
+
+        self.load()
+        self.widget = tab
+
+    def load(self):
+        self._all_items = self._db_get_all()
+        self._populate(self._all_items)
+
+    def _populate(self, items):
+        self.list_widget.clear()
+        for item in items:
+            list_item = QListWidgetItem(item.name)
+            list_item.setData(Qt.ItemDataRole.UserRole, item.id)
+            self.list_widget.addItem(list_item)
+
+    def filter(self, text: str):
+        query = text.strip().lower()
+        if not query:
+            self._populate(self._all_items)
+            return
+        filtered = [i for i in self._all_items if query in i.name.lower()]
+        self._populate(filtered)
+
+    def add(self):
+        name = open_input_dialog(
+            self._page, f"Adicionar {self._entity_label}",
+            f"Nome do {self._entity_label_lower}",
+        )
+        if not name:
+            return
+        try:
+            self._db_create(name)
+            self.load()
+            self.search.clear()
+            self._page._toast(f"{self._entity_label} adicionado", "positive")
+        except Exception:
+            self._page._toast("Erro: nome já existe ou inválido", "negative")
+
+    def _edit(self, item: QListWidgetItem):
+        item_id = item.data(Qt.ItemDataRole.UserRole)
+        old_name = item.text()
+        new_name = open_input_dialog(
+            self._page, f"Editar {self._entity_label}",
+            f"Nome do {self._entity_label_lower}", initial=old_name,
+        )
+        if not new_name or new_name == old_name:
+            return
+        try:
+            self._db_update(item_id, new_name)
+            self.load()
+            self.search.clear()
+            self._page._toast(f"{self._entity_label} atualizado", "positive")
+        except Exception:
+            self._page._toast("Erro: nome já existe ou inválido", "negative")
+
+    def edit_selected(self):
+        current = self.list_widget.currentItem()
+        if current:
+            self._edit(current)
+
+    def delete_selected(self):
+        current = self.list_widget.currentItem()
+        if not current:
+            return
+        item_id = current.data(Qt.ItemDataRole.UserRole)
+        name = current.text()
+        if not confirm_delete_dialog(
+            self._page, f"Excluir {self._entity_label}", f'Excluir "{name}"?',
+        ):
+            return
+        if self._db_delete(item_id):
+            self.load()
+            self.search.clear()
+            self._page._toast(f"{self._entity_label} excluído", "positive")
+        else:
+            self._page._toast(self._delete_in_use_msg, "warning")
+
+
+class ListManagePage(BasePage):
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = self._scaffold()
+        self._add_back_button(layout)
+        layout.addSpacing(20)
+        self._build_tabs(layout)
+
+    def _build_tabs(self, layout: QVBoxLayout):
+        self._tabs = QTabWidget()
+        self._tabs.setMinimumHeight(500)
+        self._tabs.setStyleSheet(tab_style_qss())
+
+        self._items_tab = _CrudTab(
+            self, self._mw.db,
+            tab_title="Medicamentos",
+            search_placeholder="Buscar medicamento...",
+            entity_label="Medicamento",
+            entity_label_lower="medicamento",
+            db_get_all=self._mw.db.get_all_items,
+            db_create=self._mw.db.create_item,
+            db_update=self._mw.db.update_item,
+            db_delete=self._mw.db.delete_item,
+            delete_in_use_msg="Não é possível excluir: medicamento em uso",
+        )
+        self._tabs.addTab(self._items_tab.widget, "Medicamentos")
+
+        self._pacientes_tab = _CrudTab(
+            self, self._mw.db,
+            tab_title="Pacientes",
+            search_placeholder="Buscar paciente...",
+            entity_label="Paciente",
+            entity_label_lower="paciente",
+            db_get_all=self._mw.db.get_all_pacientes,
+            db_create=self._mw.db.create_paciente,
+            db_update=self._mw.db.update_paciente,
+            db_delete=self._mw.db.delete_paciente,
+            delete_in_use_msg="Não é possível excluir: paciente com registros",
+        )
+        self._tabs.addTab(self._pacientes_tab.widget, "Pacientes")
+
+        self._shortcut_searches = [
+            ("Buscar medicamento...", self._items_tab.search),
+            ("Buscar paciente...", self._pacientes_tab.search),
+        ]
+
+        layout.addWidget(self._tabs)
