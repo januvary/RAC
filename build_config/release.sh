@@ -4,29 +4,47 @@
 # Builds for Windows (Wine), zips, tags, and
 # creates a GitHub Release with the artifact.
 #
-# Usage: ./release.sh <version> [notes]
-#   version: semver tag (e.g. 1.1.0)
-#   notes:   release notes (default: "Release v<version>")
-#
-# Examples:
-#   ./release.sh 1.1.0
-#   ./release.sh 1.2.0 "Bug fixes and new stats page"
+# Run directly or: ./release.sh <version> [notes]
 # ============================================
-
-set -e
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
-VERSION="${1:?Usage: $0 <version> [notes]}"
-NOTES="${2:-Release v${VERSION}}"
+cleanup() {
+    exit_code=$?
+    if [ "$exit_code" -ne 0 ] && [ -z "$1" ]; then
+        echo ""
+        echo -e "${RED}Script exited with error (code $exit_code).${NC}"
+    fi
+    if [ -z "$1" ]; then
+        read -rp "Press Enter to close..."
+    fi
+    exit "$exit_code"
+}
+trap 'cleanup' EXIT
+
+if [ -z "$1" ]; then
+    echo -e "${YELLOW}RAC - Release${NC}"
+    echo ""
+    read -rp "Version (e.g. 1.0.0): " VERSION
+    if [ -z "$VERSION" ]; then
+        echo -e "${RED}[ERROR]${NC} Version is required."
+        exit 1
+    fi
+    read -rp "Notes [optional]: " NOTES
+    NOTES="${NOTES:-Release v${VERSION}}"
+    INTERACTIVE=1
+else
+    VERSION="$1"
+    NOTES="${2:-Release v${VERSION}}"
+fi
 TAG="v${VERSION}"
 REPO="januvary/RAC"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo -e "${RED}[ERROR]${NC} Version must be semver (e.g. 1.1.0)"
+    echo -e "${RED}[ERROR]${NC} Version must be semver (e.g. 1.0.0)"
     exit 1
 fi
 
@@ -44,9 +62,20 @@ echo ""
 
 echo "[1/6] Checking for uncommitted changes..."
 if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo -e "${RED}[ERROR]${NC} Uncommitted changes detected. Commit or stash first."
+    echo -e "${YELLOW}[WARN]${NC} Uncommitted changes detected:"
     git status --short
-    exit 1
+    echo ""
+    read -rp "Commit all changes before releasing? [y/N]: " COMMIT_CHOICE
+    if [[ "$COMMIT_CHOICE" =~ ^[Yy]$ ]]; then
+        read -rp "Commit message: " COMMIT_MSG
+        COMMIT_MSG="${COMMIT_MSG:-pre-release commit}"
+        git add -A
+        git commit -m "$COMMIT_MSG"
+        echo -e "  ${GREEN}Committed.${NC}"
+    else
+        echo -e "${RED}[ERROR]${NC} Cannot release with uncommitted changes."
+        exit 1
+    fi
 fi
 
 if git tag -l "$TAG" | grep -q "$TAG"; then
