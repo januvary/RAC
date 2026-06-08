@@ -7,6 +7,7 @@ SQLite database layer for Registros Alto Custo
 
 import sqlite3
 import operator
+import contextlib
 from typing import Optional
 from datetime import datetime
 
@@ -192,6 +193,16 @@ class RACDatabase(BaseDatabase):
         with self._cursor() as cur:
             cur.execute("SELECT * FROM malotes ORDER BY date DESC, id DESC")
             return [Malote.from_row(dict(r)) for r in cur.fetchall()]
+
+    @db_op("read")
+    def get_malote_dates(self) -> set:
+        with self._cursor() as cur:
+            cur.execute("SELECT date FROM malotes")
+            dates = set()
+            for r in cur.fetchall():
+                with contextlib.suppress(ValueError, TypeError):
+                    dates.add(datetime.fromisoformat(r["date"]).date())
+            return dates
 
     @db_op("write")
     def update_malote(

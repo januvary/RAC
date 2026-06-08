@@ -231,7 +231,6 @@ def _show_malote_dialog(label: MaloteLabel):
 
 
 def _show_new_malote_dialog(label: MaloteLabel):
-    from datetime import datetime
     from src.utils.text_utils import parse_date, format_malote_date
     from src.utils.date_calculator import next_send_date, calculate_arrival_date
     from andaime.error_handler import ErrorHandler
@@ -247,10 +246,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
     with suppress(Exception):
         from datetime import date as date_cls
 
-        existing = set()
-        for m in mw.db.get_all_malotes():
-            with suppress(ValueError, TypeError):
-                existing.add(datetime.fromisoformat(m.date).date())
+        existing = set(mw.db.get_malote_dates())
         suggested = next_send_date(existing)
         date_input.setText(suggested.strftime("%d/%m/%Y"))
     date_input.selectAll()

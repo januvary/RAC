@@ -31,8 +31,7 @@ def _get_app_icon_path():
 def _apply_pending_update():
     from src.utils.updater import apply_pending_update
 
-    if apply_pending_update():
-        print("[RAC] Pending update applied.")
+    apply_pending_update()
 
 
 def _start_update_check(window):
@@ -80,7 +79,7 @@ def _start_update_check(window):
     def _on_failed(msg):
         print(f"[RAC] Update check failed: {msg}")
 
-    worker.update_downloaded.connect(_on_downloaded)
+    worker.update_ready.connect(_on_downloaded)
     worker.update_failed.connect(_on_failed)
     worker.no_update.connect(lambda: print("[RAC] No update available."))
     worker.start()
