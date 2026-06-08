@@ -214,30 +214,28 @@ class MainWindow(QMainWindow):
     def _current_page(self):
         return self._stack.currentWidget()
 
-    def _shortcut_save(self):
+    def _on_page(self, page_class, fn):
         page = self._current_page()
+        if isinstance(page, page_class):
+            fn(page)
+
+    def _shortcut_save(self):
         from src.gui.pages.entry_page import EntryPage
 
-        if isinstance(page, EntryPage):
-            page._on_save()
+        self._on_page(EntryPage, lambda p: p._on_save())
 
     def _shortcut_export(self):
-        page = self._current_page()
         from src.gui.pages.start_page import StartPage
 
-        if isinstance(page, StartPage):
-            page._on_export()
+        self._on_page(StartPage, lambda p: p._on_export())
 
     def _shortcut_back(self):
-        page = self._current_page()
         from src.gui.pages.entry_page import EntryPage
         from src.gui.pages.preview_page import PreviewPage
         from src.gui.pages.list_manage_page import ListManagePage
 
-        if isinstance(page, EntryPage):
-            self.navigate_to(page._return_to)
-        elif isinstance(page, (PreviewPage, ListManagePage)):
-            self.navigate_to("start")
+        self._on_page(EntryPage, lambda p: self.navigate_to(p._return_to))
+        self._on_page((PreviewPage, ListManagePage), lambda p: self.navigate_to("start"))
 
     def _shortcut_malote_dialog(self):
         page = self._current_page()
@@ -257,9 +255,9 @@ class MainWindow(QMainWindow):
             page.focus_next_field()
         elif isinstance(page, ListManagePage):
             search = (
-                page._paciente_search
-                if page._tabs.currentIndex() == 1
-                else page._item_search
+                page._items_tab.search
+                if page._tabs.currentIndex() == 0
+                else page._pacientes_tab.search
             )
             search.setFocus()
             search.selectAll()
@@ -270,34 +268,28 @@ class MainWindow(QMainWindow):
                 search.selectAll()
 
     def _shortcut_add_item(self):
-        page = self._current_page()
         from src.gui.pages.entry_page import EntryPage
 
-        if isinstance(page, EntryPage):
-            combo = page._add_item_row()
+        def _do(p):
+            combo = p._add_item_row()
             if combo:
                 combo.focus_search()
+        self._on_page(EntryPage, _do)
 
     def _shortcut_toggle_docs(self):
-        page = self._current_page()
         from src.gui.pages.entry_page import EntryPage
 
-        if isinstance(page, EntryPage):
-            page._docs_check.toggle()
+        self._on_page(EntryPage, lambda p: p._docs_check.toggle())
 
     def _shortcut_toggle_stay_on_page(self):
-        page = self._current_page()
         from src.gui.pages.entry_page import EntryPage
 
-        if isinstance(page, EntryPage):
-            page._auto_switch.toggle()
+        self._on_page(EntryPage, lambda p: p._auto_switch.toggle())
 
     def _navigate_from_start(self, target: str):
-        page = self._current_page()
         from src.gui.pages.start_page import StartPage
 
-        if isinstance(page, StartPage):
-            self.navigate_to(target)
+        self._on_page(StartPage, lambda p: self.navigate_to(target))
 
     def _shortcut_preview(self):
         self._navigate_from_start("preview")
@@ -309,20 +301,19 @@ class MainWindow(QMainWindow):
         self._navigate_from_start("stats")
 
     def _shortcut_tipo_by_key(self, tipo: str):
-        page = self._current_page()
         from src.gui.pages.start_page import StartPage
         from src.gui.pages.entry_page import EntryPage
         from src.gui.pages.preview_page import PreviewPage
 
-        if isinstance(page, StartPage):
-            if self.state and self.state.has_active_malote():
-                self.navigate_to("entry", tipo=tipo)
-        elif isinstance(page, EntryPage):
-            page._tipo_combo.set_tipo(tipo)
-        elif isinstance(page, PreviewPage):
+        if self.state and self.state.has_active_malote():
+            self._on_page(StartPage, lambda p: self.navigate_to("entry", tipo=tipo))
+        self._on_page(EntryPage, lambda p: p._tipo_combo.set_tipo(tipo))
+
+        def _set_tab(p):
             idx = list(TIPO_LABELS.keys()).index(tipo)
-            if page._tabs and idx < page._tabs.count():
-                page._tabs.setCurrentIndex(idx)
+            if p._tabs and idx < p._tabs.count():
+                p._tabs.setCurrentIndex(idx)
+        self._on_page(PreviewPage, _set_tab)
 
     def closeEvent(self, event):
         self.shutdown_backend()
