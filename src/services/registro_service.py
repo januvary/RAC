@@ -28,6 +28,25 @@ class RegistroService:
     def __init__(self, db: RACDatabase) -> None:
         self._db = db
 
+    def _update_existing(
+        self,
+        id: int,
+        tipo: str,
+        paciente_id: int,
+        malote_id: int,
+        items: list[tuple[int, int]],
+        waiting_docs: bool,
+    ) -> SaveResult:
+        self._db.update_registro(
+            id,
+            tipo=tipo,
+            paciente_id=paciente_id,
+            malote_id=malote_id,
+            waiting_docs=waiting_docs,
+        )
+        self._db.set_registro_items(id, items)
+        return SaveResult(registro_id=id, is_update=True)
+
     def save(
         self,
         tipo: str,
@@ -59,27 +78,15 @@ class RegistroService:
             raise RuntimeError("Failed to resolve patient")
 
         if edit_id is not None:
-            self._db.update_registro(
-                edit_id,
-                tipo=tipo,
-                paciente_id=resolved_id,
-                malote_id=malote_id,
-                waiting_docs=waiting_docs,
+            return self._update_existing(
+                edit_id, tipo, resolved_id, malote_id, items, waiting_docs
             )
-            self._db.set_registro_items(edit_id, items)
-            return SaveResult(registro_id=edit_id, is_update=True)
 
         existing = self._db.find_registro(tipo, resolved_id, malote_id)
         if existing and existing.id is not None:
-            self._db.update_registro(
-                existing.id,
-                tipo=tipo,
-                paciente_id=resolved_id,
-                malote_id=malote_id,
-                waiting_docs=waiting_docs,
+            return self._update_existing(
+                existing.id, tipo, resolved_id, malote_id, items, waiting_docs
             )
-            self._db.set_registro_items(existing.id, items)
-            return SaveResult(registro_id=existing.id, is_update=True)
 
         try:
             new_reg = self._db.create_registro(
@@ -88,15 +95,9 @@ class RegistroService:
         except sqlite3.IntegrityError:
             existing = self._db.find_registro(tipo, resolved_id, malote_id)
             if existing and existing.id is not None:
-                self._db.update_registro(
-                    existing.id,
-                    tipo=tipo,
-                    paciente_id=resolved_id,
-                    malote_id=malote_id,
-                    waiting_docs=waiting_docs,
+                return self._update_existing(
+                    existing.id, tipo, resolved_id, malote_id, items, waiting_docs
                 )
-                self._db.set_registro_items(existing.id, items)
-                return SaveResult(registro_id=existing.id, is_update=True)
             raise DuplicateRecordError(
                 f"Duplicate: tipo={tipo}, paciente_id={resolved_id}, malote_id={malote_id}"
             )

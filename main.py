@@ -10,6 +10,9 @@ from PySide6.QtCore import Qt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import andaime
+from andaime import App
+from src.utils.config import RACConfig
+from src.database.rac_database import RACDatabase
 
 
 def _load_bundled_fonts():
@@ -88,34 +91,29 @@ def _start_update_check(window):
 def main():
     _apply_pending_update()
 
-    andaime.init("RAC", "RACRegistros", root=Path(__file__).parent)
+    app = andaime.App("RAC", "RACRegistros", config_cls=RACConfig, db_cls=RACDatabase)
 
     from PySide6.QtWidgets import QApplication
     from PySide6.QtGui import QFont, QIcon
 
-    from src.utils.config import RACConfig
-    from andaime.config import ConfigManager
-
-    ConfigManager.init(RACConfig)
-
     from src.gui.styles import set_theme, get_stylesheet
 
-    app = QApplication(sys.argv)
+    qapp = QApplication(sys.argv)
 
     icon_path = _get_app_icon_path()
     if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+        qapp.setWindowIcon(QIcon(str(icon_path)))
 
     _load_bundled_fonts()
 
     font = QFont("Geist", 11)
     font.setStyleHint(QFont.StyleHint.SansSerif)
-    app.setFont(font)
+    qapp.setFont(font)
 
-    config = ConfigManager()
+    config = app.config
     theme = config.get("theme", "dark")
     set_theme(theme)
-    app.setStyleSheet(get_stylesheet())
+    qapp.setStyleSheet(get_stylesheet())
 
     from src.gui.main_window import MainWindow
 
@@ -126,7 +124,7 @@ def main():
 
     _start_update_check(window)
 
-    sys.exit(app.exec())
+    sys.exit(qapp.exec())
 
 
 if __name__ == "__main__":

@@ -4,11 +4,10 @@
 from src.gui.widgets.buttons import TipoButton, ThemeToggleButton, make_button
 from src.gui.widgets.labels import Separator, SectionLabel, HeadingLabel, TipoLabel
 from src.gui.widgets.inputs import (
-    SearchableComboBox,
     TipoCombo,
     _CenteredComboBox,
-    _ThemedComboDelegate,
 )
+from src.gui.widgets._completer import _ThemedComboDelegate
 from src.gui.widgets.toast import show_toast, ToastMixin
 from src.gui.widgets.malote import MaloteLabel
 from src.gui.widgets.base_page import BasePage, make_tab, make_hbox, export_with_fallback
@@ -27,7 +26,6 @@ __all__ = [
     "SectionLabel",
     "HeadingLabel",
     "TipoLabel",
-    "SearchableComboBox",
     "TipoCombo",
     "_CenteredComboBox",
     "_ThemedComboDelegate",

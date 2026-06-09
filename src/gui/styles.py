@@ -108,9 +108,11 @@ def get_stylesheet(theme: str | None = None) -> str:
     return _build_qss(c)
 
 
-def tipo_button_qss(hex_color: str) -> str:
-    c = colors()
-    faded = faded_tipo_color(hex_color)
+def tipo_button_qss(text_color: str | None = None, c: dict | None = None) -> str:
+    if c is None:
+        c = colors()
+    if text_color is None:
+        text_color = c["text_primary"]
     return f"""
         QPushButton[tipobtn="true"] {{
             background-color: {c["bg_card"]};
@@ -119,7 +121,7 @@ def tipo_button_qss(hex_color: str) -> str:
             padding: 20px 16px;
             font-size: 15px;
             font-weight: 500;
-            color: {faded};
+            color: {text_color};
         }}
         QPushButton[tipobtn="true"]:hover {{
             background-color: {c["bg_card_alt"]};
@@ -127,6 +129,58 @@ def tipo_button_qss(hex_color: str) -> str:
         }}
         QPushButton[tipobtn="true"]:pressed {{
             background-color: {c["bg_hover"]};
+        }}
+    """
+
+
+def combo_style_qss(
+    text_color: str,
+    bg: str,
+    bg_hover: str,
+    dropdown_bg: str,
+    selection_bg: str,
+    selection_text: str,
+    border: str = "none",
+    font_size: str = "14px",
+    font_weight: str = "400",
+    padding: str = "9px 14px",
+    min_height: str = "22px",
+    max_height: str | None = None,
+) -> str:
+    max_height_rule = f"\n                max-height: {max_height};" if max_height else ""
+    return f"""
+        QComboBox {{
+            border: {border};
+            border-radius: 6px;
+            padding: {padding};
+            background: {bg};
+            color: {text_color};
+            font-size: {font_size};
+            font-weight: {font_weight};
+            min-height: {min_height};{max_height_rule}
+        }}
+        QComboBox:hover {{
+            background: {bg_hover};
+        }}
+        QComboBox::drop-down {{
+            border: none;
+            width: 16px;
+        }}
+        QComboBox::down-arrow {{
+            image: none;
+            border: none;
+        }}
+        QComboBox QAbstractItemView {{
+            border: none;
+            background-color: {dropdown_bg};
+            selection-background-color: {selection_bg};
+            selection-color: {selection_text};
+            outline: none;
+            padding: 2px;
+        }}
+        QComboBox QAbstractItemView::item {{
+            padding: 6px 10px;
+            min-height: 22px;
         }}
     """
 
@@ -238,7 +292,7 @@ QPushButton[btnrole="destructive"]:hover {{
 }}
 
 /* -- Inputs / ComboBox -- */
-QLineEdit, QComboBox {{
+QLineEdit {{
     border: 1px solid {c["border"]};
     border-radius: 6px;
     padding: 9px 14px;
@@ -250,53 +304,25 @@ QLineEdit, QComboBox {{
     selection-color: {c["selection_text"]};
 }}
 
-QLineEdit:focus, QComboBox:focus {{
+QLineEdit:focus {{
     border-color: #3B82F6;
 }}
 
-QComboBox::drop-down {{
-    border: none;
-    width: 0px;
-}}
-QComboBox::down-arrow {{
-    image: none;
-    width: 0px;
-    border: none;
-}}
-
-QComboBox QAbstractItemView {{
-    border: 1px solid {c["border_light"]};
-    border-radius: 6px;
-    background-color: {c["bg_card"]};
-    color: {c["text_primary"]};
-    selection-background-color: {c["selection_bg"]};
-    selection-color: {c["selection_text"]};
-    outline: none;
-    padding: 2px;
-}}
-QComboBox QAbstractItemView::item {{
-    padding: 6px 10px;
-    min-height: 22px;
-    color: {c["text_primary"]};
+{combo_style_qss(
+    text_color=c["text_primary"],
+    bg=c["bg_input"],
+    bg_hover=c["bg_input"],
+    dropdown_bg=c["bg_card"],
+    selection_bg=c["selection_bg"],
+    selection_text=c["selection_text"],
+    border=f'1px solid {c["border"]}',
+)}
+QComboBox:focus {{
+    border-color: #3B82F6;
 }}
 
 /* -- Tipo Button -- */
-QPushButton[tipobtn="true"] {{
-    background-color: {c["bg_card"]};
-    border: 1px solid {c["border_light"]};
-    border-radius: 8px;
-    padding: 20px 16px;
-    font-size: 15px;
-    font-weight: 500;
-    color: {c["text_primary"]};
-}}
-QPushButton[tipobtn="true"]:hover {{
-    background-color: {c["bg_card_alt"]};
-    border-color: {c["border"]};
-}}
-QPushButton[tipobtn="true"]:pressed {{
-    background-color: {c["bg_hover"]};
-}}
+{tipo_button_qss(c["text_primary"], c)}
 
 /* -- Dialog -- */
 QDialog {{

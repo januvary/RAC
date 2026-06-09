@@ -4,14 +4,16 @@ from pathlib import Path
 
 import pytest
 
+from andaime import App
 from andaime.config import ConfigManager
 from src.utils.config import RACConfig
 
 
 @pytest.fixture(autouse=True)
 def _reset_singleton():
+    App.reset()
     yield
-    ConfigManager._reset()
+    App.reset()
 
 
 @pytest.fixture

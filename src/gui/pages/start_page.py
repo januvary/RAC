@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from andaime.widgets import SearchableComboBox
 from src.gui.widgets import (
     SectionLabel,
-    SearchableComboBox,
     TipoButton,
     make_button,
     make_hbox,
@@ -118,7 +118,7 @@ class StartPage(BasePage):
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
         )
         self._sep_line.setStyleSheet(
-            f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;"
+            f"color: {c['border']}; border: none; background: {c['border']}; max-width: 1px;"
         )
         columns.addWidget(self._sep_line)
 
@@ -241,7 +241,7 @@ class StartPage(BasePage):
             btn.setStyleSheet(self._flat_btn_style(c, "right"))
         if self._sep_line:
             self._sep_line.setStyleSheet(
-                f"color: {c['border_light']}; border: none; background: {c['border_light']}; max-width: 1px;"
+                f"color: {c['border']}; border: none; background: {c['border']}; max-width: 1px;"
             )
 
     def set_shortcuts_visible(self, show: bool):

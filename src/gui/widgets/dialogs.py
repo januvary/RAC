@@ -127,6 +127,7 @@ def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):
                 if item_tuples:
                     db.set_registro_items(new_reg.id, item_tuples)
                 on_refresh()
+                show_toast("Registro restaurado", "positive", page)
 
             show_toast(
                 "Registro excluido",

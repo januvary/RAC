@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer
 
+from andaime.widgets import SearchableComboBox
 from src.gui.widgets import (
     SectionLabel,
-    SearchableComboBox,
     TipoCombo,
     MaloteLabel,
     make_button,

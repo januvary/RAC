@@ -4,7 +4,7 @@
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 from PySide6.QtCore import Qt, Signal
 
-from src.gui.styles import tipo_button_qss, toggle_theme, get_stylesheet, get_theme
+from src.gui.styles import tipo_button_qss, toggle_theme, get_stylesheet, get_theme, faded_tipo_color
 from src.gui.constants import TIPO_LABELS, TIPO_SYMBOLS, TIPO_HEX
 
 
@@ -40,7 +40,7 @@ class TipoButton(QPushButton):
         self.clicked.connect(lambda: self.clicked_tipo.emit(self.tipo_key))
 
     def _apply_style(self):
-        self.setStyleSheet(tipo_button_qss(self._hex_color))
+        self.setStyleSheet(tipo_button_qss(faded_tipo_color(self._hex_color)))
 
     def refresh_style(self):
         self._apply_style()

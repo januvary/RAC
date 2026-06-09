@@ -145,16 +145,38 @@ def make_hbox(margins=(0, 0, 0, 0), spacing=8):
     return h
 
 
+def _open_file_location(path: str):
+    import subprocess
+    import sys
+    from pathlib import Path
+    p = Path(path)
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", "/select,", str(p)])
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(p)])
+    else:
+        subprocess.Popen(["xdg-open", str(p.parent)])
+
+
 def export_with_fallback(page, export_fn, no_data_msg="Nenhum dado para exportar"):
     from PySide6.QtWidgets import QFileDialog
     from pathlib import Path
     from src.export.excel_exporter import SavePathError
     from andaime.error_handler import ErrorHandler
 
+    from src.gui.widgets.toast import show_toast
+
+    def _export_toast(path):
+        show_toast(
+            f"Exportado: {path}", "positive", page,
+            action_label="Abrir",
+            action_callback=lambda: _open_file_location(path),
+        )
+
     try:
         result = export_fn()
         if result:
-            page._toast(f"Exportado: {result}", "positive")
+            _export_toast(result)
         else:
             page._toast(no_data_msg, "warning")
     except SavePathError:
@@ -167,7 +189,7 @@ def export_with_fallback(page, export_fn, no_data_msg="Nenhum dado para exportar
         try:
             result = export_fn()
             if result:
-                page._toast(f"Exportado: {result}", "positive")
+                _export_toast(result)
             else:
                 page._toast(no_data_msg, "warning")
         except SavePathError as e:

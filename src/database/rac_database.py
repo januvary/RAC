@@ -45,6 +45,18 @@ class RACDatabase(BaseDatabase):
     def _resolve_default_db_path(self) -> str:
         return resolve_db_path("registros.db", create_dir=True)
 
+
+
+    def _search_by_name(
+        self, table: str, name_column: str, query: str, limit: int
+    ) -> list[dict]:
+        normalized = to_upper_normalized(query)
+        return self._fetch_all(
+            f"SELECT * FROM {table} WHERE {name_column} LIKE ? "
+            f"ORDER BY {name_column} COLLATE NOCASE LIMIT ?",
+            (f"%{normalized}%", limit),
+        )
+
     def _create_schema(self) -> None:
         stored_version = self._ensure_schema_version()
 
@@ -150,9 +162,7 @@ class RACDatabase(BaseDatabase):
                 )
 
     def _get_catalog_count(self) -> int:
-        with self._cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM items_catalog")
-            return cur.fetchone()[0]
+        return self._fetch_count("items_catalog")
 
     # ========== MALOTE ==========
 
@@ -174,128 +184,83 @@ class RACDatabase(BaseDatabase):
 
     @db_op("read")
     def get_malote_by_id(self, malote_id: int) -> Optional[Malote]:
-        with self._cursor() as cur:
-            cur.execute("SELECT * FROM malotes WHERE id = ?", (malote_id,))
-            row = cur.fetchone()
-            return Malote.from_row(dict(row)) if row else None
+        row = self._fetch_by_id("malotes", malote_id)
+        return Malote.from_row(row) if row else None
 
     @db_op("read")
     def get_recent_malotes(self, limit: int = 5) -> list[Malote]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT * FROM malotes ORDER BY date DESC, id DESC LIMIT ?",
-                (limit,),
-            )
-            return [Malote.from_row(dict(r)) for r in cur.fetchall()]
+        return [Malote.from_row(r) for r in self._fetch_all(
+            "SELECT * FROM malotes ORDER BY date DESC, id DESC LIMIT ?",
+            (limit,),
+        )]
 
     @db_op("read")
     def get_all_malotes(self) -> list[Malote]:
-        with self._cursor() as cur:
-            cur.execute("SELECT * FROM malotes ORDER BY date DESC, id DESC")
-            return [Malote.from_row(dict(r)) for r in cur.fetchall()]
+        return [Malote.from_row(r) for r in self._fetch_all_table(
+            "malotes", "date DESC, id DESC"
+        )]
 
     @db_op("read")
     def get_malote_dates(self) -> set:
-        with self._cursor() as cur:
-            cur.execute("SELECT date FROM malotes")
-            dates = set()
-            for r in cur.fetchall():
-                with contextlib.suppress(ValueError, TypeError):
-                    dates.add(datetime.fromisoformat(r["date"]).date())
-            return dates
+        dates = set()
+        for r in self._fetch_all("SELECT date FROM malotes"):
+            with contextlib.suppress(ValueError, TypeError):
+                dates.add(datetime.fromisoformat(r["date"]).date())
+        return dates
 
     @db_op("write")
     def update_malote(
         self, malote_id: int, date: str | None = None, arrival_date: str | None = None
     ) -> bool:
-        with self._cursor() as cur:
-            parts: list[str] = []
-            params: list = []
-            if date is not None:
-                parts.append("date = ?")
-                params.append(date)
-            if arrival_date is not None:
-                parts.append("arrival_date = ?")
-                params.append(arrival_date)
-            if not parts:
-                return False
-            params.append(malote_id)
-            cur.execute(f"UPDATE malotes SET {', '.join(parts)} WHERE id = ?", params)
-            self._commit()
-            return cur.rowcount > 0
+        updates = {}
+        if date is not None:
+            updates["date"] = date
+        if arrival_date is not None:
+            updates["arrival_date"] = arrival_date
+        if not updates:
+            return False
+        return self._update_row("malotes", malote_id, **updates)
 
     @db_op("write")
     def delete_malote(self, malote_id: int) -> bool:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM registros WHERE malote_id = ?",
-                (malote_id,),
-            )
-            if cur.fetchone()[0] > 0:
-                return False
-            cur.execute("DELETE FROM malotes WHERE id = ?", (malote_id,))
-            self._commit()
-            return True
+        return self._delete_row("malotes", malote_id, guards=[("registros", "malote_id")])
 
     # ========== PACIENTE ==========
 
     @db_op("write")
     def create_paciente(self, name: str) -> Paciente:
         normalized = to_upper_normalized(name.strip())
-        with self._cursor() as cur:
-            cur.execute("INSERT INTO pacientes (name) VALUES (?)", (normalized,))
-            self._commit()
-            return Paciente(id=cur.lastrowid, name=normalized)
+        pid = self._insert_row("pacientes", name=normalized)
+        return Paciente(id=pid, name=normalized)
 
     @db_op("read")
     def get_paciente_by_id(self, paciente_id: int) -> Optional[Paciente]:
-        with self._cursor() as cur:
-            cur.execute("SELECT * FROM pacientes WHERE id = ?", (paciente_id,))
-            row = cur.fetchone()
-            return Paciente.from_row(dict(row)) if row else None
+        row = self._fetch_by_id("pacientes", paciente_id)
+        return Paciente.from_row(row) if row else None
 
     @db_op("read")
     def find_paciente_by_name(self, name: str) -> Optional[Paciente]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT * FROM pacientes WHERE name = ? LIMIT 1",
-                (to_upper_normalized(name),),
-            )
-            row = cur.fetchone()
-            return Paciente.from_row(dict(row)) if row else None
+        row = self._fetch_one(
+            "SELECT * FROM pacientes WHERE name = ? LIMIT 1",
+            (to_upper_normalized(name),),
+        )
+        return Paciente.from_row(row) if row else None
 
     @db_op("read")
     def search_pacientes(self, query: str, limit: int = 10) -> list[Paciente]:
-        with self._cursor() as cur:
-            normalized = to_upper_normalized(query)
-            cur.execute(
-                "SELECT * FROM pacientes WHERE name LIKE ? ORDER BY name LIMIT ?",
-                (f"%{normalized}%", limit),
-            )
-            return [Paciente.from_row(dict(r)) for r in cur.fetchall()]
+        return [Paciente.from_row(r) for r in self._search_by_name(
+            "pacientes", "name", query, limit,
+        )]
 
     @db_op("write")
     def update_paciente(self, paciente_id: int, name: str) -> bool:
-        with self._cursor() as cur:
-            cur.execute(
-                "UPDATE pacientes SET name = ? WHERE id = ?",
-                (to_upper_normalized(name.strip()), paciente_id),
-            )
-            self._commit()
-            return cur.rowcount > 0
+        return self._update_row(
+            "pacientes", paciente_id, name=to_upper_normalized(name.strip())
+        )
 
     @db_op("write")
     def delete_paciente(self, paciente_id: int) -> bool:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM registros WHERE paciente_id = ?",
-                (paciente_id,),
-            )
-            if cur.fetchone()[0] > 0:
-                return False
-            cur.execute("DELETE FROM pacientes WHERE id = ?", (paciente_id,))
-            self._commit()
-            return True
+        return self._delete_row("pacientes", paciente_id, guards=[("registros", "paciente_id")])
 
     # ========== REGISTRO ==========
 
@@ -307,81 +272,75 @@ class RACDatabase(BaseDatabase):
         malote_id: int,
         waiting_docs: bool = False,
     ) -> Registro:
-        with self._cursor() as cur:
-            now = datetime.now().isoformat()
-            wd = 1 if waiting_docs else 0
-            cur.execute(
-                "INSERT INTO registros (tipo, paciente_id, malote_id, created_at, waiting_docs) VALUES (?, ?, ?, ?, ?)",
-                (tipo, paciente_id, malote_id, now, wd),
-            )
-            self._commit()
-            return Registro(
-                id=cur.lastrowid,
-                tipo=tipo,
-                paciente_id=paciente_id,
-                malote_id=malote_id,
-                created_at=now,
-                waiting_docs=waiting_docs,
-            )
+        now = datetime.now().isoformat()
+        wd = 1 if waiting_docs else 0
+        rid = self._insert_row(
+            "registros",
+            tipo=tipo,
+            paciente_id=paciente_id,
+            malote_id=malote_id,
+            created_at=now,
+            waiting_docs=wd,
+        )
+        return Registro(
+            id=rid,
+            tipo=tipo,
+            paciente_id=paciente_id,
+            malote_id=malote_id,
+            created_at=now,
+            waiting_docs=waiting_docs,
+        )
 
     @db_op("read")
     def get_registro_by_id(self, registro_id: int) -> Optional[Registro]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT r.*, p.name as paciente_name, m.date as malote_date "
-                "FROM registros r "
-                "JOIN pacientes p ON r.paciente_id = p.id "
-                "JOIN malotes m ON r.malote_id = m.id "
-                "WHERE r.id = ?",
-                (registro_id,),
-            )
-            row = cur.fetchone()
-            return Registro.from_row(dict(row)) if row else None
+        row = self._fetch_one(
+            "SELECT r.*, p.name as paciente_name, m.date as malote_date "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "JOIN malotes m ON r.malote_id = m.id "
+            "WHERE r.id = ?",
+            (registro_id,),
+        )
+        return Registro.from_row(row) if row else None
 
     @db_op("read")
     def find_registro(
         self, tipo: str, paciente_id: int, malote_id: int
     ) -> Optional[Registro]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT r.*, p.name as paciente_name, m.date as malote_date "
-                "FROM registros r "
-                "JOIN pacientes p ON r.paciente_id = p.id "
-                "JOIN malotes m ON r.malote_id = m.id "
-                "WHERE r.tipo = ? AND r.paciente_id = ? AND r.malote_id = ? "
-                "LIMIT 1",
-                (tipo, paciente_id, malote_id),
-            )
-            row = cur.fetchone()
-            return Registro.from_row(dict(row)) if row else None
+        row = self._fetch_one(
+            "SELECT r.*, p.name as paciente_name, m.date as malote_date "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "JOIN malotes m ON r.malote_id = m.id "
+            "WHERE r.tipo = ? AND r.paciente_id = ? AND r.malote_id = ? "
+            "LIMIT 1",
+            (tipo, paciente_id, malote_id),
+        )
+        return Registro.from_row(row) if row else None
 
     @db_op("read")
     def get_registros_by_malote(self, malote_id: int) -> list[Registro]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT r.*, p.name as paciente_name "
-                "FROM registros r "
-                "JOIN pacientes p ON r.paciente_id = p.id "
-                "WHERE r.malote_id = ? "
-                "ORDER BY p.name COLLATE NOCASE",
-                (malote_id,),
-            )
-            return [Registro.from_row(dict(r)) for r in cur.fetchall()]
+        return [Registro.from_row(r) for r in self._fetch_all(
+            "SELECT r.*, p.name as paciente_name "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "WHERE r.malote_id = ? "
+            "ORDER BY p.name COLLATE NOCASE",
+            (malote_id,),
+        )]
 
     @db_op("read")
     def get_registros_by_malote_and_tipo(
         self, malote_id: int, tipo: str
     ) -> list[Registro]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT r.*, p.name as paciente_name "
-                "FROM registros r "
-                "JOIN pacientes p ON r.paciente_id = p.id "
-                "WHERE r.malote_id = ? AND r.tipo = ? "
-                "ORDER BY p.name COLLATE NOCASE",
-                (malote_id, tipo),
-            )
-            return [Registro.from_row(dict(r)) for r in cur.fetchall()]
+        return [Registro.from_row(r) for r in self._fetch_all(
+            "SELECT r.*, p.name as paciente_name "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "WHERE r.malote_id = ? AND r.tipo = ? "
+            "ORDER BY p.name COLLATE NOCASE",
+            (malote_id, tipo),
+        )]
 
     @db_op("write")
     def update_registro(self, registro_id: int, **fields) -> bool:
@@ -426,22 +385,20 @@ class RACDatabase(BaseDatabase):
     def search_registros_by_patient(
         self, query: str, active_malote_id: int | None = None, limit: int = 20
     ) -> list[Registro]:
-        with self._cursor() as cur:
-            normalized = to_upper_normalized(query)
-            cur.execute(
-                "SELECT r.*, p.name as paciente_name, m.date as malote_date "
-                "FROM registros r "
-                "JOIN pacientes p ON r.paciente_id = p.id "
-                "JOIN malotes m ON r.malote_id = m.id "
-                "WHERE p.name LIKE ? "
-                "ORDER BY "
-                "CASE WHEN r.malote_id = ? THEN 0 ELSE 1 END, "
-                "m.date DESC, "
-                "p.name COLLATE NOCASE "
-                "LIMIT ?",
-                (f"%{normalized}%", active_malote_id or 0, limit),
-            )
-            return [Registro.from_row(dict(r)) for r in cur.fetchall()]
+        normalized = to_upper_normalized(query)
+        return [Registro.from_row(r) for r in self._fetch_all(
+            "SELECT r.*, p.name as paciente_name, m.date as malote_date "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "JOIN malotes m ON r.malote_id = m.id "
+            "WHERE p.name LIKE ? "
+            "ORDER BY "
+            "CASE WHEN r.malote_id = ? THEN 0 ELSE 1 END, "
+            "m.date DESC, "
+            "p.name COLLATE NOCASE "
+            "LIMIT ?",
+            (f"%{normalized}%", active_malote_id or 0, limit),
+        )]
 
     # ========== REGISTRO ITEMS ==========
 
@@ -463,90 +420,66 @@ class RACDatabase(BaseDatabase):
 
     @db_op("read")
     def get_items_for_registro(self, registro_id: int) -> list[RegistroItem]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT ri.*, ic.name as item_name, ic.unidade "
-                "FROM registro_items ri "
-                "JOIN items_catalog ic ON ri.item_id = ic.id "
-                "WHERE ri.registro_id = ? "
-                "ORDER BY ri.process_group, ic.name COLLATE NOCASE",
-                (registro_id,),
-            )
-            return [RegistroItem.from_row(dict(r)) for r in cur.fetchall()]
+        return [RegistroItem.from_row(r) for r in self._fetch_all(
+            "SELECT ri.*, ic.name as item_name, ic.unidade "
+            "FROM registro_items ri "
+            "JOIN items_catalog ic ON ri.item_id = ic.id "
+            "WHERE ri.registro_id = ? "
+            "ORDER BY ri.process_group, ic.name COLLATE NOCASE",
+            (registro_id,),
+        )]
 
     @db_op("read")
     def get_items_for_paciente(self, paciente_id: int) -> list[ItemCatalog]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT DISTINCT ri.item_id as id, ic.name, ic.unidade "
-                "FROM registro_items ri "
-                "JOIN registros r ON ri.registro_id = r.id "
-                "JOIN items_catalog ic ON ri.item_id = ic.id "
-                "WHERE r.paciente_id = ? "
-                "ORDER BY ic.name COLLATE NOCASE",
-                (paciente_id,),
-            )
-            return [ItemCatalog.from_row(dict(r)) for r in cur.fetchall()]
+        return [ItemCatalog.from_row(r) for r in self._fetch_all(
+            "SELECT DISTINCT ri.item_id as id, ic.name, ic.unidade "
+            "FROM registro_items ri "
+            "JOIN registros r ON ri.registro_id = r.id "
+            "JOIN items_catalog ic ON ri.item_id = ic.id "
+            "WHERE r.paciente_id = ? "
+            "ORDER BY ic.name COLLATE NOCASE",
+            (paciente_id,),
+        )]
 
     # ========== ITEMS CATALOG ==========
 
     @db_op("read")
     def get_all_items(self) -> list[ItemCatalog]:
-        with self._cursor() as cur:
-            cur.execute("SELECT * FROM items_catalog ORDER BY name COLLATE NOCASE")
-            return [ItemCatalog.from_row(dict(r)) for r in cur.fetchall()]
+        return [ItemCatalog.from_row(r) for r in self._fetch_all_table(
+            "items_catalog", "name COLLATE NOCASE"
+        )]
 
     @db_op("read")
     def search_items(self, query: str, limit: int = 10) -> list[ItemCatalog]:
-        with self._cursor() as cur:
-            normalized = to_upper_normalized(query)
-            cur.execute(
-                "SELECT * FROM items_catalog WHERE name LIKE ? ORDER BY name COLLATE NOCASE LIMIT ?",
-                (f"%{normalized}%", limit),
-            )
-            return [ItemCatalog.from_row(dict(r)) for r in cur.fetchall()]
+        return [ItemCatalog.from_row(r) for r in self._search_by_name(
+            "items_catalog", "name", query, limit,
+        )]
 
     @db_op("write")
     def create_item(self, name: str, unidade: str = "un") -> ItemCatalog:
         normalized = to_upper_normalized(name.strip())
-        with self._cursor() as cur:
-            cur.execute(
-                "INSERT INTO items_catalog (name, unidade) VALUES (?, ?)",
-                (normalized, unidade),
-            )
-            self._commit()
-            return ItemCatalog(id=cur.lastrowid, name=normalized, unidade=unidade)
+        iid = self._insert_row("items_catalog", name=normalized, unidade=unidade)
+        return ItemCatalog(id=iid, name=normalized, unidade=unidade)
 
     @db_op("write")
     def update_item(self, item_id: int, name: str) -> bool:
-        with self._cursor() as cur:
-            cur.execute(
-                "UPDATE items_catalog SET name = ? WHERE id = ?",
-                (to_upper_normalized(name.strip()), item_id),
-            )
-            self._commit()
-            return cur.rowcount > 0
+        return self._update_row(
+            "items_catalog", item_id, name=to_upper_normalized(name.strip())
+        )
 
     @db_op("write")
     def delete_item(self, item_id: int) -> bool:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM registro_items WHERE item_id = ?",
-                (item_id,),
-            )
-            if cur.fetchone()[0] > 0:
-                return False
-            cur.execute("DELETE FROM items_catalog WHERE id = ?", (item_id,))
-            self._commit()
-            return cur.rowcount > 0
+        return self._delete_row(
+            "items_catalog", item_id, guards=[("registro_items", "item_id")]
+        )
 
     # ========== PACIENTE (listagem) ==========
 
     @db_op("read")
     def get_all_pacientes(self) -> list[Paciente]:
-        with self._cursor() as cur:
-            cur.execute("SELECT * FROM pacientes ORDER BY name COLLATE NOCASE")
-            return [Paciente.from_row(dict(r)) for r in cur.fetchall()]
+        return [Paciente.from_row(r) for r in self._fetch_all_table(
+            "pacientes", "name COLLATE NOCASE"
+        )]
 
     # ========== EXPORT HELPERS ==========
 
@@ -554,24 +487,21 @@ class RACDatabase(BaseDatabase):
     def get_registros_with_items_by_malote(
         self, malote_id: int
     ) -> list[RegistroExport]:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT r.id, r.tipo, r.paciente_id, p.name as paciente_name, "
-                "ic.name as item_name, ri.process_group "
-                "FROM registros r "
-                "JOIN pacientes p ON r.paciente_id = p.id "
-                "LEFT JOIN registro_items ri ON ri.registro_id = r.id "
-                "LEFT JOIN items_catalog ic ON ri.item_id = ic.id "
-                "WHERE r.malote_id = ? AND r.waiting_docs = 0 "
-                "ORDER BY r.tipo, p.name COLLATE NOCASE, ri.process_group, ic.name",
-                (malote_id,),
-            )
-            rows = cur.fetchall()
+        rows = self._fetch_all(
+            "SELECT r.id, r.tipo, r.paciente_id, p.name as paciente_name, "
+            "ic.name as item_name, ri.process_group "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "LEFT JOIN registro_items ri ON ri.registro_id = r.id "
+            "LEFT JOIN items_catalog ic ON ri.item_id = ic.id "
+            "WHERE r.malote_id = ? AND r.waiting_docs = 0 "
+            "ORDER BY r.tipo, p.name COLLATE NOCASE, ri.process_group, ic.name",
+            (malote_id,),
+        )
 
         registros_map: dict[int, RegistroExport] = {}
         groups_map: dict[int, dict[int, list[str]]] = {}
-        for row in rows:
-            r = dict(row)
+        for r in rows:
             reg_id = r["id"]
             if reg_id not in registros_map:
                 registros_map[reg_id] = RegistroExport.from_row(r)

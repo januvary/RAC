@@ -23,7 +23,7 @@ class _ToastWidget(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setSpacing(12)
 
         c = colors()
         self.setStyleSheet(
@@ -37,7 +37,6 @@ class _ToastWidget(QWidget):
         layout.addWidget(msg)
 
         if action_label and action_callback:
-            layout.addStretch()
             btn = QPushButton(action_label)
             btn.setStyleSheet(
                 f"QPushButton {{ background: {c.get('accent', '#3B82F6')}; color: white; "

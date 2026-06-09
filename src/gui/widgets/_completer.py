@@ -3,84 +3,14 @@
 
 from PySide6.QtWidgets import (
     QComboBox,
-    QLineEdit,
     QWidget,
     QStyledItemDelegate,
 )
-from PySide6.QtCore import Qt, QTimer, QEvent
 from PySide6.QtGui import QPainter, QFontMetrics, QColor
-from PySide6.QtWidgets import QCompleter, QStyleOptionViewItem, QStyle
+from PySide6.QtWidgets import QStyleOptionViewItem, QStyle
+from PySide6.QtCore import Qt
 
 from src.gui.styles import colors
-
-
-class _SearchCompleter(QCompleter):
-    def __init__(self, model, parent=None):
-        super().__init__(model, parent)
-        self._escape_pressed = False
-        self._user_selected = False
-        self._activated = False
-        self._spurious_close = False
-        self._reshow_count = 0
-        self.activated.connect(lambda _: setattr(self, "_activated", True))
-
-    def _is_spurious_hide(self, obj) -> bool:
-        if obj is not self.popup():
-            return False
-        widget = self.widget()
-        if not isinstance(widget, QLineEdit):
-            return False
-        if not widget.text().strip():
-            return False
-        if self._escape_pressed or self._user_selected or self._activated:
-            return False
-        if not self._spurious_close:
-            return False
-        if self._reshow_count >= 3:
-            return False
-        return True
-
-    def _reshow(self):
-        if self._escape_pressed or self._user_selected or self._activated:
-            return
-        widget = self.widget()
-        if not isinstance(widget, QLineEdit) or not widget.text().strip():
-            return
-        self._reshow_count += 1
-        super().complete()
-
-    def eventFilter(self, obj, event):
-        et = event.type()
-
-        if et == QEvent.Type.KeyPress:
-            key = event.key()
-            if key == Qt.Key.Key_Escape:
-                self._escape_pressed = True
-        elif et == QEvent.Type.MouseButtonPress and obj is self.popup():
-            self._user_selected = True
-        elif et == QEvent.Type.Close and obj is self.popup():
-            self._spurious_close = True
-
-        if et == QEvent.Type.Hide and self._is_spurious_hide(obj):
-            QTimer.singleShot(0, self._reshow)
-
-        result = super().eventFilter(obj, event)
-
-        if et == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
-            self._escape_pressed = False
-
-        return result
-
-    def complete(self, rect=None):
-        self._escape_pressed = False
-        self._user_selected = False
-        self._activated = False
-        self._spurious_close = False
-        self._reshow_count = 0
-        if rect is not None:
-            super().complete(rect)
-        else:
-            super().complete()
 
 
 class _NoScrollComboBox(QComboBox):
@@ -122,16 +52,28 @@ class _CenteredComboBox(_NoScrollComboBox):
         painter.end()
 
 
-class _ThemedComboDelegate(QStyledItemDelegate):
+class _BaseComboDelegate(QStyledItemDelegate):
+    def _pen_color_unselected(self, option: QStyleOptionViewItem, index) -> QColor:
+        raise NotImplementedError
+
+    def _selected_fill_and_pen(self, option: QStyleOptionViewItem):
+        c = colors()
+        return QColor(c["selection_bg"]), QColor(c["selection_text"])
+
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
         text = index.data(Qt.ItemDataRole.DisplayRole)
-        c = colors()
         painter.save()
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, QColor(c["selection_bg"]))
-            painter.setPen(QColor(c["selection_text"]))
+            fill, pen = self._selected_fill_and_pen(option)
+            painter.fillRect(option.rect, fill)
+            painter.setPen(pen)
         else:
-            painter.setPen(QColor(c["text_primary"]))
+            painter.setPen(self._pen_color_unselected(option, index))
         painter.setFont(option.font)
         painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, text)
         painter.restore()
+
+
+class _ThemedComboDelegate(_BaseComboDelegate):
+    def _pen_color_unselected(self, option, index):
+        return QColor(colors()["text_primary"])
