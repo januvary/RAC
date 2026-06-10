@@ -171,29 +171,38 @@ class ExcelExporter:
             ws = wb.create_sheet(title=tab_name)
 
             ws["A1"] = f"USAFA OCIAN - {date_display}"
-            ws.merge_cells("A1:B1")
+            ws.merge_cells("A1:C1")
             ws["A2"] = TIPO_TITLES[tipo]
-            ws.merge_cells("A2:B2")
+            ws.merge_cells("A2:C2")
 
             tipo_registros = [r for r in registros if r.tipo == tipo]
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
 
             for reg in tipo_registros:
-                for process_items in reg.processes:
+                for proc in reg.processes:
                     formatted_items = [
                         _format_item(name)
-                        for name in process_items
+                        for name in proc.items
                     ]
                     items_str = " / ".join(formatted_items)
+                    return_str = ""
+                    if proc.expected_return_date:
+                        try:
+                            dt = datetime.fromisoformat(proc.expected_return_date)
+                            return_str = dt.strftime("%d/%m/%Y")
+                        except (ValueError, TypeError):
+                            return_str = proc.expected_return_date
                     ws.append(
                         [
                             reg.paciente_name or "",
                             items_str,
+                            return_str,
                         ]
                     )
 
             ws.column_dimensions["A"].width = 45
-            ws.column_dimensions["B"].width = 70
+            ws.column_dimensions["B"].width = 60
+            ws.column_dimensions["C"].width = 15
 
             _style_title_row(ws, 1, styles)
             _style_title_row(ws, 2, styles, "title2_font", 26)
@@ -227,26 +236,35 @@ class ExcelExporter:
 
         styles = _make_excel_styles()
 
-        date_range = ""
-        if date_from or date_to:
-            parts = []
-            for d in (date_from, date_to):
-                if d:
-                    try:
-                        parts.append(datetime.fromisoformat(d).strftime("%d/%m/%Y"))
-                    except ValueError:
-                        parts.append(d)
-            date_range = " - ".join(parts)
+        effective_from = date_from
+        effective_to = date_to
+        if not effective_from or not effective_to:
+            dmin, dmax = self._db.get_malote_date_range()
+            effective_from = effective_from or dmin
+            effective_to = effective_to or dmax
 
-        ws["A1"] = (
-            f"USAFA OCIAN - Estatísticas{f' ({date_range})' if date_range else ''}"
-        )
+        parts = []
+        for d in (effective_from, effective_to):
+            if d:
+                try:
+                    parts.append(datetime.fromisoformat(d).strftime("%d/%m/%Y"))
+                except ValueError:
+                    parts.append(d)
+        date_range = " - ".join(parts) if parts else ""
+
+        ws["A1"] = "USAFA OCIAN - Estatísticas"
         ws.merge_cells("A1:C1")
+
+        ws["A2"] = date_range
+        ws.merge_cells("A2:C2")
 
         ws.append(["Tipo", "Registros", "Pacientes"])
         for row in tipo_rows:
             label = TIPO_LABELS.get(row["tipo"], row["tipo"])
             ws.append([label, row["registros"], row.get("pacientes", 0)])
+
+        totals = self._db.get_stats_totals(date_from=date_from, date_to=date_to)
+        ws.append(["Total", totals["registros"], totals["pacientes"]])
 
         ws.append([])
         ws.append(["Medicamento", "Registros", "%"])
@@ -266,7 +284,8 @@ class ExcelExporter:
         ws.column_dimensions["C"].width = 15
 
         _style_title_row(ws, 1, styles)
-        _style_data_rows(ws, 2, styles)
+        _style_title_row(ws, 2, styles, "title2_font", 26)
+        _style_data_rows(ws, 3, styles)
 
         _apply_page_setup(ws)
 

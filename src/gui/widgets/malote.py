@@ -148,10 +148,10 @@ def _show_malote_dialog(label: MaloteLabel):
     def on_item_clicked(item, _column):
         malote = item.data(0, Qt.ItemDataRole.UserRole)
         if malote:
+            _activate_malote_if_changed(mw, malote, label)
             mw.state.set_active_malote(malote)
             dlg.accept()
             label.refresh()
-            _activate_malote_if_changed(mw, malote, label)
         else:
             item.setExpanded(not item.isExpanded())
 

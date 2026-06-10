@@ -30,18 +30,21 @@ class Malote:
 class Paciente:
     id: int | None = None
     name: str = ""
+    cid: str = ""
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Paciente:
         return cls(
             id=row.get("id"),
             name=row.get("name", ""),
+            cid=row.get("cid", ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
+            "cid": self.cid,
         }
 
 
@@ -105,9 +108,38 @@ class Registro:
 
 
 @dataclass
+class Process:
+    id: int | None = None
+    registro_id: int | None = None
+    group_number: int = 1
+    months_supply: int = 0
+    expected_return_date: str | None = None
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> Process:
+        return cls(
+            id=row.get("id"),
+            registro_id=row.get("registro_id"),
+            group_number=row.get("group_number", 1),
+            months_supply=row.get("months_supply", 0),
+            expected_return_date=row.get("expected_return_date"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "registro_id": self.registro_id,
+            "group_number": self.group_number,
+            "months_supply": self.months_supply,
+            "expected_return_date": self.expected_return_date,
+        }
+
+
+@dataclass
 class RegistroItem:
     id: int | None = None
     registro_id: int | None = None
+    process_id: int | None = None
     item_id: int | None = None
     item_name: str | None = None
     unidade: str | None = None
@@ -118,6 +150,7 @@ class RegistroItem:
         return cls(
             id=row.get("id"),
             registro_id=row.get("registro_id"),
+            process_id=row.get("process_id"),
             item_id=row.get("item_id"),
             item_name=row.get("item_name"),
             unidade=row.get("unidade"),
@@ -128,6 +161,7 @@ class RegistroItem:
         return {
             "id": self.id,
             "registro_id": self.registro_id,
+            "process_id": self.process_id,
             "item_id": self.item_id,
             "item_name": self.item_name,
             "unidade": self.unidade,
@@ -136,12 +170,19 @@ class RegistroItem:
 
 
 @dataclass
+class ProcessExport:
+    group_number: int = 1
+    items: list[str] = field(default_factory=list)
+    expected_return_date: str | None = None
+
+
+@dataclass
 class RegistroExport:
     id: int | None = None
     tipo: str = ""
     paciente_id: int | None = None
     paciente_name: str | None = None
-    processes: list[list[str]] = field(default_factory=list)
+    processes: list[ProcessExport] = field(default_factory=list)
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> RegistroExport:
@@ -158,5 +199,5 @@ class RegistroExport:
             "tipo": self.tipo,
             "paciente_id": self.paciente_id,
             "paciente_name": self.paciente_name,
-            "processes": self.processes,
+            "processes": [p.__dict__ for p in self.processes],
         }

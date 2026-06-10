@@ -26,15 +26,17 @@ from src.models import (
     Registro,
     RegistroItem,
     RegistroExport,
+    Process,
 )
 
 
 class RACDatabase(BaseDatabase):
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 5
 
     _MIGRATIONS: dict[int, str] = {
         2: "ALTER TABLE malotes ADD COLUMN arrival_date TEXT;",
         3: "ALTER TABLE registro_items ADD COLUMN process_group INTEGER NOT NULL DEFAULT 1;",
+        4: "ALTER TABLE pacientes ADD COLUMN cid TEXT DEFAULT '';",
     }
 
     def __init__(self, db_path: Optional[str] = None) -> None:
@@ -61,16 +63,36 @@ class RACDatabase(BaseDatabase):
         stored_version = self._ensure_schema_version()
 
         if stored_version == self.SCHEMA_VERSION:
+            self._ensure_v5_column()
             self._seed_catalog_if_empty()
             return
 
         if stored_version == 0:
-            self._create_fresh_schema()
-            self._set_schema_version(self.SCHEMA_VERSION)
+            has_existing = False
+            with self._cursor() as cur:
+                cur.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='registros'"
+                )
+                has_existing = cur.fetchone() is not None
+            if has_existing:
+                self._run_migrations(4)
+                self._set_schema_version(self.SCHEMA_VERSION)
+            else:
+                self._create_fresh_schema()
+                self._set_schema_version(self.SCHEMA_VERSION)
         else:
             self._run_migrations(stored_version)
             self._set_schema_version(self.SCHEMA_VERSION)
         self._seed_catalog_if_empty()
+
+    def _ensure_v5_column(self) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT name FROM pragma_table_info('registro_items') WHERE name='process_id'"
+            )
+            if cur.fetchone():
+                return
+        self._migrate_v5()
 
     def _create_fresh_schema(self) -> None:
         with self._cursor() as cur:
@@ -83,7 +105,8 @@ class RACDatabase(BaseDatabase):
 
                 CREATE TABLE IF NOT EXISTS pacientes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE
+                    name TEXT NOT NULL UNIQUE,
+                    cid TEXT NOT NULL DEFAULT ''
                 );
 
                 CREATE TABLE IF NOT EXISTS items_catalog (
@@ -101,9 +124,18 @@ class RACDatabase(BaseDatabase):
                     waiting_docs INTEGER NOT NULL DEFAULT 0
                 );
 
+                CREATE TABLE IF NOT EXISTS processes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
+                    group_number INTEGER NOT NULL DEFAULT 1,
+                    months_supply INTEGER NOT NULL DEFAULT 0,
+                    expected_return_date TEXT
+                );
+
                 CREATE TABLE IF NOT EXISTS registro_items (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
+                    process_id INTEGER REFERENCES processes(id),
                     item_id INTEGER NOT NULL REFERENCES items_catalog(id),
                     process_group INTEGER NOT NULL DEFAULT 1
                 );
@@ -114,11 +146,20 @@ class RACDatabase(BaseDatabase):
                 CREATE INDEX IF NOT EXISTS idx_pacientes_nome ON pacientes(name COLLATE NOCASE);
                 CREATE INDEX IF NOT EXISTS idx_registro_items_registro ON registro_items(registro_id);
                 CREATE INDEX IF NOT EXISTS idx_registro_items_item ON registro_items(item_id);
+                CREATE INDEX IF NOT EXISTS idx_registro_items_process ON registro_items(process_id);
+                CREATE INDEX IF NOT EXISTS idx_processes_registro ON processes(registro_id);
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_registros_unique ON registros(tipo, paciente_id, malote_id);
                 """)
             self._commit()
 
     def _run_migrations(self, from_version: int) -> None:
+        if self.SCHEMA_VERSION >= 5 and from_version < 5:
+            self._migrate_v5()
+            ErrorHandler.log(
+                "Migration v5 applied successfully",
+                level=ErrorLevel.INFO,
+                context="Database",
+            )
         for version in sorted(self._MIGRATIONS):
             if version <= from_version:
                 continue
@@ -134,6 +175,66 @@ class RACDatabase(BaseDatabase):
                 level=ErrorLevel.INFO,
                 context="Database",
             )
+        effective_from = max(from_version, 4)
+        for version in sorted(self._MIGRATIONS):
+            if version <= effective_from:
+                continue
+            sql = self._MIGRATIONS[version]
+            with self._cursor() as cur:
+                try:
+                    cur.executescript(sql)
+                    self._commit()
+                except Exception as e:
+                    raise RuntimeError(f"Migration v{version} failed: {e}") from e
+            ErrorHandler.log(
+                f"Migration v{version} applied successfully",
+                level=ErrorLevel.INFO,
+                context="Database",
+            )
+
+    def _migrate_v5(self) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT name FROM pragma_table_info('registro_items') WHERE name='process_id'"
+            )
+            if cur.fetchone():
+                return
+            cur.execute(
+                "ALTER TABLE registro_items ADD COLUMN process_id INTEGER REFERENCES processes(id)"
+            )
+            self._commit()
+            cur.executescript("""
+                CREATE TABLE IF NOT EXISTS processes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
+                    group_number INTEGER NOT NULL DEFAULT 1,
+                    months_supply INTEGER NOT NULL DEFAULT 0,
+                    expected_return_date TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_processes_registro ON processes(registro_id);
+            """)
+            existing = cur.execute(
+                "SELECT DISTINCT registro_id, process_group FROM registro_items"
+            ).fetchall()
+            for row in existing:
+                rid = row["registro_id"]
+                pg = row["process_group"]
+                cur.execute(
+                    "INSERT INTO processes (registro_id, group_number) VALUES (?, ?)",
+                    (rid, pg),
+                )
+                pid = cur.lastrowid
+                cur.execute(
+                    "UPDATE registro_items SET process_id = ? WHERE registro_id = ? AND process_group = ?",
+                    (pid, rid, pg),
+                )
+            try:
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_registro_items_process ON registro_items(process_id)"
+                )
+            except Exception:
+                pass
+            self._commit()
 
     def _log_initialization_success(self) -> None:
         count = self._get_catalog_count()
@@ -253,10 +354,11 @@ class RACDatabase(BaseDatabase):
         )]
 
     @db_op("write")
-    def update_paciente(self, paciente_id: int, name: str) -> bool:
-        return self._update_row(
-            "pacientes", paciente_id, name=to_upper_normalized(name.strip())
-        )
+    def update_paciente(self, paciente_id: int, name: str, cid: str | None = None) -> bool:
+        updates = {"name": to_upper_normalized(name.strip())}
+        if cid is not None:
+            updates["cid"] = cid
+        return self._update_row("pacientes", paciente_id, **updates)
 
     @db_op("write")
     def delete_paciente(self, paciente_id: int) -> bool:
@@ -418,6 +520,25 @@ class RACDatabase(BaseDatabase):
                 )
             self._commit()
 
+    @db_op("write")
+    def set_registro_items_with_process(
+        self, registro_id: int, items: list[tuple[int, int, int | None]]
+    ) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "DELETE FROM registro_items WHERE registro_id = ?",
+                (registro_id,),
+            )
+            if items:
+                cur.executemany(
+                    "INSERT INTO registro_items (registro_id, item_id, process_group, process_id) VALUES (?, ?, ?, ?)",
+                    [
+                        (registro_id, iid, pg, pid)
+                        for iid, pg, pid in items
+                    ],
+                )
+            self._commit()
+
     @db_op("read")
     def get_items_for_registro(self, registro_id: int) -> list[RegistroItem]:
         return [RegistroItem.from_row(r) for r in self._fetch_all(
@@ -440,6 +561,162 @@ class RACDatabase(BaseDatabase):
             "ORDER BY ic.name COLLATE NOCASE",
             (paciente_id,),
         )]
+
+    # ========== PROCESSES ==========
+
+    @db_op("write")
+    def create_process(
+        self,
+        registro_id: int,
+        group_number: int = 1,
+        months_supply: int = 0,
+        expected_return_date: str | None = None,
+    ) -> Process:
+        pid = self._insert_row(
+            "processes",
+            registro_id=registro_id,
+            group_number=group_number,
+            months_supply=months_supply,
+            expected_return_date=expected_return_date,
+        )
+        return Process(
+            id=pid,
+            registro_id=registro_id,
+            group_number=group_number,
+            months_supply=months_supply,
+            expected_return_date=expected_return_date,
+        )
+
+    @db_op("write")
+    def set_processes(
+        self,
+        registro_id: int,
+        processes: list[tuple[int, int, str | None]],
+    ) -> list[Process]:
+        with self._cursor() as cur:
+            cur.execute(
+                "DELETE FROM processes WHERE registro_id = ?",
+                (registro_id,),
+            )
+            result = []
+            for group_number, months_supply, expected_return_date in processes:
+                cur.execute(
+                    "INSERT INTO processes (registro_id, group_number, months_supply, expected_return_date) VALUES (?, ?, ?, ?)",
+                    (registro_id, group_number, months_supply, expected_return_date),
+                )
+                result.append(Process(
+                    id=cur.lastrowid,
+                    registro_id=registro_id,
+                    group_number=group_number,
+                    months_supply=months_supply,
+                    expected_return_date=expected_return_date,
+                ))
+            self._commit()
+            return result
+
+    @db_op("read")
+    def get_processes_for_registro(self, registro_id: int) -> list[Process]:
+        return [Process.from_row(r) for r in self._fetch_all(
+            "SELECT * FROM processes WHERE registro_id = ? ORDER BY group_number",
+            (registro_id,),
+        )]
+
+    @db_op("write")
+    def update_process(self, process_id: int, **fields) -> bool:
+        allowed = {"group_number", "months_supply", "expected_return_date"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return False
+        return self._update_row("processes", process_id, **updates)
+
+    @db_op("read")
+    def get_last_retirada_month_for_patient(
+        self, paciente_id: int, group_number: int = 1
+    ) -> str | None:
+        row = self._fetch_one(
+            "SELECT m.date FROM registros r "
+            "JOIN malotes m ON r.malote_id = m.id "
+            "JOIN processes p ON p.registro_id = r.id "
+            "WHERE r.paciente_id = ? AND r.tipo = 'retirada' AND p.group_number = ? "
+            "ORDER BY m.date DESC LIMIT 1",
+            (paciente_id, group_number),
+        )
+        if not row:
+            return None
+        try:
+            return datetime.fromisoformat(row["date"]).strftime("%Y-%m")
+        except (ValueError, TypeError):
+            return None
+
+    @db_op("read")
+    def get_last_retirada_arrival_for_patient(
+        self, paciente_id: int, group_number: int = 1
+    ) -> str | None:
+        row = self._fetch_one(
+            "SELECT m.arrival_date, m.date FROM registros r "
+            "JOIN malotes m ON r.malote_id = m.id "
+            "JOIN processes p ON p.registro_id = r.id "
+            "WHERE r.paciente_id = ? AND r.tipo = 'retirada' AND p.group_number = ? "
+            "ORDER BY m.date DESC LIMIT 1",
+            (paciente_id, group_number),
+        )
+        if not row:
+            return None
+        arrival = row["arrival_date"]
+        if arrival:
+            return arrival
+        try:
+            from src.utils.date_calculator import calculate_arrival_date
+            send = datetime.fromisoformat(row["date"]).date()
+            return calculate_arrival_date(send).isoformat()
+        except (ValueError, TypeError):
+            return None
+
+    @db_op("read")
+    def get_malote_arrivals_between(self, start_iso: str, end_iso: str) -> list[str]:
+        rows = self._fetch_all(
+            "SELECT arrival_date, date FROM malotes "
+            "WHERE arrival_date >= ? AND arrival_date <= ? "
+            "ORDER BY arrival_date ASC",
+            (start_iso, end_iso),
+        )
+        result = []
+        for r in rows:
+            arrival = r["arrival_date"]
+            if arrival:
+                result.append(arrival)
+        return result
+
+    @db_op("read")
+    def count_return_dates_between(self, start_iso: str, end_iso: str) -> dict[str, int]:
+        rows = self._fetch_all(
+            "SELECT p.expected_return_date, COUNT(*) as cnt "
+            "FROM processes p "
+            "WHERE p.expected_return_date IS NOT NULL "
+            "AND p.expected_return_date >= ? AND p.expected_return_date <= ? "
+            "GROUP BY p.expected_return_date",
+            (start_iso, end_iso),
+        )
+        return {r["expected_return_date"]: r["cnt"] for r in rows}
+
+    @db_op("read")
+    def get_earliest_malote_after_date(self, after_date: str) -> Optional[Malote]:
+        row = self._fetch_one(
+            "SELECT * FROM malotes WHERE date >= ? ORDER BY date ASC LIMIT 1",
+            (after_date,),
+        )
+        return Malote.from_row(row) if row else None
+
+    @db_op("read")
+    def get_earlier_malote(self, current_malote_id: int) -> Optional[Malote]:
+        current = self.get_malote_by_id(current_malote_id)
+        if not current:
+            return None
+        row = self._fetch_one(
+            "SELECT * FROM malotes WHERE date < ? ORDER BY date DESC LIMIT 1",
+            (current.date,),
+        )
+        return Malote.from_row(row) if row else None
 
     # ========== ITEMS CATALOG ==========
 
@@ -487,13 +764,17 @@ class RACDatabase(BaseDatabase):
     def get_registros_with_items_by_malote(
         self, malote_id: int
     ) -> list[RegistroExport]:
+        from src.models import ProcessExport
+
         rows = self._fetch_all(
             "SELECT r.id, r.tipo, r.paciente_id, p.name as paciente_name, "
-            "ic.name as item_name, ri.process_group "
+            "ic.name as item_name, ri.process_group, "
+            "pr.expected_return_date, pr.group_number as process_group_number "
             "FROM registros r "
             "JOIN pacientes p ON r.paciente_id = p.id "
             "LEFT JOIN registro_items ri ON ri.registro_id = r.id "
             "LEFT JOIN items_catalog ic ON ri.item_id = ic.id "
+            "LEFT JOIN processes pr ON pr.id = ri.process_id "
             "WHERE r.malote_id = ? AND r.waiting_docs = 0 "
             "ORDER BY r.tipo, p.name COLLATE NOCASE, ri.process_group, ic.name",
             (malote_id,),
@@ -501,20 +782,29 @@ class RACDatabase(BaseDatabase):
 
         registros_map: dict[int, RegistroExport] = {}
         groups_map: dict[int, dict[int, list[str]]] = {}
+        return_dates_map: dict[int, dict[int, str | None]] = {}
         for r in rows:
             reg_id = r["id"]
             if reg_id not in registros_map:
                 registros_map[reg_id] = RegistroExport.from_row(r)
                 groups_map[reg_id] = {}
+                return_dates_map[reg_id] = {}
             item_name = r.get("item_name")
             if item_name:
                 pg = r.get("process_group", 1) or 1
                 groups_map[reg_id].setdefault(pg, []).append(item_name)
+                if pg not in return_dates_map[reg_id]:
+                    return_dates_map[reg_id][pg] = r.get("expected_return_date")
 
         for reg_id, groups in groups_map.items():
             sorted_groups = sorted(groups.items(), key=operator.itemgetter(0))
             registros_map[reg_id].processes = [
-                items for _, items in sorted_groups if items
+                ProcessExport(
+                    group_number=pg,
+                    items=items,
+                    expected_return_date=return_dates_map.get(reg_id, {}).get(pg),
+                )
+                for pg, items in sorted_groups if items
             ]
 
         return list(registros_map.values())
@@ -603,6 +893,33 @@ class RACDatabase(BaseDatabase):
             for row in tipo_rows:
                 row["items"] = item_map.get(row["tipo"], 0)
             return tipo_rows
+
+    @db_op("read")
+    def get_stats_totals(
+        self,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict:
+        with self._cursor() as cur:
+            where, params = self._stats_where(cur, date_from=date_from, date_to=date_to)
+            cur.execute(
+                f"SELECT COUNT(*) AS registros, "
+                f"COUNT(DISTINCT paciente_id) AS pacientes "
+                f"FROM registros r JOIN malotes m ON r.malote_id = m.id{where}",
+                params,
+            )
+            return dict(cur.fetchone())
+
+    @db_op("read")
+    def get_malote_date_range(self) -> tuple[str | None, str | None]:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT MIN(date) AS dmin, MAX(date) AS dmax FROM malotes"
+            )
+            row = cur.fetchone()
+            if row and row["dmin"]:
+                return row["dmin"], row["dmax"]
+            return None, None
 
     @db_op("read")
     def get_stats_top_medications(

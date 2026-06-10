@@ -96,7 +96,7 @@ class PreviewPage(BasePage):
             )
 
             for reg in tipo_registros:
-                for process_items in reg.processes:
+                for proc in reg.processes:
                     row = table.rowCount()
                     table.insertRow(row)
 
@@ -107,7 +107,7 @@ class PreviewPage(BasePage):
 
                     formatted = [
                         _format_item(name)
-                        for name in process_items
+                        for name in proc.items
                     ]
                     items_str = " / ".join(formatted)
                     meds_item = QTableWidgetItem(items_str)

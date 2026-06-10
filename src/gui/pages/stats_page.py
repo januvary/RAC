@@ -31,15 +31,15 @@ from src.gui.widgets._malote_tree import (
     populate_malote_tree,
     wire_tree_keyboard,
 )
-from src.gui.constants import TIPO_LABELS
-from src.gui.styles import colors, filter_table_rows, data_view_style_qss
+from src.gui.constants import TIPO_LABELS, TIPO_HEX
+from src.gui.styles import colors, filter_table_rows, data_view_style_qss, faded_tipo_color
 from src.export.excel_exporter import ExcelExporter
 
 _CANCELLED = object()
 
 
 class _TipoCard(QWidget):
-    def __init__(self, tipo_key: str, value: str):
+    def __init__(self, tipo_key: str, value: str, label: str | None = None, label_color: str | None = None):
         super().__init__()
         c = colors()
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -55,15 +55,16 @@ class _TipoCard(QWidget):
         self._value_label = QLabel(value)
         self._value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._value_label.setStyleSheet(
-            f"font-size: 24px; font-weight: 700; color: {c['text_primary']}; border: none;"
+            f"font-size: 20px; font-weight: 700; color: {c['text_primary']}; border: none;"
         )
         layout.addWidget(self._value_label)
 
-        tipo_label = TIPO_LABELS.get(tipo_key, tipo_key)
-        lbl = QLabel(tipo_label)
+        display_label = label or TIPO_LABELS.get(tipo_key, tipo_key)
+        display_color = label_color or c["text_secondary"]
+        lbl = QLabel(display_label)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet(
-            f"font-size: 11px; font-weight: 600; color: {c['text_secondary']}; border: none;"
+            f"font-size: 11px; font-weight: 600; color: {display_color}; border: none;"
         )
         layout.addWidget(lbl)
 
@@ -153,14 +154,21 @@ class StatsPage(BasePage):
 
     def _build_tipo_cards(self, layout: QVBoxLayout):
         row = QHBoxLayout()
-        row.setSpacing(16)
+        row.setSpacing(10)
         row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._tipo_cards: dict[str, _TipoCard] = {}
         for tipo_key in TIPO_LABELS:
-            card = _TipoCard(tipo_key, "0")
+            card = _TipoCard(tipo_key, "0", label_color=faded_tipo_color(TIPO_HEX[tipo_key]))
             card.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             self._tipo_cards[tipo_key] = card
             row.addWidget(card)
+        row.addSpacing(10)
+        self._total_registros_card = _TipoCard("__total_reg", "0", label="Total Registros")
+        self._total_registros_card.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        row.addWidget(self._total_registros_card)
+        self._total_pacientes_card = _TipoCard("__total_pac", "0", label="Total Pacientes")
+        self._total_pacientes_card.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        row.addWidget(self._total_pacientes_card)
         layout.addLayout(row)
 
     def _build_medications_table(self, layout: QVBoxLayout):
@@ -208,6 +216,10 @@ class StatsPage(BasePage):
         for tipo_key in TIPO_LABELS:
             r = tipo_map.get(tipo_key)
             self._tipo_cards[tipo_key].set_value(str(r["registros"]) if r else "0")
+
+        totals = db.get_stats_totals(date_from=self._date_from, date_to=self._date_to)
+        self._total_registros_card.set_value(str(totals["registros"]))
+        self._total_pacientes_card.set_value(str(totals["pacientes"]))
 
         meds = db.get_stats_top_medications(
             date_from=self._date_from, date_to=self._date_to

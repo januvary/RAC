@@ -26,12 +26,14 @@ from src.gui.styles import colors, tab_style_qss, data_view_style_qss
 
 
 class _CrudTab:
-    def __init__(self, page, db, tab_title, search_placeholder,
+    def __init__(self, page, db, tabs, tab_title, search_placeholder,
                  entity_label, entity_label_lower,
                  db_get_all, db_create, db_update, db_delete,
                  delete_in_use_msg):
         self._page = page
         self._db = db
+        self._tabs = tabs
+        self._tab_title = tab_title
         self._entity_label = entity_label
         self._entity_label_lower = entity_label_lower
         self._db_get_all = db_get_all
@@ -43,6 +45,7 @@ class _CrudTab:
         self.list_widget = None
         self.search = None
         self.widget = None
+        self._tab_index: int = -1
         self._build(tab_title, search_placeholder)
 
     def _build(self, tab_title, search_placeholder):
@@ -80,6 +83,11 @@ class _CrudTab:
     def load(self):
         self._all_items = self._db_get_all()
         self._populate(self._all_items)
+        self._update_tab_text()
+
+    def _update_tab_text(self):
+        if self._tab_index >= 0:
+            self._tabs.setTabText(self._tab_index, f"{self._tab_title} ({len(self._all_items)})")
 
     def _populate(self, items):
         self.list_widget.clear()
@@ -168,7 +176,7 @@ class ListManagePage(BasePage):
         self._tabs.setStyleSheet(tab_style_qss())
 
         self._items_tab = _CrudTab(
-            self, self._mw.db,
+            self, self._mw.db, self._tabs,
             tab_title="Medicamentos",
             search_placeholder="Buscar medicamento...",
             entity_label="Medicamento",
@@ -179,10 +187,11 @@ class ListManagePage(BasePage):
             db_delete=self._mw.db.delete_item,
             delete_in_use_msg="Não é possível excluir: medicamento em uso",
         )
-        self._tabs.addTab(self._items_tab.widget, "Medicamentos")
+        self._items_tab._tab_index = self._tabs.addTab(self._items_tab.widget, "Medicamentos")
+        self._items_tab._update_tab_text()
 
         self._pacientes_tab = _CrudTab(
-            self, self._mw.db,
+            self, self._mw.db, self._tabs,
             tab_title="Pacientes",
             search_placeholder="Buscar paciente...",
             entity_label="Paciente",
@@ -193,7 +202,8 @@ class ListManagePage(BasePage):
             db_delete=self._mw.db.delete_paciente,
             delete_in_use_msg="Não é possível excluir: paciente com registros",
         )
-        self._tabs.addTab(self._pacientes_tab.widget, "Pacientes")
+        self._pacientes_tab._tab_index = self._tabs.addTab(self._pacientes_tab.widget, "Pacientes")
+        self._pacientes_tab._update_tab_text()
 
         self._shortcut_searches = [
             ("Buscar medicamento...", self._items_tab.search),

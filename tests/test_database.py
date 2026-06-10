@@ -319,7 +319,7 @@ class TestExportHelpers:
         assert exports[0].paciente_name == "JOAO SILVA"
         assert exports[0].tipo == "entrada"
         assert len(exports[0].processes) == 1
-        assert len(exports[0].processes[0]) == 3
+        assert len(exports[0].processes[0].items) == 3
 
     def test_export_multiple_registros(self, full_setup):
         db = full_setup["db"]
