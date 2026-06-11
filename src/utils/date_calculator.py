@@ -66,6 +66,20 @@ def _get_candidate_days_after_arrival(arrival: date) -> list[date]:
     return candidates
 
 
+def resolve_arrival_from_malote(malote) -> date | None:
+    if malote.arrival_date:
+        try:
+            return date.fromisoformat(malote.arrival_date)
+        except (ValueError, TypeError):
+            pass
+    if malote.date:
+        try:
+            return calculate_arrival_date(date.fromisoformat(malote.date))
+        except (ValueError, TypeError):
+            pass
+    return None
+
+
 def _spread_across_candidates(
     groups: list[int],
     candidates: list[date],
@@ -96,22 +110,9 @@ def _spread_across_candidates(
     return result
 
 
-def _theoretical_malote_for_month(year: int, month: int) -> date:
-    first_of_month = date(year, month, 1)
-    return calculate_send_date(first_of_month)
-
-
-def _theoretical_arrival_for_month(year: int, month: int) -> date:
-    send = _theoretical_malote_for_month(year, month)
+def _theoretical_arrival_near(target: date) -> date:
+    send = calculate_send_date(target)
     return calculate_arrival_date(send)
-
-
-def _add_months(d: date, months: int) -> date:
-    month = d.month - 1 + months
-    year = d.year + month // 12
-    month = month % 12 + 1
-    day = min(d.day, 28)
-    return date(year, month, day)
 
 
 def calculate_return_dates(
@@ -120,7 +121,6 @@ def calculate_return_dates(
     process_groups: list[tuple[int, int]],
     *,
     db: RACDatabase | None = None,
-    paciente_id: int | None = None,
     current_malote_id: int | None = None,
     waiting_docs: bool = False,
 ) -> list[ProcessReturnInfo]:
@@ -147,7 +147,7 @@ def calculate_return_dates(
 
     if tipo == "retirada":
         return _calculate_retirada_returns(
-            process_groups, arrival_date, db=db, paciente_id=paciente_id,
+            process_groups, arrival_date, db=db,
         )
 
     candidates = _get_candidate_days_after_arrival(arrival_date)
@@ -158,45 +158,18 @@ def calculate_return_dates(
     ]
 
 
-def _score_arrival(candidate: date, runs_out: date) -> float:
-    days_before = (runs_out - candidate).days
-    if days_before < 0 or days_before > 14:
-        return -1.0
-    if days_before <= 7:
-        return days_before / 7.0
-    return (14 - days_before) / 7.0
-
-
-@dataclass
-class ScoredCandidate:
-    date: date
-    score: float
-    proximity: float
-    load: int
-
-
-def _find_best_malote_in_window(
+def _get_malote_arrivals_near(
     runs_out: date,
     *,
     db: RACDatabase | None = None,
-) -> date | None:
-    ranked = _rank_candidates(runs_out, db=db)
-    return ranked[0].date if ranked else None
-
-
-def _rank_candidates(
-    runs_out: date,
-    *,
-    db: RACDatabase | None = None,
-    top: int = 4,
-) -> list[ScoredCandidate]:
-    window_start = runs_out - timedelta(days=14)
-    window_end = runs_out
+) -> list[date]:
+    search_start = runs_out - timedelta(days=45)
+    search_end = runs_out + timedelta(days=45)
     candidates: list[date] = []
 
     if db:
         arrivals = db.get_malote_arrivals_between(
-            window_start.isoformat(), window_end.isoformat()
+            search_start.isoformat(), search_end.isoformat()
         )
         for a in arrivals:
             try:
@@ -205,37 +178,39 @@ def _rank_candidates(
                 pass
 
     if not candidates:
-        d = window_start
-        while d <= window_end:
-            if DateCalculator.is_business_day(d):
-                candidates.append(d)
-            d += timedelta(days=1)
+        for offset in (-2, -1, 0, 1, 2):
+            arrival = _theoretical_arrival_near(runs_out + timedelta(days=offset * 30))
+            if search_start <= arrival <= search_end:
+                candidates.append(arrival)
+        if not candidates:
+            candidates.append(_theoretical_arrival_near(runs_out))
 
+    return candidates
+
+
+def _find_nearest_arrival_before(
+    runs_out: date,
+    *,
+    db: RACDatabase | None = None,
+    top: int = 4,
+) -> list[tuple[date, int]]:
+    candidates = _get_malote_arrivals_near(runs_out, db=db)
     if not candidates:
-        candidates.append(DateCalculator.skip_to_next_business_day(window_start))
+        return []
 
     load_map: dict[str, int] = {}
     if db:
-        load_map = db.count_return_dates_between(
-            window_start.isoformat(), window_end.isoformat()
-        )
+        iso_dates = [c.isoformat() for c in candidates]
+        load_map = db.count_return_dates_between(min(iso_dates), max(iso_dates))
 
-    max_load = max(load_map.values()) if load_map else 0
-    if max_load == 0:
-        max_load = 1
-
-    scored: list[ScoredCandidate] = []
-    for c in candidates:
-        proximity = _score_arrival(c, runs_out)
-        if proximity < 0:
-            continue
+    def sort_key(c: date) -> tuple[int, int]:
+        dist = abs((runs_out - c).days)
+        after = 1 if c > runs_out else 0
         load = load_map.get(c.isoformat(), 0)
-        load_factor = 1.0 - (load / (max_load + 1)) * 0.5
-        s = proximity * load_factor
-        scored.append(ScoredCandidate(date=c, score=s, proximity=proximity, load=load))
+        return (after, dist, load)
 
-    scored.sort(key=lambda x: x.score, reverse=True)
-    return scored[:top]
+    candidates.sort(key=sort_key)
+    return [(c, load_map.get(c.isoformat(), 0)) for c in candidates[:top]]
 
 
 def _calculate_retirada_returns(
@@ -243,7 +218,6 @@ def _calculate_retirada_returns(
     current_arrival: date,
     *,
     db: RACDatabase | None = None,
-    paciente_id: int | None = None,
 ) -> list[ProcessReturnInfo]:
     zero_groups = [g for g, m in process_groups if m == 0]
     nonzero_groups = [(g, m) for g, m in process_groups if m > 0]
@@ -256,17 +230,9 @@ def _calculate_retirada_returns(
         results[g] = ProcessReturnInfo(g, 0, spread.get(g, candidates[0] if candidates else None))
 
     for group_number, months_supply in nonzero_groups:
-        reference_arrival = current_arrival
-        if db and paciente_id:
-            last_arrival = db.get_last_retirada_arrival_for_patient(paciente_id, group_number)
-            if last_arrival:
-                try:
-                    reference_arrival = date.fromisoformat(last_arrival)
-                except (ValueError, TypeError):
-                    pass
-
-        runs_out = reference_arrival + timedelta(days=months_supply * 30)
-        best = _find_best_malote_in_window(runs_out, db=db)
+        runs_out = date.today() + timedelta(days=months_supply * 30)
+        nearest = _find_nearest_arrival_before(runs_out, db=db)
+        best = nearest[0][0] if nearest else _theoretical_arrival_near(runs_out)
         results[group_number] = ProcessReturnInfo(group_number, months_supply, best)
 
     return [results[g] for g, _ in process_groups]

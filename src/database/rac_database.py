@@ -175,22 +175,6 @@ class RACDatabase(BaseDatabase):
                 level=ErrorLevel.INFO,
                 context="Database",
             )
-        effective_from = max(from_version, 4)
-        for version in sorted(self._MIGRATIONS):
-            if version <= effective_from:
-                continue
-            sql = self._MIGRATIONS[version]
-            with self._cursor() as cur:
-                try:
-                    cur.executescript(sql)
-                    self._commit()
-                except Exception as e:
-                    raise RuntimeError(f"Migration v{version} failed: {e}") from e
-            ErrorHandler.log(
-                f"Migration v{version} applied successfully",
-                level=ErrorLevel.INFO,
-                context="Database",
-            )
 
     def _migrate_v5(self) -> None:
         with self._cursor() as cur:
@@ -630,49 +614,6 @@ class RACDatabase(BaseDatabase):
         return self._update_row("processes", process_id, **updates)
 
     @db_op("read")
-    def get_last_retirada_month_for_patient(
-        self, paciente_id: int, group_number: int = 1
-    ) -> str | None:
-        row = self._fetch_one(
-            "SELECT m.date FROM registros r "
-            "JOIN malotes m ON r.malote_id = m.id "
-            "JOIN processes p ON p.registro_id = r.id "
-            "WHERE r.paciente_id = ? AND r.tipo = 'retirada' AND p.group_number = ? "
-            "ORDER BY m.date DESC LIMIT 1",
-            (paciente_id, group_number),
-        )
-        if not row:
-            return None
-        try:
-            return datetime.fromisoformat(row["date"]).strftime("%Y-%m")
-        except (ValueError, TypeError):
-            return None
-
-    @db_op("read")
-    def get_last_retirada_arrival_for_patient(
-        self, paciente_id: int, group_number: int = 1
-    ) -> str | None:
-        row = self._fetch_one(
-            "SELECT m.arrival_date, m.date FROM registros r "
-            "JOIN malotes m ON r.malote_id = m.id "
-            "JOIN processes p ON p.registro_id = r.id "
-            "WHERE r.paciente_id = ? AND r.tipo = 'retirada' AND p.group_number = ? "
-            "ORDER BY m.date DESC LIMIT 1",
-            (paciente_id, group_number),
-        )
-        if not row:
-            return None
-        arrival = row["arrival_date"]
-        if arrival:
-            return arrival
-        try:
-            from src.utils.date_calculator import calculate_arrival_date
-            send = datetime.fromisoformat(row["date"]).date()
-            return calculate_arrival_date(send).isoformat()
-        except (ValueError, TypeError):
-            return None
-
-    @db_op("read")
     def get_malote_arrivals_between(self, start_iso: str, end_iso: str) -> list[str]:
         rows = self._fetch_all(
             "SELECT arrival_date, date FROM malotes "
@@ -698,14 +639,6 @@ class RACDatabase(BaseDatabase):
             (start_iso, end_iso),
         )
         return {r["expected_return_date"]: r["cnt"] for r in rows}
-
-    @db_op("read")
-    def get_earliest_malote_after_date(self, after_date: str) -> Optional[Malote]:
-        row = self._fetch_one(
-            "SELECT * FROM malotes WHERE date >= ? ORDER BY date ASC LIMIT 1",
-            (after_date,),
-        )
-        return Malote.from_row(row) if row else None
 
     @db_op("read")
     def get_earlier_malote(self, current_malote_id: int) -> Optional[Malote]:

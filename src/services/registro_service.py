@@ -50,33 +50,18 @@ class RegistroService:
         )
         self._db.set_registro_items(id, items)
         if process_months is not None:
-            self._save_processes(id, tipo, paciente_id, malote_id, waiting_docs, process_months)
+            self._save_processes(id, tipo, malote_id, waiting_docs, process_months)
         return SaveResult(registro_id=id, is_update=True)
 
     def _resolve_arrival_date(self, malote_id: int) -> date | None:
-        from src.utils.date_calculator import calculate_arrival_date
-
+        from src.utils.date_calculator import resolve_arrival_from_malote
         malote = self._db.get_malote_by_id(malote_id)
-        if not malote:
-            return None
-        if malote.arrival_date:
-            try:
-                return date.fromisoformat(malote.arrival_date)
-            except (ValueError, TypeError):
-                pass
-        if malote.date:
-            try:
-                send = date.fromisoformat(malote.date)
-                return calculate_arrival_date(send)
-            except (ValueError, TypeError):
-                pass
-        return None
+        return resolve_arrival_from_malote(malote) if malote else None
 
     def _save_processes(
         self,
         registro_id: int,
         tipo: str,
-        paciente_id: int,
         malote_id: int,
         waiting_docs: bool,
         process_months: list[tuple[int, int]],
@@ -87,7 +72,6 @@ class RegistroService:
             arrival_date=arrival_date,
             process_groups=process_months,
             db=self._db,
-            paciente_id=paciente_id,
             current_malote_id=malote_id,
             waiting_docs=waiting_docs,
         )
@@ -97,8 +81,8 @@ class RegistroService:
         ]
         new_processes = self._db.set_processes(registro_id, processes_data)
         items = self._db.get_items_for_registro(registro_id)
-        items_with_process: list[tuple[int, int, int | None]] = []
         process_by_group = {p.group_number: p.id for p in new_processes}
+        items_with_process: list[tuple[int, int, int | None]] = []
         for item in items:
             pid = process_by_group.get(item.process_group)
             iid = item.item_id if item.item_id is not None else 0
@@ -165,7 +149,7 @@ class RegistroService:
         self._db.set_registro_items(new_reg.id, items)
         if process_months is not None:
             self._save_processes(
-                new_reg.id, tipo, resolved_id, malote_id, waiting_docs, process_months
+                new_reg.id, tipo, malote_id, waiting_docs, process_months
             )
         return SaveResult(registro_id=new_reg.id, is_update=False)
 

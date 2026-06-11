@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QDialog,
 )
 from PySide6.QtCore import Qt, QTimer
+from dataclasses import dataclass
 
 from andaime.widgets import SearchableComboBox
 from src.gui.widgets import (
@@ -37,17 +38,33 @@ from andaime.text import to_upper_normalized
 from src.gui.styles import colors
 
 
+@dataclass
+class _RowData:
+    group_btn: QPushButton
+    row_widget: QWidget
+    months_btn: QPushButton | None = None
+    return_btn: QPushButton | None = None
+    combo: SearchableComboBox | None = None
+    pg: int = 1
+    ms: int = 0
+
+
 class _CidInput(QLineEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setPlaceholderText("CID")
         self.setFixedWidth(170)
         self._formatting = False
+        self._deleting = False
+        self._prev_len = 0
         self.textChanged.connect(self._on_text_changed)
 
     def _on_text_changed(self, text: str):
         if self._formatting:
+            self._prev_len = len(text)
             return
+        self._deleting = len(text) < self._prev_len
+        self._prev_len = len(text)
         self._formatting = True
         cursor = self.cursorPosition()
         formatted = self._format_all(text.upper())
@@ -81,12 +98,11 @@ class _CidInput(QLineEdit):
             cids.append(self._format_single(current))
             trailing_sep = False
         result = "; ".join(cids)
-        if trailing_sep:
+        if trailing_sep and not self._deleting:
             result += "; "
         return result
 
-    @staticmethod
-    def _format_single(cid: str) -> str:
+    def _format_single(self, cid: str) -> str:
         cleaned = ""
         for ch in cid:
             if ch.isalpha():
@@ -96,13 +112,14 @@ class _CidInput(QLineEdit):
                 cleaned += ch
             elif ch == "." and len(cleaned) >= 3 and "." not in cleaned:
                 cleaned += ch
-        if len(cleaned) >= 3 and "." not in cleaned:
+        if not self._deleting and len(cleaned) >= 3 and "." not in cleaned:
             cleaned = cleaned[:3] + "." + cleaned[3:]
         if len(cleaned) > 5:
             cleaned = cleaned[:5]
         return cleaned
 
     def focusOutEvent(self, event):
+        self._deleting = False
         self._formatting = True
         formatted = self._format_all(self.text().upper())
         self.setText(formatted)
@@ -124,7 +141,7 @@ class EntryPage(BasePage):
         self._edit_registro: Registro | None = None
         self._focus_index: int = -1
         self._return_to = return_to
-        self._months_buttons: list[QPushButton] = []
+        self._rows: list[_RowData] = []
         self._shortcut_widgets: dict[str, QPushButton | QLabel | QCheckBox] = {}
         self._delete_btn: QPushButton | None = None
 
@@ -305,19 +322,17 @@ class EntryPage(BasePage):
         group_btn = make_icon_button(str(process_group), "positive", font_size=14)
         group_btn.setToolTip("Grupo do item (clique p/ alterar)")
         group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        pg = process_group
 
+        rd = _RowData(group_btn=group_btn, row_widget=row, pg=process_group, ms=months_supply)
         _orig_mouse = group_btn.mousePressEvent
 
         def _cycle_group(event):
-            nonlocal pg
             if event.button() == Qt.MouseButton.RightButton:
-                pg = ((pg - 2) % 5) + 1
+                rd.pg = ((rd.pg - 2) % 5) + 1
             else:
-                pg = (pg % 5) + 1
-            group_btn.setText(str(pg))
+                rd.pg = (rd.pg % 5) + 1
+            group_btn.setText(str(rd.pg))
             group_btn.setDown(True)
-            from PySide6.QtCore import QTimer
             QTimer.singleShot(120, lambda: group_btn.setDown(False))
             self._refresh_return_dates()
             _orig_mouse(event)
@@ -333,37 +348,37 @@ class EntryPage(BasePage):
         combo.set_options(self._catalog_options)
         if item_id is not None:
             combo.set_current_by_data(str(item_id))
+        rd.combo = combo
         row_h.addWidget(combo)
 
         return_label = make_icon_button("--/--/----", "positive", width=85, font_size=11)
         return_label.setToolTip("Data prevista de retorno (clique p/ ver opções)")
-        return_label.clicked.connect(lambda _checked=False: self._show_return_date_popup(return_label, pg))
+        return_label.clicked.connect(lambda _checked=False: self._show_return_date_popup(rd))
+        rd.return_btn = return_label
         row_h.addWidget(return_label)
 
         months_btn = make_icon_button(f"{months_supply}m", "positive", width=36, font_size=11)
         months_btn.setToolTip("Meses de medicação (clique p/ alterar)")
         months_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        ms = months_supply
 
         _orig_mouse_months = months_btn.mousePressEvent
 
         def _cycle_months(event):
-            nonlocal ms
             if event.button() == Qt.MouseButton.RightButton:
-                ms = (ms - 1) % 7
+                rd.ms = (rd.ms - 1) % 7
             else:
-                ms = (ms + 1) % 7
-            months_btn.setText(f"{ms}m")
+                rd.ms = (rd.ms + 1) % 7
+            months_btn.setText(f"{rd.ms}m")
             months_btn.setDown(True)
-            from PySide6.QtCore import QTimer
             QTimer.singleShot(120, lambda: months_btn.setDown(False))
-            self._sync_months_for_group(pg, ms)
+            self._sync_months_for_group(rd.pg, rd.ms)
             self._refresh_return_dates()
             _orig_mouse_months(event)
 
         months_btn.mousePressEvent = _cycle_months
         months_btn.setVisible(self._tipo == "retirada")
-        self._months_buttons.append(months_btn)
+        rd.months_btn = months_btn
+        self._rows.append(rd)
         row_h.addWidget(months_btn)
 
         remove_btn = make_icon_button("\u00d7", "positive", font_size=16)
@@ -375,25 +390,13 @@ class EntryPage(BasePage):
         return combo
 
     def _sync_months_for_group(self, group_number: int, new_ms: int):
-        for i in range(self._items_container.count()):
-            item = self._items_container.itemAt(i)
-            if not item:
-                continue
-            frame = item.widget()
-            if not frame:
-                continue
-            group_btn = None
-            months_btn = None
-            for child in frame.findChildren(QPushButton):
-                text = child.text()
-                if text.isdigit() and len(text) == 1:
-                    group_btn = child
-                elif text.endswith("m") and len(text) == 2 and text[0].isdigit():
-                    months_btn = child
-            if group_btn and int(group_btn.text()) == group_number and months_btn:
-                months_btn.setText(f"{new_ms}m")
+        for rd in self._rows:
+            if rd.pg == group_number and rd.months_btn:
+                rd.ms = new_ms
+                rd.months_btn.setText(f"{new_ms}m")
 
     def _remove_item(self, widget: QWidget):
+        self._rows = [rd for rd in self._rows if rd.row_widget is not widget]
         widget.setParent(None)
         widget.deleteLater()
 
@@ -421,74 +424,34 @@ class EntryPage(BasePage):
     def _on_tipo_changed_months(self, tipo: str):
         self._tipo = tipo
         visible = tipo == "retirada"
-        for btn in self._months_buttons:
-            btn.setVisible(visible)
+        for rd in self._rows:
+            if rd.months_btn:
+                rd.months_btn.setVisible(visible)
         self._refresh_return_dates()
 
     def _on_waiting_docs_toggled(self, checked: bool):
         if checked:
-            for i in range(self._items_container.count()):
-                item = self._items_container.itemAt(i)
-                if not item:
-                    continue
-                frame = item.widget()
-                if not frame:
-                    continue
-                for child in frame.findChildren(QPushButton):
-                    if "/" in child.text():
-                        child.setText("--/--/----")
+            for rd in self._rows:
+                if rd.return_btn:
+                    rd.return_btn.setText("--/--/----")
         else:
             self._refresh_return_dates()
 
     def _refresh_return_dates(self):
-        from datetime import date as date_cls
-        from src.utils.date_calculator import calculate_return_dates
+        from src.utils.date_calculator import calculate_return_dates, resolve_arrival_from_malote
 
         malote = self._mw.state.get_active_malote()
         tipo = self._tipo_combo.current_tipo()
         if not malote or not tipo:
             return
 
-        arrival_date = None
-        if malote.arrival_date:
-            try:
-                arrival_date = date_cls.fromisoformat(malote.arrival_date)
-            except (ValueError, TypeError):
-                pass
-        if arrival_date is None and malote.date:
-            try:
-                from src.utils.date_calculator import calculate_arrival_date
-                arrival_date = calculate_arrival_date(date_cls.fromisoformat(malote.date))
-            except (ValueError, TypeError):
-                pass
+        arrival_date = resolve_arrival_from_malote(malote)
 
-        paciente_id = self._resolve_current_patient()
-
-        row_data: dict[int, tuple[int, list[QPushButton]]] = {}
-        for i in range(self._items_container.count()):
-            item = self._items_container.itemAt(i)
-            if not item:
-                continue
-            frame = item.widget()
-            if not frame:
-                continue
-            group_btn = None
-            months_btn = None
-            return_btn = None
-            for child in frame.findChildren(QPushButton):
-                text = child.text()
-                if text.isdigit() and len(text) == 1:
-                    group_btn = child
-                elif text.endswith("m") and len(text) == 2 and text[0].isdigit():
-                    months_btn = child
-                elif "/" in text:
-                    return_btn = child
-            pg = int(group_btn.text()) if group_btn else 1
-            ms = int(months_btn.text().rstrip("m")) if months_btn else 0
-            if pg not in row_data:
-                row_data[pg] = (ms, [])
-            if return_btn:
-                row_data[pg][1].append(return_btn)
+        row_data: dict[int, tuple[int, list[_RowData]]] = {}
+        for rd in self._rows:
+            if rd.pg not in row_data:
+                row_data[rd.pg] = (rd.ms, [])
+            row_data[rd.pg][1].append(rd)
 
         process_groups = [(g, ms) for g, (ms, _) in row_data.items()]
         if not process_groups:
@@ -499,52 +462,34 @@ class EntryPage(BasePage):
             arrival_date=arrival_date,
             process_groups=process_groups,
             db=self._mw.db,
-            paciente_id=paciente_id,
             current_malote_id=malote.id,
             waiting_docs=self._docs_check.isChecked(),
         )
 
         for ret in returns:
-            _, return_btns = row_data.get(ret.group_number, (0, []))
-            for return_btn in return_btns:
-                if ret.expected_return_date:
-                    return_btn.setText(ret.expected_return_date.strftime("%d/%m/%Y"))
-                else:
-                    return_btn.setText("--/--/----")
+            _, rows = row_data.get(ret.group_number, (0, []))
+            for rd in rows:
+                if rd.return_btn:
+                    if ret.expected_return_date:
+                        rd.return_btn.setText(ret.expected_return_date.strftime("%d/%m/%Y"))
+                    else:
+                        rd.return_btn.setText("--/--/----")
 
     def _get_return_buttons_for_group(self, group_number: int) -> list[QPushButton]:
-        buttons: list[QPushButton] = []
-        for i in range(self._items_container.count()):
-            item = self._items_container.itemAt(i)
-            if not item:
-                continue
-            frame = item.widget()
-            if not frame:
-                continue
-            group_btn = None
-            return_btn = None
-            for child in frame.findChildren(QPushButton):
-                text = child.text()
-                if text.isdigit() and len(text) == 1:
-                    group_btn = child
-                elif "/" in text:
-                    return_btn = child
-            if group_btn and int(group_btn.text()) == group_number and return_btn:
-                buttons.append(return_btn)
-        return buttons
+        return [rd.return_btn for rd in self._rows if rd.pg == group_number and rd.return_btn]
 
-    def _show_return_date_popup(self, return_label: QPushButton, group_number: int):
+    def _show_return_date_popup(self, rd: _RowData):
         try:
-            self._do_show_return_date_popup(return_label, group_number)
+            self._do_show_return_date_popup(rd)
         except Exception as e:
             from andaime.error_handler import ErrorHandler
             ErrorHandler.handle_error(e, context="ReturnDatePopup", show_dialog=True)
 
-    def _do_show_return_date_popup(self, return_label: QPushButton, group_number: int):
-        from datetime import date as date_cls, timedelta
+    def _do_show_return_date_popup(self, rd: _RowData):
+        from datetime import date, timedelta
         from src.utils.date_calculator import (
-            _rank_candidates,
-            calculate_return_dates,
+            _find_nearest_arrival_before,
+            resolve_arrival_from_malote,
         )
         from src.gui.widgets.dialogs import scaffold_dialog
 
@@ -552,41 +497,10 @@ class EntryPage(BasePage):
         if not malote:
             return
 
-        arrival_date = None
-        if malote.arrival_date:
-            try:
-                arrival_date = date_cls.fromisoformat(malote.arrival_date)
-            except (ValueError, TypeError):
-                pass
-        if arrival_date is None and malote.date:
-            try:
-                from src.utils.date_calculator import calculate_arrival_date
-                arrival_date = calculate_arrival_date(date_cls.fromisoformat(malote.date))
-            except (ValueError, TypeError):
-                pass
+        arrival_date = resolve_arrival_from_malote(malote)
 
-        ms = 0
-        for i in range(self._items_container.count()):
-            item = self._items_container.itemAt(i)
-            if not item:
-                continue
-            frame = item.widget()
-            if not frame:
-                continue
-            gb = None
-            mb = None
-            for child in frame.findChildren(QPushButton):
-                text = child.text()
-                if text.isdigit() and len(text) == 1:
-                    gb = child
-                elif text.endswith("m") and len(text) == 2 and text[0].isdigit():
-                    mb = child
-            if gb and int(gb.text()) == group_number and mb:
-                ms = int(mb.text().rstrip("m"))
-                break
-
+        ms = rd.ms
         tipo = self._tipo_combo.current_tipo()
-        paciente_id = self._resolve_current_patient()
 
         dlg = QDialog(self.window())
         dlg.setMinimumWidth(300)
@@ -598,32 +512,19 @@ class EntryPage(BasePage):
             return
 
         if tipo == "retirada" and ms > 0:
-            reference_arrival = arrival_date
-            if self._mw.db and paciente_id:
-                last = self._mw.db.get_last_retirada_arrival_for_patient(paciente_id, group_number)
-                if last:
-                    try:
-                        reference_arrival = date_cls.fromisoformat(last)
-                    except (ValueError, TypeError):
-                        pass
+            runs_out = date.today() + timedelta(days=ms * 30)
+            candidates = _find_nearest_arrival_before(runs_out, db=self._mw.db, top=4)
 
-            if reference_arrival is None:
-                dlg.reject()
-                return
-
-            runs_out = reference_arrival + timedelta(days=ms * 30)
-            candidates = _rank_candidates(runs_out, db=self._mw.db, top=4)
-
-            for sc in candidates:
-                date_str = sc.date.strftime("%d/%m/%Y")
-                day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][sc.date.weekday()]
-                label_text = f"{date_str}  ({day_name})  —  {sc.load} retorno(s)"
+            for c, load in candidates:
+                date_str = c.strftime("%d/%m/%Y")
+                day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][c.weekday()]
+                label_text = f"{date_str}  ({day_name})  —  {load} retorno(s)"
                 btn = make_button(label_text, "flat")
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-                def _pick(checked=False, d=date_str, dialog=dlg, gn=group_number):
-                    for btn in self._get_return_buttons_for_group(gn):
-                        btn.setText(d)
+                def _pick(checked=False, d=date_str, dialog=dlg, gn=rd.pg):
+                    for b in self._get_return_buttons_for_group(gn):
+                        b.setText(d)
                     dialog.accept()
 
                 btn.clicked.connect(_pick)
@@ -638,9 +539,9 @@ class EntryPage(BasePage):
                 btn = make_button(f"{date_str}  ({day_name})", "flat")
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-                def _pick(checked=False, d=date_str, dialog=dlg, gn=group_number):
-                    for btn in self._get_return_buttons_for_group(gn):
-                        btn.setText(d)
+                def _pick(checked=False, d=date_str, dialog=dlg, gn=rd.pg):
+                    for b in self._get_return_buttons_for_group(gn):
+                        b.setText(d)
                     dialog.accept()
 
                 btn.clicked.connect(_pick)
@@ -676,7 +577,7 @@ class EntryPage(BasePage):
             return None
 
     def _clear_item_rows(self):
-        self._months_buttons.clear()
+        self._rows.clear()
         while self._items_container.count():
             item = self._items_container.takeAt(0)
             w = item.widget() if item else None
@@ -687,30 +588,13 @@ class EntryPage(BasePage):
     def _collect_items(self) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
         items = []
         months_by_group: dict[int, int] = {}
-        for i in range(self._items_container.count()):
-            item = self._items_container.itemAt(i)
-            if not item:
-                continue
-            frame = item.widget()
-            if not frame:
-                continue
-            combo = frame.findChild(SearchableComboBox)
-            data = combo.current_data() if combo else None
+        for rd in self._rows:
+            data = rd.combo.current_data() if rd.combo else None
             if not data:
                 continue
-            group_btn = None
-            months_btn = None
-            for child in frame.findChildren(QPushButton):
-                text = child.text()
-                if text.isdigit() and len(text) == 1:
-                    group_btn = child
-                elif text.endswith("m") and text[:-1].isdigit():
-                    months_btn = child
-            pg = int(group_btn.text()) if group_btn else 1
-            ms = int(months_btn.text().rstrip("m")) if months_btn else 0
-            items.append((int(data), pg))
-            if pg not in months_by_group:
-                months_by_group[pg] = ms
+            items.append((int(data), rd.pg))
+            if rd.pg not in months_by_group:
+                months_by_group[rd.pg] = rd.ms
         process_months = [(g, m) for g, m in months_by_group.items()]
         return items, process_months
 
@@ -833,7 +717,9 @@ class EntryPage(BasePage):
         self._cid_input.clear()
         self._clear_item_rows()
         self._add_item_row()
+        self._docs_check.blockSignals(True)
         self._docs_check.setChecked(False)
+        self._docs_check.blockSignals(False)
         self._update_registro_status(False)
         self._refresh_return_dates()
         if self._delete_btn:
@@ -845,8 +731,6 @@ class EntryPage(BasePage):
             return
 
         def navigate_start():
-            from PySide6.QtCore import QTimer
-
             QTimer.singleShot(800, lambda: self._mw.navigate_to(self._return_to))
 
         delete_registro_with_undo(

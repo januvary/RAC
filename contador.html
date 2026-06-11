@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Contador RAC</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; color: #333; -webkit-tap-highlight-color: transparent; }
+#search-wrap { position: sticky; top: 0; z-index: 10; background: #f5f5f5; padding: 12px 16px; border-bottom: 1px solid #ddd; }
+#search { width: 100%; padding: 12px 16px; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; outline: none; background: #fff; }
+#search:focus { border-color: #3b82f6; }
+#toolbar { display: flex; gap: 8px; padding: 0 16px 12px; position: sticky; top: 68px; z-index: 10; background: #f5f5f5; }
+#toolbar button { flex: 1; padding: 10px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
+#btn-reset { background: #fee2e2; color: #dc2626; }
+#btn-summary { background: #dbeafe; color: #2563eb; }
+#list { padding: 0 16px 100px; }
+.item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee; }
+.item.hidden { display: none; }
+.item-name { flex: 1; font-size: 14px; line-height: 1.3; min-width: 0; }
+.controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.controls button { width: 40px; height: 40px; border: none; border-radius: 8px; font-size: 20px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.btn-dec { background: #fee2e2; color: #dc2626; }
+.btn-inc { background: #dcfce7; color: #16a34a; }
+.count-input { width: 80px; height: 40px; text-align: center; font-size: 16px; font-weight: 600; border: 1px solid #ddd; border-radius: 8px; outline: none; background: #fff; }
+.count-input:focus { border-color: #3b82f6; }
+.count-input.has-value { background: #eff6ff; border-color: #93c5fd; }
+#summary-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.4); }
+#summary-panel { position: absolute; bottom: 0; left: 0; right: 0; max-height: 70vh; background: #fff; border-radius: 16px 16px 0 0; overflow-y: auto; padding: 20px 16px; }
+#summary-panel h2 { font-size: 18px; margin-bottom: 16px; text-align: center; }
+#summary-panel .s-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+#summary-panel .s-label { flex: 1; margin-right: 12px; }
+#summary-panel .s-count { font-weight: 600; }
+.s-none { color: #999; text-align: center; padding: 20px; }
+#summary-close { display: block; margin: 16px auto 0; padding: 12px 32px; font-size: 14px; font-weight: 600; background: #f3f4f6; border: none; border-radius: 8px; cursor: pointer; }
+#confirm-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.4); }
+#confirm-dialog { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 12px; padding: 24px; width: 280px; text-align: center; }
+#confirm-dialog p { font-size: 15px; margin-bottom: 20px; }
+#confirm-dialog div { display: flex; gap: 8px; }
+#confirm-dialog button { flex: 1; padding: 10px; font-size: 14px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
+#confirm-no { background: #f3f4f6; color: #333; }
+#confirm-yes { background: #fee2e2; color: #dc2626; }
+</style>
+</head>
+<body>
+
+<div id="search-wrap">
+  <input id="search" type="text" placeholder="Buscar medicamento..." autocomplete="off">
+</div>
+<div id="toolbar">
+  <button id="btn-reset" onclick="confirmReset()">Limpar Tudo</button>
+  <button id="btn-summary" onclick="showSummary()">Resumo (<span id="total-counted">0</span>)</button>
+</div>
+<div id="list"></div>
+
+<div id="summary-overlay" onclick="hideSummary()">
+  <div id="summary-panel" onclick="event.stopPropagation()">
+    <h2>Resumo</h2>
+    <div id="summary-content"></div>
+    <button id="summary-close" onclick="hideSummary()">Fechar</button>
+  </div>
+</div>
+
+<div id="confirm-overlay">
+  <div id="confirm-dialog">
+    <p>Limpar todas as contagens?</p>
+    <div>
+      <button id="confirm-no" onclick="hideConfirm()">Nao</button>
+      <button id="confirm-yes" onclick="doReset()">Sim, limpar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ITEMS = ["abatacepte 125 mg","abatacepte 250 mg","acetazolamida 250 mg","acitretina 10 mg","acitretina 25 mg","adalimumabe 40 mg","agulha p/ caneta 4 mm","alentuzumabe 10 mg/mL","alfadornase 2,5 mg","alfaelosulfase 1 mg/mL","alfaepoetina 1.000 UI","alfaepoetina 10.000 UI","alfaepoetina 2.000 UI","alfaepoetina 3.000 UI","alfaepoetina 4.000 UI","alfagalsidase 1 mg/mL","alfaglicosidase 50 mg","alfainterferona 2b 10.000.000 UI","alfainterferona 2b 3.000.000 UI","alfainterferona 2b 5.000.000 UI","alfataliglicerase 200 UI","alfavelaglicerase 400 U","alfavestronidase 10 mg","amantadina 100 mg","ambrisentana 10 mg","ambrisentana 5 mg","atorvastatina 10 mg","atorvastatina 20 mg","atorvastatina 40 mg","atorvastatina 80 mg","azatioprina 50 mg","baricitinibe 2 mg","baricitinibe 4 mg","beclometasona + formoterol + glicopirronio 100 mcg + 6 mcg + 12,5 mcg (trimbow)","betainterferona 12.000.000 UI","betainterferona 44 mcg","bezafibrato 200 mg","bezafibrato 400 mg","bimatoprosta 0,3 mg/mL","biotina 2,5 mg","bosentana 125 mg","bosentana 62,5 mg","brimonidina 2,0 mg/mL","brinzolamida 10 mg/mL","budesonida 200 mcg","budesonida 400 mcg","burosumabe 10 mg/mL","burosumabe 20 mg/mL","burosumabe 30 mg/mL","cabergolina 0,5 mg","calcipotriol 50 mcg","calcitonina 200 UI","calcitriol 0,25 mcg","caneta reutilizavel aplicacao insulina AAP (caneta glargina)","caneta reutilizavel aplicacao insulina AAR (caneta lispro)","certolizumabe pegol 200 mg","ciclofosfamida 50 mg","ciclosporina 10 mg","ciclosporina 100 mg","ciclosporina 100 mg/mL","ciclosporina 25 mg","ciclosporina 50 mg","cinacalcete 30 mg","cinacalcete 60 mg","ciprofibrato 100 mg","ciproterona 50 mg","cladribina 10 mg","clobazam 10 mg","clobazam 20 mg","clobetasol 0,5 mg/g creme","clobetasol 0,5 mg/g solucao capilar","clopidogrel 75 mg","cloroquina 150 mg","clozapina 100 mg","clozapina 25 mg","codeina 3 mg/mL","codeina 30 mg/mL","complemento alimentar para paciente fenilcetonurico","danazol 100 mg","danazol 200 mg","dapagliflozina 10 mg","deferasirox 125 mg","deferasirox 250 mg","deferasirox 500 mg","deferiprona 1000 mg","deferiprona 500 mg","desferroxamina 500 mg","desmopressina 0,1 mg","desmopressina 0,1 mg/mL","desmopressina 0,2 mg","dorzolamida 20 mg/mL","donepezila 10 mg","donepezila 5 mg","eculizumabe 10 mg/mL","eltrombopague olamina 25 mg","eltrombopague olamina 50 mg","enoxaparina sodica 40 mg","enoxaparina sodica 60 mg","entacapona 200 mg","etanercepte 25 mg","etanercepte 50 mg","etossuximida 50 mg/mL","everolimo 0,5 mg","everolimo 0,75 mg","everolimo 1 mg","fenofibrato 200 mg","fenofibrato 250 mg","fenoterol 100 mcg","filgrastim 300 mcg","fingolimode 0,5 mg","fludrocortisona 0,1 mg","formoterol 12 mcg","formoterol + budesonida 12 mcg + 400 mcg (alenia)","formoterol + budesonida 6 mcg + 200 mcg (alenia)","formula de aminoacidos livres","fumarato de dimetila 120 mg","fumarato de dimetila 240 mg","furoato de fluticasona + brometo de umeclidinio + trifenato de vilanterol 100 mcg + 62,5 mcg + 25 mcg (trelegy)","gabapentina 300 mg","gabapentina 400 mg","galantamina 16 mg","galantamina 24 mg","galantamina 8 mg","galsulfase 1 mg/mL","genfibrozila 600 mg","genfibrozila 900 mg","glatiramer 40 mg","golimumabe 50 mg","gosserrelina 10,8 mg","gosserrelina 3,6 mg","hidroxicloroquina 400 mg","hidroxiureia 100 mg","hidroxiureia 500 mg","idursulfase alfa 2 mg/mL","iloprosta 10 mcg/mL","imiglucerase 400 UI","imunoglobulina humana 0,5 g","imunoglobulina humana 1 g","imunoglobulina humana 2,5 g","imunoglobulina humana 5,0 g","infliximabe 10 mg/mL","infliximabe 100 mg","insulina analoga de acao prolongada 100 UI/mL (glargina)","insulina analoga de acao rapida 100 UI/mL (lispro)","isotretinoina 10 mg","isotretinoina 20 mg","ivacaftor 150 mg","ivacaftor / elexacaftor / tezacaftor + ivacaftor 25 mg (trikafta)","ivacaftor / elexacaftor / tezacaftor + ivacaftor 37,5 mg (trikafta)","ivacaftor / elexacaftor / tezacaftor + ivacaftor 50 mg (trikafta)","kit infusao infliximabe","lamotrigina 100 mg","lamotrigina 25 mg","lamotrigina 50 mg","lanreotida 120 mg","lanreotida 60 mg","lanreotida 90 mg","laronidase 0,58 mg/mL","latanoprosta 0,05 mg/mL","leflunomida 20 mg","leuprorrelina 3,75 mg","leuprorrelina 45 mg","levetiracetam 100 mg/mL","levetiracetam 1000 mg","levetiracetam 250 mg","levetiracetam 500 mg","levetiracetam 750 mg","memantina 10 mg","mepolizumabe 100 mg/mL","mesalazina 10 mg/mL enema","mesalazina 400 mg","mesalazina 500 mg","mesalazina 800 mg","metadona 10 mg","metadona 10 mg/mL","metadona 5 mg","metilprednisolona 500 mg","metotrexato 2,5 mg","metotrexato 25 mg/mL","micofenolato de mofetila 500 mg","micofenolato de sodio 180 mg","micofenolato de sodio 360 mg","miglustate 100 mg","morfina 10 mg/mL injetavel","morfina 10 mg/mL solucao oral","naproxeno 250 mg","naproxeno 500 mg","natalizumabe 300 mg","nusinersena 2,4 mg/mL","octreotida 0,1 mg/mL","octreotida 10 mg","octreotida 20 mg","octreotida 30 mg","olanzapina 10 mg","olanzapina 5 mg","omalizumabe 150 mg","pamidronato 60 mg","pancreatina 10.000 UI","pancreatina 25.000 UI","paricalcitol 5,0 mcg/mL","penicilamina 250 mg","pilocarpina 20 mg/mL","piridostigmina 60 mg","pramipexol 0,125 mg","pramipexol 0,25 mg","pramipexol 1 mg","pravastatina 10 mg","pravastatina 20 mg","pravastatina 40 mg","primidona 100 mg","primidona 250 mg","quetiapina 100 mg","quetiapina 200 mg","quetiapina 25 mg","quetiapina 300 mg","raloxifeno 60 mg","rasagilina 1 mg","riluzol 50 mg","romosozumabe 90 mg/mL","risanquizumabe 150 mg/mL","risdiplam 0,75 mg/mL","risedronato 35 mg","risperidona 1 mg","risperidona 1 mg/mL","risperidona 2 mg","risperidona 3 mg","rituximabe 500 mg","rivastigmina 1,5 mg","rivastigmina 3 mg","rivastigmina 4,5 mg","rivastigmina 6 mg","sacarato de hidroxido ferrico 100 mg","sacubitril valsartana 100 mg (entresto)","sacubitril valsartana 200 mg (entresto)","sacubitril valsartana 50 mg (entresto)","sapropterina 100 mg","secuquinumabe 150 mg/mL","selexipague 1000 mcg","selexipague 1200 mcg","selexipague 1400 mcg","selexipague 200 mcg","selexipague 400 mcg","selexipague 600 mcg","selexipague 800 mcg","sevelamer 800 mg","sildenafila 20 mg","sildenafila 25 mg","sildenafila 50 mg","sirolimo 1 mg","sirolimo 2 mg","somatropina 1,33 mg","somatropina 4 UI","sulfassalazina 500 mg","tacrolimo 1 mg","tacrolimo 5 mg","tafamidis 20 mg","tafamidis 61 mg","teriflunomida 14 mg","timolol 5,0 mg/mL","tiotropio + olodaterol 2,5 mcg + 2,5 mcg (spiolto)","tobramicina 300 mg","tocilizumabe 20 mg/mL","tofacitinibe 5 mg","topiramato 100 mg","topiramato 25 mg","topiramato 50 mg","toxina botulinica tipo a 100 UI","toxina botulinica tipo a 500 UI","travoprosta 0,04 mg/mL","trientina 250 mg","triexifenidil 5 mg","triptorrelina 11,25 mg","triptorrelina 22,5 mg","triptorrelina 3,75 mg","umeclidinio + vilanterol 62,5 mcg + 25 mcg (anoro)","upadacitinibe 15 mg","ustequinumabe 45 mg","vedolizumabe 300 mg/mL","vigabatrina 500 mg","ziprasidona 40 mg","ziprasidona 80 mg","acido nicotinico","acido ursodesoxicolico 150 mg","acido ursodesoxicolico 300 mg","acido ursodesoxicolico 50 mg","acido zoledronico 5 mg"];
+
+const STORAGE_KEY = 'rac_counts';
+let counts = {};
+
+function load() {
+  try { counts = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { counts = {}; }
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(counts));
+  updateTotal();
+}
+
+function updateTotal() {
+  const total = Object.values(counts).reduce((s, v) => s + v, 0);
+  document.getElementById('total-counted').textContent = total;
+}
+
+function buildList() {
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  ITEMS.forEach((name, i) => {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.dataset.idx = i;
+    div.dataset.name = name.toLowerCase();
+    const v = counts[name] || 0;
+    div.innerHTML = `
+      <span class="item-name">${name}</span>
+      <div class="controls">
+        <button class="btn-dec" onclick="dec(${i})">-</button>
+        <input class="count-input${v ? ' has-value' : ''}" type="number" min="0" value="${v}" data-idx="${i}" inputmode="numeric">
+        <button class="btn-inc" onclick="inc(${i})">+</button>
+      </div>`;
+    list.appendChild(div);
+  });
+
+  list.addEventListener('input', e => {
+    if (!e.target.classList.contains('count-input')) return;
+    const i = +e.target.dataset.idx;
+    const v = Math.max(0, parseInt(e.target.value) || 0);
+    counts[ITEMS[i]] = v;
+    e.target.value = v;
+    e.target.classList.toggle('has-value', v > 0);
+    save();
+  });
+}
+
+function inc(i) {
+  const name = ITEMS[i];
+  counts[name] = (counts[name] || 0) + 1;
+  updateRow(i);
+  save();
+}
+
+function dec(i) {
+  const name = ITEMS[i];
+  const cur = counts[name] || 0;
+  if (cur <= 0) return;
+  counts[name] = cur - 1;
+  if (counts[name] === 0) delete counts[name];
+  updateRow(i);
+  save();
+}
+
+function updateRow(i) {
+  const row = document.querySelector(`.item[data-idx="${i}"]`);
+  if (!row) return;
+  const input = row.querySelector('.count-input');
+  const v = counts[ITEMS[i]] || 0;
+  input.value = v;
+  input.classList.toggle('has-value', v > 0);
+}
+
+function confirmReset() {
+  document.getElementById('confirm-overlay').style.display = 'flex';
+}
+function hideConfirm() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+}
+function doReset() {
+  counts = {};
+  save();
+  document.querySelectorAll('.count-input').forEach(el => { el.value = 0; el.classList.remove('has-value'); });
+  hideConfirm();
+}
+
+function showSummary() {
+  const entries = Object.entries(counts).filter(([_, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const content = document.getElementById('summary-content');
+  if (!entries.length) {
+    content.innerHTML = '<div class="s-none">Nenhum item contado</div>';
+  } else {
+    const total = entries.reduce((s, [_, v]) => s + v, 0);
+    content.innerHTML = entries.map(([name, v]) =>
+      `<div class="s-row"><span class="s-label">${name}</span><span class="s-count">${v}</span></div>`
+    ).join('') + `<div class="s-row" style="border-top:2px solid #ddd;margin-top:8px;padding-top:12px;font-weight:700"><span class="s-label">Total</span><span class="s-count">${total}</span></div>`;
+  }
+  document.getElementById('summary-overlay').style.display = 'block';
+}
+function hideSummary() {
+  document.getElementById('summary-overlay').style.display = 'none';
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  document.querySelectorAll('.item').forEach(el => {
+    el.classList.toggle('hidden', q && !el.dataset.name.includes(q));
+  });
+});
+
+load();
+buildList();
+updateTotal();
+</script>
+</body>
+</html>
