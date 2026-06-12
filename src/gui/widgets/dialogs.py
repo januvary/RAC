@@ -15,8 +15,9 @@ from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.styles import colors
 from src.gui.widgets.toast import show_toast
-from src.services.registro_service import RegistroService
+from src.services.registro_service import RegistroService, DeleteSnapshot
 from andaime.error_handler import ErrorHandler
+import weakref
 
 
 def scaffold_dialog(parent, title, spacing=12, min_width=340):
@@ -105,29 +106,26 @@ def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):
         return
 
     try:
-        reg = db.get_registro_by_id(reg_id)
-        items = db.get_items_for_registro(reg_id) if reg else []
-        snapshot = (reg, items) if reg else None
-
         service = RegistroService(db)
-        service.delete(reg_id)
+        snapshot = service.delete_with_snapshot(reg_id)
         on_refresh()
 
         if snapshot:
+            weak_page = weakref.ref(page)
 
             def undo():
-                r, old_items = snapshot
-                new_reg = db.create_registro(
-                    tipo=r.tipo,
-                    paciente_id=r.paciente_id,
-                    malote_id=r.malote_id,
-                    waiting_docs=r.waiting_docs,
-                )
-                item_tuples = [(i.item_id, i.process_group) for i in old_items]
-                if item_tuples:
-                    db.set_registro_items(new_reg.id, item_tuples)
-                on_refresh()
-                show_toast("Registro restaurado", "positive", page)
+                try:
+                    service.restore_from_snapshot(snapshot)
+                    p = weak_page()
+                    if p is None:
+                        return
+                    on_refresh()
+                    show_toast("Registro restaurado", "positive", p)
+                except Exception as e:
+                    ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
+                    p = weak_page()
+                    if p:
+                        show_toast(f"Erro ao restaurar: {e}", "negative", p)
 
             show_toast(
                 "Registro excluido",

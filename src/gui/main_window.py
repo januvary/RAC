@@ -13,7 +13,7 @@ from PySide6.QtGui import QShortcut, QKeySequence
 from src.database.rac_database import RACDatabase
 from src.state.rac_state_manager import RACStateManager
 from andaime.config import ConfigManager
-from andaime.error_handler import ErrorHandler, ErrorLevel
+from andaime.error_handler import ErrorHandler
 
 from src.gui.constants import TIPO_LABELS
 
@@ -44,12 +44,15 @@ class MainWindow(QMainWindow):
         self.db: RACDatabase | None = None
         self.state: RACStateManager | None = None
         self.config: ConfigManager | None = None
+        self._services = None
         self._shortcut_peek_active = False
+        self._last_patient_id: int | None = None
 
     def init_backend(self):
         self.config = ConfigManager()
         self.db = RACDatabase()
         self.state = RACStateManager()
+        self._services = None
 
         saved_theme = self.config.get("theme", "light")
         from src.gui.styles import set_theme
@@ -98,11 +101,20 @@ class MainWindow(QMainWindow):
         if page and hasattr(page, "set_shortcuts_visible"):
             page.set_shortcuts_visible(show)
 
-        ErrorHandler.log(
-            "RAC inicializado",
-            level=ErrorLevel.INFO,
-            context="User Interface",
-        )
+    @property
+    def services(self):
+        if self._services is None:
+            from src.services.registro_service import RegistroService
+            from src.services.paciente_service import PacienteService
+            from src.services.malote_service import MaloteService
+            from src.services.item_catalog_service import ItemCatalogService
+            self._services = type("Services", (), {
+                "registro": RegistroService(self.db),
+                "paciente": PacienteService(self.db),
+                "malote": MaloteService(self.db),
+                "item_catalog": ItemCatalogService(self.db),
+            })()
+        return self._services
 
     def shutdown_backend(self):
         if self.state and self.config:
@@ -117,11 +129,18 @@ class MainWindow(QMainWindow):
         self._toggle_shortcut_peek(False)
         if page_name == "start":
             self._show_start_page()
+        elif page_name == "patient":
+            paciente_id = kwargs.get("paciente_id") or self._last_patient_id
+            highlight = kwargs.get("highlight_registro")
+            if paciente_id:
+                self._last_patient_id = paciente_id
+                self._show_patient_page(paciente_id, highlight)
         elif page_name == "entry":
             tipo = kwargs.get("tipo", "entrada")
             edit_id = kwargs.get("edit_id")
             return_to = kwargs.get("return_to", "start")
-            self._show_entry_page(tipo, edit_id, return_to)
+            paciente_id = kwargs.get("paciente_id")
+            self._show_entry_page(tipo, edit_id, return_to, paciente_id)
         elif page_name == "preview":
             self._show_preview_page()
         elif page_name == "lists":
@@ -158,11 +177,12 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentWidget(page)
 
     def _show_entry_page(
-        self, tipo: str, edit_id: int | None = None, return_to: str = "start"
+        self, tipo: str, edit_id: int | None = None, return_to: str = "start",
+        paciente_id: int | None = None,
     ):
         from src.gui.pages.entry_page import EntryPage
 
-        self._push_page(EntryPage, tipo, edit_id, return_to)
+        self._push_page(EntryPage, tipo, edit_id, return_to, paciente_id)
 
     def _show_preview_page(self):
         from src.gui.pages.preview_page import PreviewPage
@@ -178,6 +198,11 @@ class MainWindow(QMainWindow):
         from src.gui.pages.stats_page import StatsPage
 
         self._push_page(StatsPage)
+
+    def _show_patient_page(self, paciente_id: int, highlight_registro: int | None = None):
+        from src.gui.pages.patient_page import PatientPage
+
+        self._push_page(PatientPage, paciente_id, highlight_registro)
 
     _TIPO_SHORTCUTS = {
         0: "entrada",
@@ -233,9 +258,11 @@ class MainWindow(QMainWindow):
         from src.gui.pages.entry_page import EntryPage
         from src.gui.pages.preview_page import PreviewPage
         from src.gui.pages.list_manage_page import ListManagePage
+        from src.gui.pages.patient_page import PatientPage
+        from src.gui.pages.stats_page import StatsPage
 
         self._on_page(EntryPage, lambda p: self.navigate_to(p._return_to))
-        self._on_page((PreviewPage, ListManagePage), lambda p: self.navigate_to("start"))
+        self._on_page((PreviewPage, ListManagePage, PatientPage, StatsPage), lambda p: self.navigate_to("start"))
 
     def _shortcut_malote_dialog(self):
         page = self._current_page()

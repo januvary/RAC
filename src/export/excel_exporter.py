@@ -171,9 +171,9 @@ class ExcelExporter:
             ws = wb.create_sheet(title=tab_name)
 
             ws["A1"] = f"USAFA OCIAN - {date_display}"
-            ws.merge_cells("A1:C1")
+            ws.merge_cells("A1:B1")
             ws["A2"] = TIPO_TITLES[tipo]
-            ws.merge_cells("A2:C2")
+            ws.merge_cells("A2:B2")
 
             tipo_registros = [r for r in registros if r.tipo == tipo]
             tipo_registros.sort(key=lambda r: r.paciente_name or "")
@@ -185,24 +185,15 @@ class ExcelExporter:
                         for name in proc.items
                     ]
                     items_str = " / ".join(formatted_items)
-                    return_str = ""
-                    if proc.expected_return_date:
-                        try:
-                            dt = datetime.fromisoformat(proc.expected_return_date)
-                            return_str = dt.strftime("%d/%m/%Y")
-                        except (ValueError, TypeError):
-                            return_str = proc.expected_return_date
                     ws.append(
                         [
                             reg.paciente_name or "",
                             items_str,
-                            return_str,
                         ]
                     )
 
             ws.column_dimensions["A"].width = 45
             ws.column_dimensions["B"].width = 60
-            ws.column_dimensions["C"].width = 15
 
             _style_title_row(ws, 1, styles)
             _style_title_row(ws, 2, styles, "title2_font", 26)

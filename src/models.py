@@ -18,13 +18,6 @@ class Malote:
             arrival_date=row.get("arrival_date"),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "date": self.date,
-            "arrival_date": self.arrival_date,
-        }
-
 
 @dataclass
 class Paciente:
@@ -40,13 +33,6 @@ class Paciente:
             cid=row.get("cid", ""),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "cid": self.cid,
-        }
-
 
 @dataclass
 class ItemCatalog:
@@ -61,13 +47,6 @@ class ItemCatalog:
             name=row.get("name", ""),
             unidade=row.get("unidade", "un"),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "unidade": self.unidade,
-        }
 
 
 @dataclass
@@ -94,18 +73,6 @@ class Registro:
             waiting_docs=bool(row.get("waiting_docs", 0)),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "tipo": self.tipo,
-            "paciente_id": self.paciente_id,
-            "malote_id": self.malote_id,
-            "created_at": self.created_at,
-            "paciente_name": self.paciente_name,
-            "malote_date": self.malote_date,
-            "waiting_docs": self.waiting_docs,
-        }
-
 
 @dataclass
 class Process:
@@ -124,15 +91,6 @@ class Process:
             months_supply=row.get("months_supply", 0),
             expected_return_date=row.get("expected_return_date"),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "registro_id": self.registro_id,
-            "group_number": self.group_number,
-            "months_supply": self.months_supply,
-            "expected_return_date": self.expected_return_date,
-        }
 
 
 @dataclass
@@ -156,17 +114,6 @@ class RegistroItem:
             unidade=row.get("unidade"),
             process_group=row.get("process_group", 1),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "registro_id": self.registro_id,
-            "process_id": self.process_id,
-            "item_id": self.item_id,
-            "item_name": self.item_name,
-            "unidade": self.unidade,
-            "process_group": self.process_group,
-        }
 
 
 @dataclass
@@ -192,12 +139,3 @@ class RegistroExport:
             paciente_id=row.get("paciente_id"),
             paciente_name=row.get("paciente_name"),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "tipo": self.tipo,
-            "paciente_id": self.paciente_id,
-            "paciente_name": self.paciente_name,
-            "processes": [p.__dict__ for p in self.processes],
-        }

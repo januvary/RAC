@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from contextlib import suppress
+import json
+from pathlib import Path
 
 from PySide6.QtWidgets import (
     QLabel,
@@ -12,6 +14,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QLineEdit,
     QMenu,
+    QTreeWidget,
+    QTreeWidgetItem,
 )
 from PySide6.QtCore import Qt, Signal
 
@@ -19,7 +23,8 @@ from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets.base_page import make_hbox
 from src.gui.widgets.toast import show_toast
-from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row, scaffold_dialog
+from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row, open_input_dialog, scaffold_dialog
+from src.gui.styles import colors
 
 def _activate_malote_if_changed(mw, malote, label):
     current = mw.state.get_active_malote()
@@ -149,7 +154,6 @@ def _show_malote_dialog(label: MaloteLabel):
         malote = item.data(0, Qt.ItemDataRole.UserRole)
         if malote:
             _activate_malote_if_changed(mw, malote, label)
-            mw.state.set_active_malote(malote)
             dlg.accept()
             label.refresh()
         else:
@@ -190,7 +194,7 @@ def _show_malote_dialog(label: MaloteLabel):
             ):
                 return
 
-            deleted = mw.db.delete_malote(malote.id)
+            deleted = mw.services.malote.delete(malote.id)
             if deleted:
                 current_active = mw.state.get_active_malote()
                 if current_active and current_active.id == malote.id:
@@ -221,6 +225,15 @@ def _show_malote_dialog(label: MaloteLabel):
     new_m.clicked.connect(_on_new_malote)
     btn_row.addWidget(new_m)
     btn_row.addStretch()
+
+    holidays_btn = make_button("Gerenciar feriados", "flat")
+    holidays_btn.setAutoDefault(False)
+    holidays_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    holidays_btn.setStyleSheet(holidays_btn.styleSheet() + "; font-size: 11px")
+    holidays_btn.clicked.connect(lambda: _show_holidays_dialog(parent))
+    btn_row.addWidget(holidays_btn)
+
+    btn_row.addStretch()
     close_m = make_button("Fechar", "flat")
     close_m.setAutoDefault(False)
     close_m.clicked.connect(dlg.reject)
@@ -228,6 +241,169 @@ def _show_malote_dialog(label: MaloteLabel):
     layout.addLayout(btn_row)
 
     dlg.exec()
+
+
+def _show_holidays_dialog(parent):
+    from datetime import date as date_cls
+    from pathlib import Path
+    from andaime.dates import DateCalculator
+    from andaime.paths import get_root_directory
+
+    dlg, layout = scaffold_dialog(parent, "Feriados", spacing=12, min_width=310)
+    dlg.setMinimumHeight(420)
+
+    pontos_path = get_root_directory() / "data" / "pontos_facultativos.json"
+    pontos_data: dict[str, list[str]] = {}
+    if pontos_path.exists():
+        try:
+            with pontos_path.open("r", encoding="utf-8") as f:
+                pontos_data = json.load(f).get("pontos_facultativos", {})
+        except Exception:
+            pass
+
+    all_holidays = DateCalculator.get_holidays()
+    today = date_cls.today()
+    year = today.year
+    c = colors()
+    day_names = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+
+    pontos_set: set[date_cls] = set()
+    for yr_str, plist in pontos_data.items():
+        try:
+            yr = int(yr_str)
+        except ValueError:
+            continue
+        for ps in plist:
+            try:
+                d, m = map(int, ps.split("/"))
+                pontos_set.add(date_cls(yr, m, d))
+            except (ValueError, AttributeError):
+                continue
+
+    tree = QTreeWidget()
+    tree.setHeaderHidden(True)
+    tree.setRootIsDecorated(True)
+    tree.setAnimated(True)
+    tree.setIndentation(0)
+    tree.setAlternatingRowColors(True)
+    tree.setColumnCount(1)
+    tree.setStyleSheet(
+        f'QTreeWidget {{ alternate-background-color: {c["table_alt_bg"]}; }}'
+    )
+
+    def _populate_tree():
+        tree.clear()
+        yr_holidays = sorted(h for h in all_holidays if h.year == year)
+        for h in yr_holidays:
+            is_ponto = h in pontos_set
+            dn = day_names[h.weekday()]
+            tag = "  (facultativo)" if is_ponto else ""
+            child = QTreeWidgetItem()
+            child.setText(0, f"    {h.strftime('%d/%m')}  ({dn}){tag}")
+            child.setData(0, Qt.ItemDataRole.UserRole, h)
+            child.setData(0, Qt.ItemDataRole.UserRole + 1, is_ponto)
+            tree.addTopLevelItem(child)
+
+    _populate_tree()
+    layout.addWidget(tree)
+
+    btn_row = QHBoxLayout()
+    add_btn = make_button("Adicionar", "primary")
+    add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    del_btn = make_button("Remover", "negative")
+    del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    close_btn = make_button("Fechar", "flat")
+    close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn_row.addWidget(add_btn)
+    btn_row.addWidget(del_btn)
+    btn_row.addStretch()
+    btn_row.addWidget(close_btn)
+
+    def _on_add():
+        result = open_input_dialog(
+            parent, "Adicionar facultativo",
+            f"dd/mm (ano {year})",
+        )
+        if not result:
+            return
+        try:
+            parts = result.strip().split("/")
+            d, m = int(parts[0]), int(parts[1])
+            new_date = date_cls(year, m, d)
+        except (ValueError, IndexError):
+            show_toast("Data inválida (use dd/mm)", "negative", parent)
+            return
+        yr_str = str(year)
+        entry = f"{int(parts[0]):02d}/{int(parts[1]):02d}"
+        current = pontos_data.get(yr_str, [])
+        if entry in current:
+            show_toast("Feriado facultativo já existe", "warning", parent)
+            return
+        current.append(entry)
+        current.sort(key=lambda x: (int(x.split("/")[1]), int(x.split("/")[0])))
+        pontos_data[yr_str] = current
+        _save_pontos(pontos_path, pontos_data)
+        DateCalculator.clear_holidays_cache()
+        all_holidays.add(new_date)
+        pontos_set.add(new_date)
+        _populate_tree()
+
+    add_btn.clicked.connect(_on_add)
+
+    def _on_remove():
+        item = tree.currentItem()
+        if not item:
+            return
+        is_ponto = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        if not is_ponto:
+            show_toast("Apenas feriados facultativos podem ser removidos", "warning", parent)
+            return
+        h = item.data(0, Qt.ItemDataRole.UserRole)
+        if not confirm_delete_dialog(
+            parent, "Remover facultativo",
+            f'Remover "{h.strftime("%d/%m")}" dos facultativos?',
+        ):
+            return
+        _remove_ponto(h, pontos_path)
+        pontos_set.discard(h)
+        all_holidays.discard(h)
+        yr_str = str(h.year)
+        if yr_str in pontos_data:
+            entry = f"{h.day:02d}/{h.month:02d}"
+            if entry in pontos_data[yr_str]:
+                pontos_data[yr_str].remove(entry)
+        DateCalculator.clear_holidays_cache()
+        _populate_tree()
+
+    del_btn.clicked.connect(_on_remove)
+    close_btn.clicked.connect(dlg.accept)
+    layout.addLayout(btn_row)
+
+    dlg.exec()
+
+
+def _remove_ponto(dt, pontos_path: Path):
+    yr_str = str(dt.year)
+    entry = f"{dt.day:02d}/{dt.month:02d}"
+    data: dict = {"pontos_facultativos": {}}
+    if pontos_path.exists():
+        try:
+            with pontos_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            pass
+    pontos = data.get("pontos_facultativos", {})
+    if yr_str in pontos and entry in pontos[yr_str]:
+        pontos[yr_str].remove(entry)
+    _save_pontos(pontos_path, pontos)
+
+
+def _save_pontos(pontos_path: Path, pontos_data: dict):
+    data = {"pontos_facultativos": pontos_data}
+    pontos_path.parent.mkdir(parents=True, exist_ok=True)
+    with pontos_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
 
 
 def _show_new_malote_dialog(label: MaloteLabel):
@@ -244,8 +420,6 @@ def _show_new_malote_dialog(label: MaloteLabel):
     date_input = QLineEdit()
     date_input.setPlaceholderText("dd/mm ou dd/mm/aa")
     with suppress(Exception):
-        from datetime import date as date_cls
-
         existing = set(mw.db.get_malote_dates())
         suggested = next_send_date(existing)
         date_input.setText(suggested.strftime("%d/%m/%Y"))
@@ -269,7 +443,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
                 send_dt = date_cls.fromisoformat(iso)
                 arrival = calculate_arrival_date(send_dt)
                 arrival_iso = arrival.isoformat()
-            malote = mw.db.create_malote(iso, arrival_date=arrival_iso)
+            malote = mw.services.malote.create(iso, arrival_date=arrival_iso)
             _activate_malote_if_changed(mw, malote, label)
             dlg.accept()
             label.refresh()
@@ -339,11 +513,15 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
             dlg.accept()
             return
         try:
+            svc = mw.services.malote
             if field == "send":
-                mw.db.update_malote(malote.id, date=iso)
-                malote.date = iso
+                svc.update_send_date(malote.id, iso)
+                refreshed = mw.db.get_malote_by_id(malote.id)
+                if refreshed:
+                    malote.date = refreshed.date
+                    malote.arrival_date = refreshed.arrival_date
             else:
-                mw.db.update_malote(malote.id, arrival_date=iso)
+                svc.update_arrival_date(malote.id, iso)
                 malote.arrival_date = iso
             if (
                 mw.state.get_active_malote()

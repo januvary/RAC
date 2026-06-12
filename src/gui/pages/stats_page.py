@@ -289,7 +289,7 @@ def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
         prepend_items=[reset_item],
     )
 
-    selected_date: list[str | None] = [None]
+    selected_date: list[str | None | object] = [None]
 
     def on_item_clicked(item, _column):
         data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -312,5 +312,6 @@ def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
     close_btn.clicked.connect(dlg.reject)
     layout.addLayout(btn_row)
 
+    dlg.rejected.connect(lambda: selected_date.__setitem__(0, _CANCELLED))
     dlg.exec()
     return selected_date[0]

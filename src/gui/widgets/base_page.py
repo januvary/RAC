@@ -52,6 +52,9 @@ class BasePage(QWidget, ToastMixin):
         search.installEventFilter(self)
         self._keyboard_nav.append((widget, search, on_enter))
 
+    def clear_keyboard_nav(self):
+        self._keyboard_nav.clear()
+
     def _move_row(self, widget, direction):
         row = widget.currentRow()
         count = widget.count() if hasattr(widget, "count") else widget.rowCount()

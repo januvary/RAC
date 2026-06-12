@@ -29,9 +29,8 @@ from src.gui.widgets import (
     delete_registro_with_undo,
 )
 from src.gui.widgets.buttons import make_icon_button
-from src.gui.widgets.dialogs import make_dialog_button_row
 from src.models import Registro
-from src.services.registro_service import RegistroService
+from src.services.registro_service import EditContext, ContextResult
 from src.services.exceptions import ValidationError, DuplicateRecordError
 from andaime.text import to_upper_normalized
 
@@ -46,7 +45,7 @@ class _RowData:
     return_btn: QPushButton | None = None
     combo: SearchableComboBox | None = None
     pg: int = 1
-    ms: int = 0
+    ms: int = -1
 
 
 class _CidInput(QLineEdit):
@@ -88,9 +87,6 @@ class _CidInput(QLineEdit):
                 trailing_sep = True
                 i += 1
                 continue
-            if ch == " " and not current and not trailing_sep:
-                i += 1
-                continue
             trailing_sep = False
             current += ch
             i += 1
@@ -114,8 +110,8 @@ class _CidInput(QLineEdit):
                 cleaned += ch
         if not self._deleting and len(cleaned) >= 3 and "." not in cleaned:
             cleaned = cleaned[:3] + "." + cleaned[3:]
-        if len(cleaned) > 5:
-            cleaned = cleaned[:5]
+        if len(cleaned) > 7:
+            cleaned = cleaned[:7]
         return cleaned
 
     def focusOutEvent(self, event):
@@ -134,19 +130,21 @@ class EntryPage(BasePage):
         tipo: str,
         edit_id: int | None = None,
         return_to: str = "start",
+        paciente_id: int | None = None,
     ):
         super().__init__(main_window)
         self._tipo = tipo
         self._edit_id: int | None = edit_id
-        self._edit_registro: Registro | None = None
+        self._edit_ctx: EditContext | None = None
         self._focus_index: int = -1
         self._return_to = return_to
+        self._pre_paciente_id: int | None = paciente_id
         self._rows: list[_RowData] = []
         self._shortcut_widgets: dict[str, QPushButton | QLabel | QCheckBox] = {}
         self._delete_btn: QPushButton | None = None
 
         if edit_id:
-            self._edit_registro = self._mw.db.get_registro_by_id(edit_id)
+            self._edit_ctx = self._mw.services.registro.load_for_edit(edit_id)
 
         self._mw.state.set_current_tipo(tipo)
         self._build_ui()
@@ -154,6 +152,10 @@ class EntryPage(BasePage):
     @property
     def _is_editing(self) -> bool:
         return self._edit_id is not None
+
+    @property
+    def _edit_registro(self) -> Registro | None:
+        return self._edit_ctx.registro if self._edit_ctx else None
 
     def _build_ui(self):
         layout = self._scaffold()
@@ -203,8 +205,9 @@ class EntryPage(BasePage):
 
         self._cid_input = _CidInput()
 
-        if self._edit_registro and self._edit_registro.paciente_id:
-            paciente = self._mw.db.get_paciente_by_id(self._edit_registro.paciente_id)
+        prefill_id = self._edit_registro.paciente_id if self._edit_registro else self._pre_paciente_id
+        if prefill_id:
+            paciente = self._mw.db.get_paciente_by_id(prefill_id)
             if paciente:
                 self._paciente_combo.set_options({str(paciente.id): paciente.name})
                 self._paciente_combo.set_current_by_data(str(paciente.id))
@@ -242,10 +245,15 @@ class EntryPage(BasePage):
         self._shortcut_widgets["add_item"] = add_btn
         layout.addWidget(add_btn)
 
-        if self._edit_registro:
-            items = self._mw.db.get_items_for_registro(self._edit_registro.id)
-            for item in items:
-                self._add_item_row(item_id=item.item_id)
+        if self._edit_ctx:
+            months_by_group = dict(self._edit_ctx.processes)
+            for item_id, process_group in self._edit_ctx.items:
+                ms = months_by_group.get(process_group, 0)
+                self._add_item_row(
+                    item_id=item_id,
+                    process_group=process_group,
+                    months_supply=ms,
+                )
         else:
             self._add_item_row()
 
@@ -376,7 +384,7 @@ class EntryPage(BasePage):
             _orig_mouse_months(event)
 
         months_btn.mousePressEvent = _cycle_months
-        months_btn.setVisible(self._tipo == "retirada")
+        months_btn.setVisible(self._tipo in ("retirada", "renovacao"))
         rd.months_btn = months_btn
         self._rows.append(rd)
         row_h.addWidget(months_btn)
@@ -407,6 +415,9 @@ class EntryPage(BasePage):
             paciente_id = int(data)
         except (ValueError, TypeError):
             return
+        if getattr(self, "_last_paciente_id", None) == paciente_id:
+            return
+        self._last_paciente_id = paciente_id
         self._load_cid_for_paciente(paciente_id)
         self._load_items_for_context(paciente_id)
         self._refresh_return_dates()
@@ -423,7 +434,7 @@ class EntryPage(BasePage):
 
     def _on_tipo_changed_months(self, tipo: str):
         self._tipo = tipo
-        visible = tipo == "retirada"
+        visible = tipo in ("retirada", "renovacao")
         for rd in self._rows:
             if rd.months_btn:
                 rd.months_btn.setVisible(visible)
@@ -488,11 +499,10 @@ class EntryPage(BasePage):
     def _do_show_return_date_popup(self, rd: _RowData):
         from datetime import date, timedelta
         from src.utils.date_calculator import (
-            _find_nearest_arrival_before,
+            find_nearest_arrival_after,
+            get_candidate_days_after_arrival,
             resolve_arrival_from_malote,
         )
-        from src.gui.widgets.dialogs import scaffold_dialog
-
         malote = self._mw.state.get_active_malote()
         if not malote:
             return
@@ -511,46 +521,27 @@ class EntryPage(BasePage):
             dlg.reject()
             return
 
-        if tipo == "retirada" and ms > 0:
+        if tipo in ("retirada", "renovacao") and ms > 0:
             runs_out = date.today() + timedelta(days=ms * 30)
-            candidates = _find_nearest_arrival_before(runs_out, db=self._mw.db, top=4)
-
-            for c, load in candidates:
-                date_str = c.strftime("%d/%m/%Y")
-                day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][c.weekday()]
-                label_text = f"{date_str}  ({day_name})  —  {load} retorno(s)"
-                btn = make_button(label_text, "flat")
-                btn.setCursor(Qt.CursorShape.PointingHandCursor)
-
-                def _pick(checked=False, d=date_str, dialog=dlg, gn=rd.pg):
-                    for b in self._get_return_buttons_for_group(gn):
-                        b.setText(d)
-                    dialog.accept()
-
-                btn.clicked.connect(_pick)
-                dlg_layout.addWidget(btn)
+            nearest = find_nearest_arrival_after(runs_out, db=self._mw.db, top=1)
+            best_arrival = nearest[0][0] if nearest else arrival_date
+            candidates = get_candidate_days_after_arrival(best_arrival)
         else:
-            from src.utils.date_calculator import _get_candidate_days_after_arrival
+            candidates = get_candidate_days_after_arrival(arrival_date)
 
-            candidates = _get_candidate_days_after_arrival(arrival_date)
-            for c in candidates:
-                date_str = c.strftime("%d/%m/%Y")
-                day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][c.weekday()]
-                btn = make_button(f"{date_str}  ({day_name})", "flat")
-                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        for c in candidates:
+            date_str = c.strftime("%d/%m/%Y")
+            day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][c.weekday()]
+            btn = make_button(f"{date_str}  ({day_name})", "flat")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-                def _pick(checked=False, d=date_str, dialog=dlg, gn=rd.pg):
-                    for b in self._get_return_buttons_for_group(gn):
-                        b.setText(d)
-                    dialog.accept()
+            def _pick(checked=False, d=date_str, dialog=dlg, gn=rd.pg):
+                for b in self._get_return_buttons_for_group(gn):
+                    b.setText(d)
+                dialog.accept()
 
-                btn.clicked.connect(_pick)
-                dlg_layout.addWidget(btn)
-
-        btn_row, [cancel_btn] = make_dialog_button_row([("Fechar", "flat")])
-        cancel_btn.setAutoDefault(False)
-        cancel_btn.clicked.connect(dlg.reject)
-        dlg_layout.addLayout(btn_row)
+            btn.clicked.connect(_pick)
+            dlg_layout.addWidget(btn)
 
         dlg.exec()
 
@@ -602,32 +593,29 @@ class EntryPage(BasePage):
         malote = self._mw.state.get_active_malote()
         tipo = self._tipo_combo.current_tipo()
 
-        existing_reg = None
-        if malote:
-            existing_reg = self._mw.db.find_registro(tipo, paciente_id, malote.id)
+        ctx = self._mw.services.registro.load_for_context(
+            tipo, paciente_id, malote.id if malote else None
+        )
 
         self._clear_item_rows()
-        if existing_reg:
+        if ctx.registro:
             self._update_registro_status(True)
-            items = self._mw.db.get_items_for_registro(existing_reg.id)
-            processes = self._mw.db.get_processes_for_registro(existing_reg.id)
-            months_by_group = {p.group_number: p.months_supply for p in processes}
-            if items:
-                for item in items:
-                    ms = months_by_group.get(item.process_group, 0)
+            months_by_group = dict(ctx.processes)
+            if ctx.items:
+                for item_id, process_group in ctx.items:
+                    ms = months_by_group.get(process_group, 0)
                     self._add_item_row(
-                        item_id=item.item_id,
-                        process_group=item.process_group,
+                        item_id=item_id,
+                        process_group=process_group,
                         months_supply=ms,
                     )
             else:
                 self._add_item_row()
         else:
             self._update_registro_status(False)
-            patient_items = self._mw.db.get_items_for_paciente(paciente_id)
-            if patient_items:
-                for item in patient_items:
-                    self._add_item_row(item_id=item.id)
+            if ctx.suggested_item_ids:
+                for item_id in ctx.suggested_item_ids:
+                    self._add_item_row(item_id=item_id)
             else:
                 self._add_item_row()
 
@@ -655,6 +643,9 @@ class EntryPage(BasePage):
 
     def _on_save(self):
         items, process_months = self._collect_items()
+        if not items:
+            self._toast("Adicione pelo menos um item", "warning")
+            return
         tipo = self._tipo_combo.current_tipo()
         waiting_docs = self._docs_check.isChecked()
 
@@ -666,7 +657,7 @@ class EntryPage(BasePage):
         paciente_name = self._paciente_combo.current_text().strip()
         paciente_id = self._resolve_current_patient()
 
-        service = RegistroService(self._mw.db)
+        service = self._mw.services.registro
 
         try:
             result = service.save(
@@ -694,7 +685,7 @@ class EntryPage(BasePage):
         msg = "Registro editado!" if result.is_update else "Registro salvo!"
         self._toast(msg, "positive")
 
-        self._save_cid(paciente_id or self._resolve_current_patient())
+        self._save_cid(paciente_id)
 
         if self._auto_switch.isChecked():
             QTimer.singleShot(350, self._reset_form)
@@ -704,14 +695,15 @@ class EntryPage(BasePage):
     def _save_cid(self, paciente_id: int | None):
         if paciente_id is None:
             return
-        cid = self._cid_input.text().strip()
-        paciente = self._mw.db.get_paciente_by_id(paciente_id)
-        if paciente and paciente.cid != cid:
-            self._mw.db.update_paciente(paciente_id, paciente.name, cid=cid)
+        try:
+            cid = self._cid_input.text().strip()
+            self._mw.services.paciente.update_cid(paciente_id, cid)
+        except Exception:
+            pass
 
     def _reset_form(self):
         self._edit_id = None
-        self._edit_registro = None
+        self._edit_ctx = None
         self._paciente_combo.set_options({})
         self._paciente_combo.clear()
         self._cid_input.clear()

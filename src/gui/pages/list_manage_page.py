@@ -182,9 +182,9 @@ class ListManagePage(BasePage):
             entity_label="Medicamento",
             entity_label_lower="medicamento",
             db_get_all=self._mw.db.get_all_items,
-            db_create=self._mw.db.create_item,
-            db_update=self._mw.db.update_item,
-            db_delete=self._mw.db.delete_item,
+            db_create=self._mw.services.item_catalog.create,
+            db_update=self._mw.services.item_catalog.update,
+            db_delete=self._mw.services.item_catalog.delete,
             delete_in_use_msg="Não é possível excluir: medicamento em uso",
         )
         self._items_tab._tab_index = self._tabs.addTab(self._items_tab.widget, "Medicamentos")
@@ -197,9 +197,9 @@ class ListManagePage(BasePage):
             entity_label="Paciente",
             entity_label_lower="paciente",
             db_get_all=self._mw.db.get_all_pacientes,
-            db_create=self._mw.db.create_paciente,
-            db_update=self._mw.db.update_paciente,
-            db_delete=self._mw.db.delete_paciente,
+            db_create=self._mw.services.paciente.create,
+            db_update=lambda pid, name: self._mw.services.paciente.rename(pid, name),
+            db_delete=self._mw.services.paciente.delete,
             delete_in_use_msg="Não é possível excluir: paciente com registros",
         )
         self._pacientes_tab._tab_index = self._tabs.addTab(self._pacientes_tab.widget, "Pacientes")

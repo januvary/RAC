@@ -9,7 +9,7 @@ import sqlite3
 import operator
 import contextlib
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
 from andaime.database import BaseDatabase, db_op
 from andaime.paths import resolve_db_path
@@ -486,6 +486,18 @@ class RACDatabase(BaseDatabase):
             (f"%{normalized}%", active_malote_id or 0, limit),
         )]
 
+    @db_op("read")
+    def get_registros_for_paciente(self, paciente_id: int) -> list[Registro]:
+        return [Registro.from_row(r) for r in self._fetch_all(
+            "SELECT r.*, p.name as paciente_name, m.date as malote_date "
+            "FROM registros r "
+            "JOIN pacientes p ON r.paciente_id = p.id "
+            "JOIN malotes m ON r.malote_id = m.id "
+            "WHERE r.paciente_id = ? "
+            "ORDER BY m.date DESC, r.tipo",
+            (paciente_id,),
+        )]
+
     # ========== REGISTRO ITEMS ==========
 
     @db_op("write")
@@ -579,6 +591,10 @@ class RACDatabase(BaseDatabase):
     ) -> list[Process]:
         with self._cursor() as cur:
             cur.execute(
+                "UPDATE registro_items SET process_id = NULL WHERE registro_id = ?",
+                (registro_id,),
+            )
+            cur.execute(
                 "DELETE FROM processes WHERE registro_id = ?",
                 (registro_id,),
             )
@@ -615,16 +631,22 @@ class RACDatabase(BaseDatabase):
 
     @db_op("read")
     def get_malote_arrivals_between(self, start_iso: str, end_iso: str) -> list[str]:
+        from src.utils.date_calculator import calculate_arrival_date
+
         rows = self._fetch_all(
-            "SELECT arrival_date, date FROM malotes "
-            "WHERE arrival_date >= ? AND arrival_date <= ? "
-            "ORDER BY arrival_date ASC",
-            (start_iso, end_iso),
+            "SELECT arrival_date, date FROM malotes ORDER BY date ASC",
         )
         result = []
         for r in rows:
             arrival = r["arrival_date"]
-            if arrival:
+            if not arrival and r["date"]:
+                try:
+                    arrival = calculate_arrival_date(
+                        date.fromisoformat(r["date"])
+                    ).isoformat()
+                except (ValueError, TypeError):
+                    continue
+            if arrival and start_iso <= arrival <= end_iso:
                 result.append(arrival)
         return result
 
@@ -647,6 +669,17 @@ class RACDatabase(BaseDatabase):
             return None
         row = self._fetch_one(
             "SELECT * FROM malotes WHERE date < ? ORDER BY date DESC LIMIT 1",
+            (current.date,),
+        )
+        return Malote.from_row(row) if row else None
+
+    @db_op("read")
+    def get_next_malote(self, current_malote_id: int) -> Optional[Malote]:
+        current = self.get_malote_by_id(current_malote_id)
+        if not current:
+            return None
+        row = self._fetch_one(
+            "SELECT * FROM malotes WHERE date > ? ORDER BY date ASC LIMIT 1",
             (current.date,),
         )
         return Malote.from_row(row) if row else None

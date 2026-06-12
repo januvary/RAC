@@ -183,8 +183,7 @@ class StartPage(BasePage):
             reg = self._mw.db.get_registro_by_id(reg_id)
             if reg:
                 self._pre_search_malote = self._mw.state.get_active_malote()
-                tipo = reg.tipo
-                self._mw.navigate_to("entry", tipo=tipo, edit_id=reg_id)
+                self._mw.navigate_to("patient", paciente_id=reg.paciente_id, highlight_registro=reg_id)
     
     def _require_malote(self) -> bool:
         if not self._mw.state.has_active_malote():
@@ -255,3 +254,4 @@ class StartPage(BasePage):
             else:
                 btn.setText(f"{symbol}  {label}")
         self._malote_label.set_shortcut_hint_visible(show)
+

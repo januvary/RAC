@@ -29,7 +29,7 @@ from src.gui.styles import colors, faded_tipo_color, tab_style_qss, filter_table
 
 from src.utils.text_utils import format_malote_date
 from src.services.exceptions import DuplicateRecordError
-from src.services.registro_service import RegistroService
+from src.services.registro_service import DeleteSnapshot
 from src.export.excel_exporter import _format_item
 
 
@@ -52,6 +52,7 @@ class PreviewPage(BasePage):
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
     def _build_tabs(self, layout: QVBoxLayout):
+        self.clear_keyboard_nav()
         malote = self._mw.state.get_active_malote()
         if not malote:
             return
@@ -248,13 +249,21 @@ class PreviewPage(BasePage):
             lambda _checked=False, ids=selected_ids: self._confirm_delete(ids)
         )
 
+        if not is_multi:
+            menu.addSeparator()
+            paciente_action = menu.addAction("Ver paciente")
+            paciente_action.triggered.connect(
+                lambda _checked=False, rid=reg_id: self._view_patient(rid)
+            )
+
         menu.exec(table.viewport().mapToGlobal(pos))
 
-    def _batch_update(self, reg_ids, update_fn, singular_msg, plural_verb):
+    def _change_tipo(self, reg_ids: list[int], new_tipo: str):
+        service = self._mw.services.registro
         errors = 0
         for rid in reg_ids:
             try:
-                update_fn(rid)
+                service.change_tipo(rid, new_tipo)
             except DuplicateRecordError:
                 errors += 1
         self.refresh()
@@ -263,25 +272,22 @@ class PreviewPage(BasePage):
         else:
             count = len(reg_ids)
             self._toast(
-                f"{count} registro(s) {plural_verb}" if count > 1 else singular_msg,
+                f"{count} registro(s) alterado(s)" if count > 1 else "Tipo alterado",
                 "positive",
             )
 
-    def _change_tipo(self, reg_ids: list[int], new_tipo: str):
-        self._batch_update(
-            reg_ids,
-            lambda rid: self._mw.db.update_registro(rid, tipo=new_tipo),
-            "Tipo alterado",
-            "alterado(s)",
-        )
-
     def _move_to_malote(self, reg_ids: list[int], new_malote_id: int):
-        self._batch_update(
-            reg_ids,
-            lambda rid: self._mw.db.update_registro(rid, malote_id=new_malote_id),
-            "Registro movido",
-            "movido(s)",
-        )
+        service = self._mw.services.registro
+        errors = service.move_to_malote(reg_ids, new_malote_id)
+        self.refresh()
+        if errors:
+            self._toast(f"{errors} registro(s) duplicado(s) ignorado(s)", "warning")
+        else:
+            count = len(reg_ids)
+            self._toast(
+                f"{count} registro(s) movido(s)" if count > 1 else "Registro movido",
+                "positive",
+            )
 
     def _edit_paciente_name(self, reg_id: int):
         reg = self._mw.db.get_registro_by_id(reg_id)
@@ -296,7 +302,7 @@ class PreviewPage(BasePage):
         if not new_name or new_name == reg.paciente_name:
             return
         try:
-            self._mw.db.update_paciente(reg.paciente_id, new_name)
+            self._mw.services.paciente.rename(reg.paciente_id, new_name)
             self.refresh()
             self._toast("Nome do paciente atualizado", "positive")
         except Exception as e:
@@ -313,13 +319,63 @@ class PreviewPage(BasePage):
             ):
                 return
             try:
-                service = RegistroService(self._mw.db)
+                service = self._mw.services.registro
+                snapshots: list[DeleteSnapshot] = []
+                errors = 0
                 for rid in reg_ids:
-                    service.delete(rid)
+                    try:
+                        snap = service.delete_with_snapshot(rid)
+                        if snap:
+                            snapshots.append(snap)
+                    except Exception:
+                        errors += 1
                 self.refresh()
-                self._toast(f"{len(reg_ids)} registros excluidos", "info")
+
+                if snapshots:
+                    import weakref
+                    weak_self = weakref.ref(self)
+
+                    def undo():
+                        try:
+                            for snap in snapshots:
+                                service.restore_from_snapshot(snap)
+                            p = weak_self()
+                            if p is None:
+                                return
+                            p.refresh()
+                            show_toast(
+                                f"{len(snapshots)} registro(s) restaurado(s)",
+                                "positive",
+                                p,
+                            )
+                        except Exception as e:
+                            ErrorHandler.handle_error(
+                                e, context="Registro", show_dialog=False
+                            )
+
+                    from src.gui.widgets.toast import show_toast
+                    from andaime.error_handler import ErrorHandler
+
+                    msg = f"{len(snapshots)} registros excluidos"
+                    if errors:
+                        msg += f" ({errors} erro(s))"
+                    show_toast(
+                        msg,
+                        "info",
+                        self,
+                        action_label="Desfazer",
+                        action_callback=undo,
+                        timeout_ms=5000,
+                    )
+                else:
+                    self._toast(f"{errors} erro(s) ao excluir", "negative")
             except Exception as e:
                 self._handle_error(e)
+
+    def _view_patient(self, reg_id: int):
+        reg = self._mw.db.get_registro_by_id(reg_id)
+        if reg and reg.paciente_id:
+            self._mw.navigate_to("patient", paciente_id=reg.paciente_id, highlight_registro=reg_id)
 
     def set_shortcuts_visible(self, show: bool):
         super().set_shortcuts_visible(show)
