@@ -4,8 +4,9 @@
 List Manage Page — tabbed view for managing medications and patients
 """
 
+import sqlite3
+
 from PySide6.QtWidgets import (
-    QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QTabWidget,
@@ -22,16 +23,15 @@ from src.gui.widgets import (
     open_input_dialog,
     make_tab,
 )
-from src.gui.styles import colors, tab_style_qss, data_view_style_qss
+from src.gui.styles import tab_style_qss, data_view_style_qss
 
 
 class _CrudTab:
-    def __init__(self, page, db, tabs, tab_title, search_placeholder,
+    def __init__(self, page, tabs, tab_title, search_placeholder,
                  entity_label, entity_label_lower,
                  db_get_all, db_create, db_update, db_delete,
                  delete_in_use_msg):
         self._page = page
-        self._db = db
         self._tabs = tabs
         self._tab_title = tab_title
         self._entity_label = entity_label
@@ -46,9 +46,9 @@ class _CrudTab:
         self.search = None
         self.widget = None
         self._tab_index: int = -1
-        self._build(tab_title, search_placeholder)
+        self._build(search_placeholder)
 
-    def _build(self, tab_title, search_placeholder):
+    def _build(self, search_placeholder):
         tab, tab_layout = make_tab()
 
         search_row = QHBoxLayout()
@@ -116,8 +116,10 @@ class _CrudTab:
             self.load()
             self.search.clear()
             self._page._toast(f"{self._entity_label} adicionado", "positive")
-        except Exception:
+        except sqlite3.IntegrityError:
             self._page._toast("Erro: nome já existe ou inválido", "negative")
+        except Exception as e:
+            self._page._handle_error(e)
 
     def _edit(self, item: QListWidgetItem):
         item_id = item.data(Qt.ItemDataRole.UserRole)
@@ -133,8 +135,10 @@ class _CrudTab:
             self.load()
             self.search.clear()
             self._page._toast(f"{self._entity_label} atualizado", "positive")
-        except Exception:
+        except sqlite3.IntegrityError:
             self._page._toast("Erro: nome já existe ou inválido", "negative")
+        except Exception as e:
+            self._page._handle_error(e)
 
     def edit_selected(self):
         current = self.list_widget.currentItem()
@@ -176,12 +180,12 @@ class ListManagePage(BasePage):
         self._tabs.setStyleSheet(tab_style_qss())
 
         self._items_tab = _CrudTab(
-            self, self._mw.db, self._tabs,
+            self, self._tabs,
             tab_title="Medicamentos",
             search_placeholder="Buscar medicamento...",
             entity_label="Medicamento",
             entity_label_lower="medicamento",
-            db_get_all=self._mw.db.get_all_items,
+            db_get_all=self._mw.services.item_catalog.all,
             db_create=self._mw.services.item_catalog.create,
             db_update=self._mw.services.item_catalog.update,
             db_delete=self._mw.services.item_catalog.delete,
@@ -191,14 +195,14 @@ class ListManagePage(BasePage):
         self._items_tab._update_tab_text()
 
         self._pacientes_tab = _CrudTab(
-            self, self._mw.db, self._tabs,
+            self, self._tabs,
             tab_title="Pacientes",
             search_placeholder="Buscar paciente...",
             entity_label="Paciente",
             entity_label_lower="paciente",
-            db_get_all=self._mw.db.get_all_pacientes,
+            db_get_all=self._mw.services.paciente.all,
             db_create=self._mw.services.paciente.create,
-            db_update=lambda pid, name: self._mw.services.paciente.rename(pid, name),
+            db_update=lambda pid, name: self._mw.services.paciente.update(pid, name=name),
             db_delete=self._mw.services.paciente.delete,
             delete_in_use_msg="Não é possível excluir: paciente com registros",
         )

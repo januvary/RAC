@@ -89,7 +89,7 @@ class TestSaveNewRegistro:
             malote_id=malote.id,
             items=[(iid, 1) for iid in ids],
         )
-        items = db.get_items_for_registro(result.registro_id)
+        items = db.get_items_by_registro(result.registro_id)
         assert len(items) == 2
         assert {i.item_id for i in items} == set(ids)
 
@@ -171,7 +171,7 @@ class TestSaveEdit:
         assert edited.registro_id == original_id
         assert edited.is_update is True
 
-        items = db.get_items_for_registro(original_id)
+        items = db.get_items_by_registro(original_id)
         assert len(items) == 1
         assert items[0].item_id == catalog_items[1].id
 
@@ -200,7 +200,7 @@ class TestDelete:
             items=[(catalog_items[0].id, 1)],
         )
         service.delete(result.registro_id)
-        items = db.get_items_for_registro(result.registro_id)
+        items = db.get_items_by_registro(result.registro_id)
         assert len(items) == 0
 
     def test_delete_invalid_id_raises(self, service):
@@ -312,7 +312,7 @@ class TestDoubleSaveWorkflow:
         assert r2.registro_id == r1.registro_id
         assert r2.is_update is True
 
-        items = db.get_items_for_registro(r1.registro_id)
+        items = db.get_items_by_registro(r1.registro_id)
         assert len(items) == 2
 
     def test_save_then_change_tipo_creates_new(
@@ -336,8 +336,8 @@ class TestDoubleSaveWorkflow:
         assert r2.is_update is False
         assert r2.registro_id != r1.registro_id
 
-        items1 = db.get_items_for_registro(r1.registro_id)
-        items2 = db.get_items_for_registro(r2.registro_id)
+        items1 = db.get_items_by_registro(r1.registro_id)
+        items2 = db.get_items_by_registro(r2.registro_id)
         assert len(items1) == 1
         assert len(items2) == 2
 
@@ -388,7 +388,7 @@ class TestDoubleSaveWorkflow:
         assert r2.registro_id == edit_id
         assert r2.is_update is True
 
-        items = db.get_items_for_registro(edit_id)
+        items = db.get_items_by_registro(edit_id)
         assert len(items) == 2
 
     def test_save_new_patient_by_name_twice(self, service, db, malote, catalog_items):
@@ -440,7 +440,7 @@ class TestDoubleSaveWorkflow:
         assert r2.is_update is True
         assert r3.is_update is True
 
-        items = db.get_items_for_registro(r1.registro_id)
+        items = db.get_items_by_registro(r1.registro_id)
         assert len(items) == 3
 
     def test_save_with_two_malotes_same_patient(self, service, db, catalog_items):
@@ -468,7 +468,7 @@ class TestDoubleSaveWorkflow:
             items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         assert r1_again.registro_id == r1.registro_id
-        items = db.get_items_for_registro(r1.registro_id)
+        items = db.get_items_by_registro(r1.registro_id)
         assert len(items) == 2
 
 
@@ -504,8 +504,8 @@ class TestComplexWorkflows:
         assert r_entrada2.registro_id == r_entrada.registro_id
         assert r_entrada2.is_update is True
 
-        items_entrada = db.get_items_for_registro(r_entrada.registro_id)
-        items_renovacao = db.get_items_for_registro(r_renovacao.registro_id)
+        items_entrada = db.get_items_by_registro(r_entrada.registro_id)
+        items_renovacao = db.get_items_by_registro(r_renovacao.registro_id)
         assert len(items_entrada) == 2
         assert len(items_renovacao) == 1
 
@@ -538,7 +538,7 @@ class TestComplexWorkflows:
             assert r.registro_id == result_ids[i]
 
         for i, rid in enumerate(result_ids):
-            items = db.get_items_for_registro(rid)
+            items = db.get_items_by_registro(rid)
             assert len(items) == 2
 
     def test_save_edit_change_tipo_back_forth(self, service, db, malote, catalog_items):
@@ -564,8 +564,8 @@ class TestComplexWorkflows:
                 edit_id=r2.registro_id,
             )
 
-        items_r1 = db.get_items_for_registro(r1.registro_id)
-        items_r2 = db.get_items_for_registro(r2.registro_id)
+        items_r1 = db.get_items_by_registro(r1.registro_id)
+        items_r2 = db.get_items_by_registro(r2.registro_id)
         assert len(items_r1) == 1
         assert len(items_r2) == 1
 
@@ -627,7 +627,7 @@ class TestComplexWorkflows:
             items=[(catalog_items[0].id, 1), (catalog_items[2].id, 1)],
         )
         assert r_m1_again.registro_id == r_m1.registro_id
-        items = db.get_items_for_registro(r_m1.registro_id)
+        items = db.get_items_by_registro(r_m1.registro_id)
         assert len(items) == 2
 
     def test_edit_id_from_first_save_prevents_duplicate_on_second_save(
@@ -676,7 +676,7 @@ class TestComplexWorkflows:
         all_regs = db.get_registros_by_malote(malote.id)
         assert len(all_regs) == 2
 
-        items_r1 = db.get_items_for_registro(r1.registro_id)
+        items_r1 = db.get_items_by_registro(r1.registro_id)
         assert len(items_r1) == 1
         assert items_r1[0].item_id == catalog_items[0].id
 

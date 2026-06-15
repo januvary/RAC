@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QSizePolicy,
     QHeaderView,
-    QDialog,
     QTreeWidgetItem,
     QLineEdit,
 )
@@ -24,7 +23,6 @@ from src.gui.widgets import (
     make_dialog_button_row,
     export_with_fallback,
 )
-from src.gui.widgets.labels import HeadingLabel
 from src.gui.widgets.dialogs import scaffold_dialog
 from src.gui.widgets._malote_tree import (
     make_malote_tree,
@@ -98,7 +96,7 @@ class StatsPage(BasePage):
         layout.addWidget(export_btn)
 
     def _build_header(self, layout: QVBoxLayout):
-        h = self._add_back_button(layout)
+        self._add_back_button(layout)
 
         row = QHBoxLayout()
         row.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -221,7 +219,7 @@ class StatsPage(BasePage):
         self._total_registros_card.set_value(str(totals["registros"]))
         self._total_pacientes_card.set_value(str(totals["pacientes"]))
 
-        meds = db.get_stats_top_medications(
+        meds = db.get_stats_top_itens(
             date_from=self._date_from, date_to=self._date_to
         )
         self._fill_meds_table(meds)
@@ -266,7 +264,7 @@ class StatsPage(BasePage):
 _RESET_SENTINEL = object()
 
 
-def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
+def _show_date_picker(parent_page: StatsPage, side: str):
     mw = parent_page._mw
     parent = parent_page.window()
 
@@ -281,7 +279,7 @@ def _show_date_picker(parent_page: StatsPage, side: str) -> str | None:
     reset_item.setText(0, reset_label)
     reset_item.setData(0, Qt.ItemDataRole.UserRole, _RESET_SENTINEL)
 
-    malotes = mw.db.get_all_malotes()
+    malotes = mw.services.malote.all()
     populate_malote_tree(
         tree,
         malotes,

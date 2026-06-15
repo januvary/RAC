@@ -22,9 +22,11 @@ def populate_malote_tree(
     prepend_items: list[QTreeWidgetItem] | None = None,
 ) -> None:
     if format_display is None:
-        format_display = lambda _m, dt: dt.strftime("%d/%m/%Y")
+        def format_display(_m, dt):
+            return dt.strftime("%d/%m/%Y")
     if get_user_data is None:
-        get_user_data = lambda m, _dt: m
+        def get_user_data(m, _dt):
+            return m
 
     tree.clear()
 

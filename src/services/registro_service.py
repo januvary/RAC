@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from src.database.rac_database import RACDatabase
+from src.models import Registro, RegistroItem, RegistroExport
 from src.services.exceptions import ValidationError, DuplicateRecordError
-from src.models import Registro, RegistroItem, Process
 from src.utils.date_calculator import calculate_return_dates
 
 import sqlite3
@@ -48,7 +49,27 @@ class RegistroService:
     def __init__(self, db: RACDatabase) -> None:
         self._db = db
 
-    def update_existing(
+    def get(self, registro_id: int) -> Registro | None:
+        return self._db.get_registro_by_id(registro_id)
+
+    def get_items(self, registro_id: int) -> list[RegistroItem]:
+        return self._db.get_items_by_registro(registro_id)
+
+    def get_by_paciente(self, paciente_id: int) -> list[Registro]:
+        return self._db.get_registros_by_paciente(paciente_id)
+
+    def search_by_paciente(
+        self, query: str, malote_id: int | None = None, limit: int = 20
+    ) -> list[Registro]:
+        return self._db.search_registros_by_paciente(query, malote_id, limit)
+
+    def get_with_items_by_malote(self, malote_id: int) -> list[RegistroExport]:
+        return self._db.get_registros_with_items_by_malote(malote_id)
+
+    def get_by_malote(self, malote_id: int) -> list[Registro]:
+        return self._db.get_registros_by_malote(malote_id)
+
+    def update(
         self,
         id: int,
         tipo: str,
@@ -105,7 +126,7 @@ class RegistroService:
         if items is None:
             items = [
                 (i.item_id, i.process_group)
-                for i in self._db.get_items_for_registro(registro_id)
+                for i in self._db.get_items_by_registro(registro_id)
                 if i.item_id is not None
             ]
         items_with_process: list[tuple[int, int, int | None]] = [
@@ -145,13 +166,13 @@ class RegistroService:
             raise RuntimeError("Failed to resolve patient")
 
         if edit_id is not None:
-            return self.update_existing(
+            return self.update(
                 edit_id, tipo, resolved_id, malote_id, items, waiting_docs, process_months
             )
 
         existing = self._db.find_registro(tipo, resolved_id, malote_id)
         if existing and existing.id is not None:
-            return self.update_existing(
+            return self.update(
                 existing.id, tipo, resolved_id, malote_id, items, waiting_docs, process_months
             )
 
@@ -162,7 +183,7 @@ class RegistroService:
         except sqlite3.IntegrityError:
             existing = self._db.find_registro(tipo, resolved_id, malote_id)
             if existing and existing.id is not None:
-                return self.update_existing(
+                return self.update(
                     existing.id, tipo, resolved_id, malote_id, items, waiting_docs, process_months
                 )
             raise DuplicateRecordError(
@@ -189,8 +210,8 @@ class RegistroService:
         reg = self._db.get_registro_by_id(registro_id)
         if not reg:
             return None
-        items = self._db.get_items_for_registro(registro_id)
-        processes = self._db.get_processes_for_registro(registro_id)
+        items = self._db.get_items_by_registro(registro_id)
+        processes = self._db.get_processes_by_registro(registro_id)
         return EditContext(
             registro=reg,
             items=[
@@ -212,8 +233,8 @@ class RegistroService:
             if malote_id else None
         )
         if existing:
-            items = self._db.get_items_for_registro(existing.id)
-            processes = self._db.get_processes_for_registro(existing.id)
+            items = self._db.get_items_by_registro(existing.id)
+            processes = self._db.get_processes_by_registro(existing.id)
             return ContextResult(
                 registro=existing,
                 items=[
@@ -227,7 +248,7 @@ class RegistroService:
                 ],
                 suggested_item_ids=[],
             )
-        patient_items = self._db.get_items_for_paciente(paciente_id)
+        patient_items = self._db.get_items_by_paciente(paciente_id)
         return ContextResult(
             registro=None,
             items=[],
@@ -239,13 +260,13 @@ class RegistroService:
         reg = self._db.get_registro_by_id(registro_id)
         if not reg:
             raise ValidationError("Registro não encontrado")
-        items = self._db.get_items_for_registro(registro_id)
+        items = self._db.get_items_by_registro(registro_id)
         item_tuples = [
             (i.item_id, i.process_group) for i in items if i.item_id is not None
         ]
-        processes = self._db.get_processes_for_registro(registro_id)
+        processes = self._db.get_processes_by_registro(registro_id)
         process_months = [(p.group_number, p.months_supply) for p in processes]
-        self.update_existing(
+        self.update(
             registro_id, new_tipo, reg.paciente_id, reg.malote_id,
             item_tuples, reg.waiting_docs, process_months,
         )
@@ -258,14 +279,14 @@ class RegistroService:
             reg = self._db.get_registro_by_id(rid)
             if not reg:
                 continue
-            items = self._db.get_items_for_registro(rid)
+            items = self._db.get_items_by_registro(rid)
             item_tuples = [
                 (i.item_id, i.process_group) for i in items if i.item_id is not None
             ]
-            processes = self._db.get_processes_for_registro(rid)
+            processes = self._db.get_processes_by_registro(rid)
             process_months = [(p.group_number, p.months_supply) for p in processes]
             try:
-                self.update_existing(
+                self.update(
                     rid, reg.tipo, reg.paciente_id, new_malote_id,
                     item_tuples, reg.waiting_docs, process_months,
                 )
@@ -277,8 +298,8 @@ class RegistroService:
         reg = self._db.get_registro_by_id(registro_id)
         if not reg:
             return None
-        items = self._db.get_items_for_registro(registro_id)
-        processes = self._db.get_processes_for_registro(registro_id)
+        items = self._db.get_items_by_registro(registro_id)
+        processes = self._db.get_processes_by_registro(registro_id)
         snapshot = DeleteSnapshot(
             tipo=reg.tipo,
             paciente_id=reg.paciente_id,

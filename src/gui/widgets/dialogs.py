@@ -15,7 +15,7 @@ from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.styles import colors
 from src.gui.widgets.toast import show_toast
-from src.services.registro_service import RegistroService, DeleteSnapshot
+from src.services.registro_service import RegistroService
 from andaime.error_handler import ErrorHandler
 import weakref
 

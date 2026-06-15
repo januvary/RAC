@@ -17,7 +17,6 @@ from andaime.error_handler import ErrorHandler, ErrorLevel
 from andaime.text import to_upper_normalized
 
 from src.database.definitive_catalog import DEFINITIVE_CATALOG
-from src.constants import TIPO_LABELS
 from src.services.exceptions import DuplicateRecordError
 from src.models import (
     Malote,
@@ -216,7 +215,7 @@ class RACDatabase(BaseDatabase):
                 cur.execute(
                     "CREATE INDEX IF NOT EXISTS idx_registro_items_process ON registro_items(process_id)"
                 )
-            except Exception:
+            except sqlite3.OperationalError:
                 pass
             self._commit()
 
@@ -468,7 +467,7 @@ class RACDatabase(BaseDatabase):
             return cur.rowcount > 0
 
     @db_op("read")
-    def search_registros_by_patient(
+    def search_registros_by_paciente(
         self, query: str, active_malote_id: int | None = None, limit: int = 20
     ) -> list[Registro]:
         normalized = to_upper_normalized(query)
@@ -487,7 +486,7 @@ class RACDatabase(BaseDatabase):
         )]
 
     @db_op("read")
-    def get_registros_for_paciente(self, paciente_id: int) -> list[Registro]:
+    def get_registros_by_paciente(self, paciente_id: int) -> list[Registro]:
         return [Registro.from_row(r) for r in self._fetch_all(
             "SELECT r.*, p.name as paciente_name, m.date as malote_date "
             "FROM registros r "
@@ -536,7 +535,7 @@ class RACDatabase(BaseDatabase):
             self._commit()
 
     @db_op("read")
-    def get_items_for_registro(self, registro_id: int) -> list[RegistroItem]:
+    def get_items_by_registro(self, registro_id: int) -> list[RegistroItem]:
         return [RegistroItem.from_row(r) for r in self._fetch_all(
             "SELECT ri.*, ic.name as item_name, ic.unidade "
             "FROM registro_items ri "
@@ -547,7 +546,7 @@ class RACDatabase(BaseDatabase):
         )]
 
     @db_op("read")
-    def get_items_for_paciente(self, paciente_id: int) -> list[ItemCatalog]:
+    def get_items_by_paciente(self, paciente_id: int) -> list[ItemCatalog]:
         return [ItemCatalog.from_row(r) for r in self._fetch_all(
             "SELECT DISTINCT ri.item_id as id, ic.name, ic.unidade "
             "FROM registro_items ri "
@@ -559,29 +558,6 @@ class RACDatabase(BaseDatabase):
         )]
 
     # ========== PROCESSES ==========
-
-    @db_op("write")
-    def create_process(
-        self,
-        registro_id: int,
-        group_number: int = 1,
-        months_supply: int = 0,
-        expected_return_date: str | None = None,
-    ) -> Process:
-        pid = self._insert_row(
-            "processes",
-            registro_id=registro_id,
-            group_number=group_number,
-            months_supply=months_supply,
-            expected_return_date=expected_return_date,
-        )
-        return Process(
-            id=pid,
-            registro_id=registro_id,
-            group_number=group_number,
-            months_supply=months_supply,
-            expected_return_date=expected_return_date,
-        )
 
     @db_op("write")
     def set_processes(
@@ -615,19 +591,11 @@ class RACDatabase(BaseDatabase):
             return result
 
     @db_op("read")
-    def get_processes_for_registro(self, registro_id: int) -> list[Process]:
+    def get_processes_by_registro(self, registro_id: int) -> list[Process]:
         return [Process.from_row(r) for r in self._fetch_all(
             "SELECT * FROM processes WHERE registro_id = ? ORDER BY group_number",
             (registro_id,),
         )]
-
-    @db_op("write")
-    def update_process(self, process_id: int, **fields) -> bool:
-        allowed = {"group_number", "months_supply", "expected_return_date"}
-        updates = {k: v for k, v in fields.items() if k in allowed}
-        if not updates:
-            return False
-        return self._update_row("processes", process_id, **updates)
 
     @db_op("read")
     def get_malote_arrivals_between(self, start_iso: str, end_iso: str) -> list[str]:
@@ -669,17 +637,6 @@ class RACDatabase(BaseDatabase):
             return None
         row = self._fetch_one(
             "SELECT * FROM malotes WHERE date < ? ORDER BY date DESC LIMIT 1",
-            (current.date,),
-        )
-        return Malote.from_row(row) if row else None
-
-    @db_op("read")
-    def get_next_malote(self, current_malote_id: int) -> Optional[Malote]:
-        current = self.get_malote_by_id(current_malote_id)
-        if not current:
-            return None
-        row = self._fetch_one(
-            "SELECT * FROM malotes WHERE date > ? ORDER BY date ASC LIMIT 1",
             (current.date,),
         )
         return Malote.from_row(row) if row else None
@@ -779,7 +736,6 @@ class RACDatabase(BaseDatabase):
 
     def _stats_where(
         self,
-        cur,
         tipo: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
@@ -799,45 +755,13 @@ class RACDatabase(BaseDatabase):
         return where, params
 
     @db_op("read")
-    def get_stats_summary(
-        self,
-        tipo: str | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
-    ) -> dict[str, int]:
-        with self._cursor() as cur:
-            where, params = self._stats_where(cur, tipo, date_from, date_to)
-            cur.execute(
-                f"SELECT COUNT(*) AS total_registros, "
-                f"COUNT(DISTINCT r.paciente_id) AS total_pacientes, "
-                f"COUNT(DISTINCT r.malote_id) AS total_malotes "
-                f"FROM registros r JOIN malotes m ON r.malote_id = m.id{where}",
-                params,
-            )
-            row = dict(cur.fetchone())
-            cur.execute(
-                f"SELECT COUNT(DISTINCT ri.item_id) AS total_items "
-                f"FROM registro_items ri "
-                f"JOIN registros r ON ri.registro_id = r.id "
-                f"JOIN malotes m ON r.malote_id = m.id{where}",
-                params,
-            )
-            row2 = dict(cur.fetchone())
-            return {
-                "total_registros": row["total_registros"] or 0,
-                "total_pacientes": row["total_pacientes"] or 0,
-                "total_items": row2["total_items"] or 0,
-                "total_malotes": row["total_malotes"] or 0,
-            }
-
-    @db_op("read")
     def get_stats_by_tipo(
         self,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict]:
         with self._cursor() as cur:
-            where, params = self._stats_where(cur, date_from=date_from, date_to=date_to)
+            where, params = self._stats_where( date_from=date_from, date_to=date_to)
             cur.execute(
                 f"SELECT r.tipo, "
                 f"COUNT(*) AS registros, "
@@ -867,7 +791,7 @@ class RACDatabase(BaseDatabase):
         date_to: str | None = None,
     ) -> dict:
         with self._cursor() as cur:
-            where, params = self._stats_where(cur, date_from=date_from, date_to=date_to)
+            where, params = self._stats_where( date_from=date_from, date_to=date_to)
             cur.execute(
                 f"SELECT COUNT(*) AS registros, "
                 f"COUNT(DISTINCT paciente_id) AS pacientes "
@@ -888,14 +812,14 @@ class RACDatabase(BaseDatabase):
             return None, None
 
     @db_op("read")
-    def get_stats_top_medications(
+    def get_stats_top_itens(
         self,
         tipo: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict]:
         with self._cursor() as cur:
-            where, params = self._stats_where(cur, tipo, date_from, date_to)
+            where, params = self._stats_where( tipo, date_from, date_to)
             cur.execute(
                 f"SELECT ic.name AS medicamento, COUNT(*) AS registros "
                 f"FROM registro_items ri "
@@ -906,71 +830,3 @@ class RACDatabase(BaseDatabase):
                 params,
             )
             return [dict(r) for r in cur.fetchall()]
-
-    @db_op("read")
-    def get_stats_top_patients(
-        self,
-        tipo: str | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
-        limit: int = 10,
-    ) -> list[dict]:
-        with self._cursor() as cur:
-            where, params = self._stats_where(cur, tipo, date_from, date_to)
-            cur.execute(
-                f"SELECT p.name AS paciente, "
-                f"COUNT(*) AS registros, "
-                f"COUNT(DISTINCT m.id) AS malotes "
-                f"FROM registros r "
-                f"JOIN pacientes p ON r.paciente_id = p.id "
-                f"JOIN malotes m ON r.malote_id = m.id{where} "
-                f"GROUP BY r.paciente_id ORDER BY registros DESC LIMIT ?",
-                params + [limit],
-            )
-            patient_rows = [dict(r) for r in cur.fetchall()]
-            pids_where = where.replace("r.", "rr.").replace("m.", "mm.")
-            for row in patient_rows:
-                cur.execute(
-                    f"SELECT COUNT(DISTINCT ri.item_id) AS items "
-                    f"FROM registro_items ri "
-                    f"JOIN registros rr ON ri.registro_id = rr.id "
-                    f"JOIN pacientes p ON rr.paciente_id = p.id "
-                    f"JOIN malotes mm ON rr.malote_id = mm.id "
-                    f"WHERE p.name = ?{(' AND' + pids_where.replace(' WHERE ', '')) if pids_where and 'WHERE' in pids_where else ''}",
-                    [row["paciente"]] + params,
-                )
-                row["items"] = dict(cur.fetchone())["items"] or 0
-            return patient_rows
-
-    @db_op("read")
-    def get_stats_malote_timeline(
-        self,
-        tipo: str | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
-    ) -> list[dict]:
-        with self._cursor() as cur:
-            where_base, params = self._stats_where(cur, tipo, date_from, date_to)
-            cur.execute(
-                f"SELECT m.date, m.id AS malote_id "
-                f"FROM malotes m "
-                f"WHERE m.id IN (SELECT DISTINCT r.malote_id FROM registros r JOIN malotes m ON r.malote_id = m.id{where_base}) "
-                f"ORDER BY m.date DESC",
-                params,
-            )
-            malotes = [dict(r) for r in cur.fetchall()]
-            result = []
-            for mal in malotes:
-                row: dict = {"date": mal["date"], "malote_id": mal["malote_id"]}
-                for t in TIPO_LABELS:
-                    cur.execute(
-                        "SELECT COUNT(*) AS cnt FROM registros r "
-                        "JOIN pacientes p ON r.paciente_id = p.id "
-                        "WHERE r.malote_id = ? AND r.tipo = ?",
-                        (mal["malote_id"], t),
-                    )
-                    row[t] = dict(cur.fetchone())["cnt"] or 0
-                row["total"] = sum(row[t] for t in TIPO_LABELS)
-                if row["total"] > 0:
-                    result.append(row)
-            return result

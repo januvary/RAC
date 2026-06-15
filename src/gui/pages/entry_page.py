@@ -12,11 +12,11 @@ from PySide6.QtWidgets import (
     QPushButton,
     QCheckBox,
     QSizePolicy,
-    QLineEdit,
     QDialog,
 )
 from PySide6.QtCore import Qt, QTimer
 from dataclasses import dataclass
+from functools import partial
 
 from andaime.widgets import SearchableComboBox
 from src.gui.widgets import (
@@ -26,101 +26,77 @@ from src.gui.widgets import (
     make_button,
     make_hbox,
     BasePage,
+    CidInput,
     delete_registro_with_undo,
 )
 from src.gui.widgets.buttons import make_icon_button
 from src.models import Registro
-from src.services.registro_service import EditContext, ContextResult
+from src.services.registro_service import EditContext
 from src.services.exceptions import ValidationError, DuplicateRecordError
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
 
 
+class _CycleButton(QPushButton):
+    def __init__(
+        self,
+        label: str,
+        role: str,
+        *,
+        modulus: int,
+        base: int,
+        initial: int,
+        width: int = 40,
+        font_size: int = 14,
+        format_fn=None,
+        on_change=None,
+    ):
+        super().__init__(label)
+        self.setProperty("btnrole", role)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedWidth(width)
+        self.setStyleSheet(f"padding: 9px 0; font-size: {font_size}px; font-weight: 600;")
+        self._modulus = modulus
+        self._base = base
+        self._value = initial
+        self._format_fn = format_fn
+        self._on_change = on_change
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton:
+            self._value = ((self._value - self._base - 1) % self._modulus) + self._base
+        else:
+            self._value = ((self._value - self._base + 1) % self._modulus) + self._base
+        self._apply_label()
+        self.setDown(True)
+        QTimer.singleShot(120, lambda: self.setDown(False))
+        if self._on_change:
+            self._on_change(self._value)
+        super().mousePressEvent(event)
+
+    def _apply_label(self):
+        self.setText(self._format_fn(self._value) if self._format_fn else str(self._value))
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @value.setter
+    def value(self, v: int):
+        self._value = v
+        self._apply_label()
+
+
 @dataclass
 class _RowData:
-    group_btn: QPushButton
+    group_btn: _CycleButton
     row_widget: QWidget
-    months_btn: QPushButton | None = None
+    months_btn: _CycleButton | None = None
     return_btn: QPushButton | None = None
     combo: SearchableComboBox | None = None
     pg: int = 1
     ms: int = -1
-
-
-class _CidInput(QLineEdit):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setPlaceholderText("CID")
-        self.setFixedWidth(170)
-        self._formatting = False
-        self._deleting = False
-        self._prev_len = 0
-        self.textChanged.connect(self._on_text_changed)
-
-    def _on_text_changed(self, text: str):
-        if self._formatting:
-            self._prev_len = len(text)
-            return
-        self._deleting = len(text) < self._prev_len
-        self._prev_len = len(text)
-        self._formatting = True
-        cursor = self.cursorPosition()
-        formatted = self._format_all(text.upper())
-        if formatted != text:
-            new_cursor = cursor + (len(formatted) - len(text))
-            self.setText(formatted)
-            self.setCursorPosition(max(0, min(new_cursor, len(formatted))))
-        self._formatting = False
-
-    def _format_all(self, raw: str) -> str:
-        cids = []
-        current = ""
-        trailing_sep = False
-        i = 0
-        while i < len(raw):
-            ch = raw[i]
-            if ch in (";", ",", " "):
-                if current:
-                    cids.append(self._format_single(current))
-                    current = ""
-                trailing_sep = True
-                i += 1
-                continue
-            trailing_sep = False
-            current += ch
-            i += 1
-        if current:
-            cids.append(self._format_single(current))
-            trailing_sep = False
-        result = "; ".join(cids)
-        if trailing_sep and not self._deleting:
-            result += "; "
-        return result
-
-    def _format_single(self, cid: str) -> str:
-        cleaned = ""
-        for ch in cid:
-            if ch.isalpha():
-                if not cleaned:
-                    cleaned += ch.upper()
-            elif ch.isdigit():
-                cleaned += ch
-            elif ch == "." and len(cleaned) >= 3 and "." not in cleaned:
-                cleaned += ch
-        if not self._deleting and len(cleaned) >= 3 and "." not in cleaned:
-            cleaned = cleaned[:3] + "." + cleaned[3:]
-        if len(cleaned) > 7:
-            cleaned = cleaned[:7]
-        return cleaned
-
-    def focusOutEvent(self, event):
-        self._deleting = False
-        self._formatting = True
-        formatted = self._format_all(self.text().upper())
-        self.setText(formatted)
-        self._formatting = False
-        super().focusOutEvent(event)
 
 
 class EntryPage(BasePage):
@@ -176,12 +152,16 @@ class EntryPage(BasePage):
 
         QTimer.singleShot(0, self._paciente_combo.focus_search)
         QTimer.singleShot(0, self._refresh_return_dates)
+        if self._pre_paciente_id and not self._edit_id:
+            QTimer.singleShot(
+                0, lambda: self._on_paciente_selected(str(self._pre_paciente_id))
+            )
 
     def _build_header(self, layout: QVBoxLayout):
         self._tipo_combo = TipoCombo(self._tipo)
 
         if self._edit_registro:
-            malote = self._mw.db.get_malote_by_id(self._edit_registro.malote_id)
+            malote = self._mw.services.malote.get(self._edit_registro.malote_id)
             if malote:
                 self._mw.state.set_active_malote(malote)
 
@@ -203,11 +183,11 @@ class EntryPage(BasePage):
             "Nome do Paciente", on_search=self._search_pacientes
         )
 
-        self._cid_input = _CidInput()
+        self._cid_input = CidInput()
 
         prefill_id = self._edit_registro.paciente_id if self._edit_registro else self._pre_paciente_id
         if prefill_id:
-            paciente = self._mw.db.get_paciente_by_id(prefill_id)
+            paciente = self._mw.services.paciente.get(prefill_id)
             if paciente:
                 self._paciente_combo.set_options({str(paciente.id): paciente.name})
                 self._paciente_combo.set_current_by_data(str(paciente.id))
@@ -225,7 +205,7 @@ class EntryPage(BasePage):
         layout.addLayout(h)
 
     def _search_pacientes(self, query: str) -> dict[str, str]:
-        pacientes = self._mw.db.search_pacientes(query, limit=30)
+        pacientes = self._mw.services.paciente.search(query, limit=30)
         return {str(p.id): p.name for p in pacientes}
 
     def _search_items(self, query: str) -> dict[str, str]:
@@ -233,7 +213,7 @@ class EntryPage(BasePage):
         return {k: v for k, v in self._catalog_options.items() if normalized in v}
 
     def _build_items_section(self, layout: QVBoxLayout):
-        self._catalog_options = {str(i.id): i.name for i in self._mw.db.get_all_items()}
+        self._catalog_options = {str(i.id): i.name for i in self._mw.services.item_catalog.all()}
 
         self._items_container = QVBoxLayout()
         self._items_container.setSpacing(4)
@@ -327,26 +307,17 @@ class EntryPage(BasePage):
         row_h = make_hbox(spacing=2)
         row.setLayout(row_h)
 
-        group_btn = make_icon_button(str(process_group), "positive", font_size=14)
-        group_btn.setToolTip("Grupo do item (clique p/ alterar)")
-        group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        rd = _RowData(group_btn=group_btn, row_widget=row, pg=process_group, ms=months_supply)
-        _orig_mouse = group_btn.mousePressEvent
-
-        def _cycle_group(event):
-            if event.button() == Qt.MouseButton.RightButton:
-                rd.pg = ((rd.pg - 2) % 5) + 1
-            else:
-                rd.pg = (rd.pg % 5) + 1
-            group_btn.setText(str(rd.pg))
-            group_btn.setDown(True)
-            QTimer.singleShot(120, lambda: group_btn.setDown(False))
-            self._refresh_return_dates()
-            _orig_mouse(event)
-
-        group_btn.mousePressEvent = _cycle_group
-        row_h.addWidget(group_btn)
+        rd: _RowData
+        rd = _RowData(
+            group_btn=_CycleButton(
+                str(process_group), "positive",
+                modulus=5, base=1, initial=process_group, font_size=14,
+                on_change=lambda v: self._on_group_changed(rd, v),
+            ),
+            row_widget=row, pg=process_group, ms=months_supply,
+        )
+        rd.group_btn.setToolTip("Grupo do item (clique p/ alterar)")
+        row_h.addWidget(rd.group_btn)
 
         combo = SearchableComboBox(
             "Buscar item...",
@@ -365,29 +336,16 @@ class EntryPage(BasePage):
         rd.return_btn = return_label
         row_h.addWidget(return_label)
 
-        months_btn = make_icon_button(f"{months_supply}m", "positive", width=36, font_size=11)
-        months_btn.setToolTip("Meses de medicação (clique p/ alterar)")
-        months_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        _orig_mouse_months = months_btn.mousePressEvent
-
-        def _cycle_months(event):
-            if event.button() == Qt.MouseButton.RightButton:
-                rd.ms = (rd.ms - 1) % 7
-            else:
-                rd.ms = (rd.ms + 1) % 7
-            months_btn.setText(f"{rd.ms}m")
-            months_btn.setDown(True)
-            QTimer.singleShot(120, lambda: months_btn.setDown(False))
-            self._sync_months_for_group(rd.pg, rd.ms)
-            self._refresh_return_dates()
-            _orig_mouse_months(event)
-
-        months_btn.mousePressEvent = _cycle_months
-        months_btn.setVisible(self._tipo in ("retirada", "renovacao"))
-        rd.months_btn = months_btn
+        rd.months_btn = _CycleButton(
+            f"{months_supply}m", "positive",
+            modulus=7, base=0, initial=months_supply, width=36, font_size=11,
+            format_fn=lambda v: f"{v}m",
+            on_change=lambda v: self._on_months_changed(rd, v),
+        )
+        rd.months_btn.setToolTip("Meses de medicação (clique p/ alterar)")
+        rd.months_btn.setVisible(self._tipo in ("retirada", "renovacao"))
         self._rows.append(rd)
-        row_h.addWidget(months_btn)
+        row_h.addWidget(rd.months_btn)
 
         remove_btn = make_icon_button("\u00d7", "positive", font_size=16)
         remove_btn.setToolTip("Remover item")
@@ -397,11 +355,20 @@ class EntryPage(BasePage):
         self._items_container.addWidget(row)
         return combo
 
+    def _on_group_changed(self, rd: _RowData, new_pg: int):
+        rd.pg = new_pg
+        self._refresh_return_dates()
+
+    def _on_months_changed(self, rd: _RowData, new_ms: int):
+        rd.ms = new_ms
+        self._sync_months_for_group(rd.pg, new_ms)
+        self._refresh_return_dates()
+
     def _sync_months_for_group(self, group_number: int, new_ms: int):
         for rd in self._rows:
             if rd.pg == group_number and rd.months_btn:
                 rd.ms = new_ms
-                rd.months_btn.setText(f"{new_ms}m")
+                rd.months_btn.value = new_ms
 
     def _remove_item(self, widget: QWidget):
         self._rows = [rd for rd in self._rows if rd.row_widget is not widget]
@@ -534,19 +501,20 @@ class EntryPage(BasePage):
             day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][c.weekday()]
             btn = make_button(f"{date_str}  ({day_name})", "flat")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-
-            def _pick(checked=False, d=date_str, dialog=dlg, gn=rd.pg):
-                for b in self._get_return_buttons_for_group(gn):
-                    b.setText(d)
-                dialog.accept()
-
-            btn.clicked.connect(_pick)
+            btn.clicked.connect(
+                partial(self._apply_return_date, date_str, dlg, rd.pg)
+            )
             dlg_layout.addWidget(btn)
 
         dlg.exec()
 
+    def _apply_return_date(self, date_str: str, dialog: QDialog, group_number: int):
+        for b in self._get_return_buttons_for_group(group_number):
+            b.setText(date_str)
+        dialog.accept()
+
     def _load_cid_for_paciente(self, paciente_id: int):
-        paciente = self._mw.db.get_paciente_by_id(paciente_id)
+        paciente = self._mw.services.paciente.get(paciente_id)
         if paciente:
             self._cid_input.setText(paciente.cid or "")
         else:
@@ -557,7 +525,7 @@ class EntryPage(BasePage):
         if not pid:
             name = self._paciente_combo.current_text().strip()
             if name:
-                existing = self._mw.db.find_paciente_by_name(name)
+                existing = self._mw.services.paciente.find_by_name(name)
                 if existing:
                     pid = str(existing.id)
         if not pid:
@@ -697,9 +665,9 @@ class EntryPage(BasePage):
             return
         try:
             cid = self._cid_input.text().strip()
-            self._mw.services.paciente.update_cid(paciente_id, cid)
-        except Exception:
-            pass
+            self._mw.services.paciente.update(paciente_id, cid=cid)
+        except Exception as e:
+            self._handle_error(e, context="CID")
 
     def _reset_form(self):
         self._edit_id = None
@@ -722,12 +690,11 @@ class EntryPage(BasePage):
         if not self._edit_id:
             return
 
-        def navigate_start():
-            QTimer.singleShot(800, lambda: self._mw.navigate_to(self._return_to))
-
         delete_registro_with_undo(
             self,
             self._mw.db,
             self._edit_id,
-            on_refresh=navigate_start,
+            on_refresh=lambda: QTimer.singleShot(
+                800, lambda: self._mw.navigate_to(self._return_to)
+            ),
         )

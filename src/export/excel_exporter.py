@@ -214,7 +214,7 @@ class ExcelExporter:
             return None
 
         tipo_rows = self._db.get_stats_by_tipo(date_from=date_from, date_to=date_to)
-        med_rows = self._db.get_stats_top_medications(
+        med_rows = self._db.get_stats_top_itens(
             date_from=date_from, date_to=date_to
         )
         if not tipo_rows and not med_rows:

@@ -4,8 +4,6 @@
 Main Window — QStackedWidget page navigation
 """
 
-from contextlib import suppress
-
 from PySide6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout
 from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QShortcut, QKeySequence
@@ -13,7 +11,6 @@ from PySide6.QtGui import QShortcut, QKeySequence
 from src.database.rac_database import RACDatabase
 from src.state.rac_state_manager import RACStateManager
 from andaime.config import ConfigManager
-from andaime.error_handler import ErrorHandler
 
 from src.gui.constants import TIPO_LABELS
 
@@ -71,7 +68,7 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
 
     def eventFilter(self, obj, event):
-        with suppress(Exception):
+        try:
             etype = event.type()
             if etype == QEvent.Type.KeyPress:
                 if (
@@ -91,6 +88,8 @@ class MainWindow(QMainWindow):
                     has_shift = mods & Qt.KeyboardModifier.ShiftModifier
                     if not (has_ctrl and has_shift):
                         self._toggle_shortcut_peek(False)
+        except RuntimeError:
+            pass
         return super().eventFilter(obj, event)
 
     def _toggle_shortcut_peek(self, show: bool):
@@ -232,7 +231,8 @@ class MainWindow(QMainWindow):
                 shifted = QKeySequence(key.replace("Ctrl+", "Ctrl+Shift+"))
                 QShortcut(shifted, self, handler)
         for idx, tipo in self._TIPO_SHORTCUTS.items():
-            handler = lambda _checked=False, t=tipo: self._shortcut_tipo_by_key(t)
+            def handler(_checked=False, t=tipo):
+                self._shortcut_tipo_by_key(t)
             for modifier in ("Ctrl+", "Ctrl+Shift+"):
                 QShortcut(QKeySequence(f"{modifier}{idx + 1}"), self, handler)
 

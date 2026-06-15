@@ -5,7 +5,6 @@ Preview Page — tabbed table view of malote registros
 """
 
 from PySide6.QtWidgets import (
-    QWidget,
     QVBoxLayout,
     QTabWidget,
     QTableWidget,
@@ -25,7 +24,7 @@ from src.gui.widgets import (
     make_tab,
 )
 from src.gui.constants import TIPO_HEX, TIPO_LABELS
-from src.gui.styles import colors, faded_tipo_color, tab_style_qss, filter_table_rows, data_view_style_qss
+from src.gui.styles import faded_tipo_color, tab_style_qss, filter_table_rows, data_view_style_qss
 
 from src.utils.text_utils import format_malote_date
 from src.services.exceptions import DuplicateRecordError
@@ -57,7 +56,7 @@ class PreviewPage(BasePage):
         if not malote:
             return
 
-        registros = self._mw.db.get_registros_with_items_by_malote(malote.id)
+        registros = self._mw.services.registro.get_with_items_by_malote(malote.id)
 
         self._tabs = QTabWidget()
         self._tabs.setMinimumHeight(550)
@@ -170,7 +169,7 @@ class PreviewPage(BasePage):
         reg_id = item.data(Qt.ItemDataRole.UserRole)
         if reg_id is None:
             return
-        reg = self._mw.db.get_registro_by_id(reg_id)
+        reg = self._mw.services.registro.get(reg_id)
         if reg:
             self._mw.navigate_to(
                 "entry", tipo=reg.tipo, edit_id=reg_id, return_to="preview"
@@ -223,7 +222,7 @@ class PreviewPage(BasePage):
             )
 
         active = self._mw.state.get_active_malote()
-        malotes = self._mw.db.get_all_malotes()
+        malotes = self._mw.services.malote.all()
         other_malotes = [m for m in malotes if not active or m.id != active.id]
         if other_malotes:
             malote_menu = editar_menu.addMenu("Malote")
@@ -290,7 +289,7 @@ class PreviewPage(BasePage):
             )
 
     def _edit_paciente_name(self, reg_id: int):
-        reg = self._mw.db.get_registro_by_id(reg_id)
+        reg = self._mw.services.registro.get(reg_id)
         if not reg or not reg.paciente_id:
             return
         new_name = open_input_dialog(
@@ -302,7 +301,7 @@ class PreviewPage(BasePage):
         if not new_name or new_name == reg.paciente_name:
             return
         try:
-            self._mw.services.paciente.rename(reg.paciente_id, new_name)
+            self._mw.services.paciente.update(reg.paciente_id, name=new_name)
             self.refresh()
             self._toast("Nome do paciente atualizado", "positive")
         except Exception as e:
@@ -319,6 +318,8 @@ class PreviewPage(BasePage):
             ):
                 return
             try:
+                from andaime.error_handler import ErrorHandler
+
                 service = self._mw.services.registro
                 snapshots: list[DeleteSnapshot] = []
                 errors = 0
@@ -327,7 +328,10 @@ class PreviewPage(BasePage):
                         snap = service.delete_with_snapshot(rid)
                         if snap:
                             snapshots.append(snap)
-                    except Exception:
+                    except Exception as e:
+                        ErrorHandler.handle_error(
+                            e, context="Registro", show_dialog=False
+                        )
                         errors += 1
                 self.refresh()
 
@@ -354,7 +358,6 @@ class PreviewPage(BasePage):
                             )
 
                     from src.gui.widgets.toast import show_toast
-                    from andaime.error_handler import ErrorHandler
 
                     msg = f"{len(snapshots)} registros excluidos"
                     if errors:
@@ -373,7 +376,7 @@ class PreviewPage(BasePage):
                 self._handle_error(e)
 
     def _view_patient(self, reg_id: int):
-        reg = self._mw.db.get_registro_by_id(reg_id)
+        reg = self._mw.services.registro.get(reg_id)
         if reg and reg.paciente_id:
             self._mw.navigate_to("patient", paciente_id=reg.paciente_id, highlight_registro=reg_id)
 

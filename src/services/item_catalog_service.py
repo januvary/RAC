@@ -12,6 +12,9 @@ class ItemCatalogService:
     def create(self, name: str, unidade: str = "un") -> ItemCatalog:
         return self._db.create_item(name, unidade)
 
+    def all(self) -> list[ItemCatalog]:
+        return self._db.get_all_items()
+
     def update(self, item_id: int, name: str) -> bool:
         return self._db.update_item(item_id, name)
 

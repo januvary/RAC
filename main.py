@@ -10,7 +10,6 @@ from PySide6.QtCore import Qt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import andaime
-from andaime import App
 from src.utils.config import RACConfig
 from src.database.rac_database import RACDatabase
 
@@ -32,21 +31,20 @@ def _get_app_icon_path():
 
 
 def _apply_pending_update():
-    from src.utils.updater import apply_pending_update
+    from andaime.updater import apply_pending_update
 
     apply_pending_update()
 
 
 def _start_update_check(window):
     from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
-    from src.utils.updater import UpdateCheckWorker, restart_app
-    from src.utils.updater import REPO
+    from andaime.updater import UpdateCheckWorker, restart_app
     from src import __version__
     from src.gui.widgets.buttons import make_button
     from src.gui.widgets.labels import HeadingLabel
     from src.gui.styles import colors
 
-    worker = UpdateCheckWorker(REPO, __version__, parent=window)
+    worker = UpdateCheckWorker("januvary/RAC", __version__, parent=window)
 
     def _on_downloaded(tag):
         dlg = QDialog(window)

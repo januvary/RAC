@@ -3,7 +3,6 @@
 
 from src.database.rac_database import RACDatabase
 from src.models import Malote
-from src.services.exceptions import ValidationError
 
 
 class MaloteService:
@@ -13,13 +12,25 @@ class MaloteService:
     def create(self, date: str, arrival_date: str | None = None) -> Malote:
         return self._db.create_malote(date, arrival_date=arrival_date)
 
-    def update_send_date(self, malote_id: int, new_date: str) -> None:
-        arrival_iso = self._derive_arrival(new_date)
-        self._db.update_malote(malote_id, date=new_date, arrival_date=arrival_iso)
-        self._recalculate_affected_registros(malote_id)
+    def get(self, malote_id: int) -> Malote | None:
+        return self._db.get_malote_by_id(malote_id)
 
-    def update_arrival_date(self, malote_id: int, arrival_date: str) -> None:
-        self._db.update_malote(malote_id, arrival_date=arrival_date)
+    def all(self) -> list[Malote]:
+        return self._db.get_all_malotes()
+
+    def get_dates(self) -> set[str]:
+        return self._db.get_malote_dates()
+
+    def update(
+        self, malote_id: int, *, date: str | None = None, arrival_date: str | None = None
+    ) -> None:
+        if date is not None:
+            arrival_iso = self._derive_arrival(date)
+            self._db.update_malote(malote_id, date=date, arrival_date=arrival_iso)
+        elif arrival_date is not None:
+            self._db.update_malote(malote_id, arrival_date=arrival_date)
+        else:
+            return
         self._recalculate_affected_registros(malote_id)
 
     def delete(self, malote_id: int) -> bool:
@@ -42,19 +53,19 @@ class MaloteService:
         for reg in registros:
             if reg.id is None:
                 continue
-            items = self._db.get_items_for_registro(reg.id)
+            items = self._db.get_items_by_registro(reg.id)
             item_tuples = [
                 (i.item_id, i.process_group)
                 for i in items
                 if i.item_id is not None
             ]
-            processes = self._db.get_processes_for_registro(reg.id)
+            processes = self._db.get_processes_by_registro(reg.id)
             process_months = [
                 (p.group_number, p.months_supply) for p in processes
             ]
             if not item_tuples:
                 continue
-            svc.update_existing(
+            svc.update(
                 reg.id,
                 reg.tipo,
                 reg.paciente_id,

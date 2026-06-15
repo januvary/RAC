@@ -140,7 +140,7 @@ def _show_malote_dialog(label: MaloteLabel):
                 child.setFont(1, font)
 
     def _populate_tree():
-        malotes = mw.db.get_all_malotes()
+        malotes = mw.services.malote.all()
         _populate(
             tree,
             malotes,
@@ -175,7 +175,7 @@ def _show_malote_dialog(label: MaloteLabel):
         edit_menu = menu.addMenu("Editar")
         envio_action = edit_menu.addAction("Data de envio")
         retorno_action = edit_menu.addAction("Data de retorno")
-        has_registros = mw.db.get_registros_by_malote(malote.id)
+        has_registros = mw.services.registro.get_by_malote(malote.id)
         if not has_registros:
             delete_action = menu.addAction("Excluir")
         else:
@@ -199,7 +199,7 @@ def _show_malote_dialog(label: MaloteLabel):
                 current_active = mw.state.get_active_malote()
                 if current_active and current_active.id == malote.id:
                     remaining = [
-                        m for m in mw.db.get_all_malotes() if m.id != malote.id
+                        m for m in mw.services.malote.all() if m.id != malote.id
                     ]
                     mw.state.set_active_malote(remaining[0] if remaining else None)
                 label.refresh()
@@ -245,7 +245,6 @@ def _show_malote_dialog(label: MaloteLabel):
 
 def _show_holidays_dialog(parent):
     from datetime import date as date_cls
-    from pathlib import Path
     from andaime.dates import DateCalculator
     from andaime.paths import get_root_directory
 
@@ -258,8 +257,8 @@ def _show_holidays_dialog(parent):
         try:
             with pontos_path.open("r", encoding="utf-8") as f:
                 pontos_data = json.load(f).get("pontos_facultativos", {})
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError):
+            pontos_data = {}
 
     all_holidays = DateCalculator.get_holidays()
     today = date_cls.today()
@@ -390,8 +389,8 @@ def _remove_ponto(dt, pontos_path: Path):
         try:
             with pontos_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError):
+            return
     pontos = data.get("pontos_facultativos", {})
     if yr_str in pontos and entry in pontos[yr_str]:
         pontos[yr_str].remove(entry)
@@ -419,8 +418,8 @@ def _show_new_malote_dialog(label: MaloteLabel):
 
     date_input = QLineEdit()
     date_input.setPlaceholderText("dd/mm ou dd/mm/aa")
-    with suppress(Exception):
-        existing = set(mw.db.get_malote_dates())
+    with suppress(ValueError, TypeError):
+        existing = set(mw.services.malote.get_dates())
         suggested = next_send_date(existing)
         date_input.setText(suggested.strftime("%d/%m/%Y"))
     date_input.selectAll()
@@ -515,13 +514,13 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
         try:
             svc = mw.services.malote
             if field == "send":
-                svc.update_send_date(malote.id, iso)
-                refreshed = mw.db.get_malote_by_id(malote.id)
+                svc.update(malote.id, date=iso)
+                refreshed = mw.services.malote.get(malote.id)
                 if refreshed:
                     malote.date = refreshed.date
                     malote.arrival_date = refreshed.arrival_date
             else:
-                svc.update_arrival_date(malote.id, iso)
+                svc.update(malote.id, arrival_date=iso)
                 malote.arrival_date = iso
             if (
                 mw.state.get_active_malote()

@@ -61,7 +61,7 @@ class PatientPage(BasePage):
     def _build_header(self, layout: QVBoxLayout):
         h = self._add_back_button(layout)
 
-        paciente = self._mw.db.get_paciente_by_id(self._paciente_id)
+        paciente = self._mw.services.paciente.get(self._paciente_id)
         name = paciente.name if paciente else "?"
         cid = paciente.cid if paciente else ""
         c = colors()
@@ -74,7 +74,7 @@ class PatientPage(BasePage):
         name_btn.setStyleSheet(
             f'QPushButton {{ background: transparent; border: none; '
             f"color: {c['text_primary']}; font-size: 18px; font-weight: 700; padding: 0; }}"
-            f'QPushButton:hover {{ color: {c['text_secondary']}; }}'
+            f'QPushButton:hover {{ color: {c["text_secondary"]}; }}'
         )
         name_btn.clicked.connect(self._edit_name)
         header_h.addWidget(name_btn)
@@ -82,16 +82,16 @@ class PatientPage(BasePage):
         cid_btn = make_button(f"CID: {cid}" if cid else "CID: —", "flat")
         cid_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cid_btn.setStyleSheet(
-            f'QPushButton {{ background: transparent; border: 1px solid {c['border_light']}; '
+            f'QPushButton {{ background: transparent; border: 1px solid {c["border_light"]}; '
             f"border-radius: 4px; padding: 2px 8px; color: {c['text_secondary']}; font-size: 12px; }}"
-            f'QPushButton:hover {{ background: {c['bg_hover']}; }}'
+            f'QPushButton:hover {{ background: {c["bg_hover"]}; }}'
         )
         cid_btn.clicked.connect(self._edit_cid)
         header_h.addWidget(cid_btn)
         h.addLayout(header_h)
 
     def _build_table(self, layout: QVBoxLayout):
-        registros = self._mw.db.get_registros_for_paciente(self._paciente_id)
+        registros = self._mw.services.registro.get_by_paciente(self._paciente_id)
 
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(["Malote", "Tipo", "Medicamentos"])
@@ -116,7 +116,7 @@ class PatientPage(BasePage):
         highlight_row = -1
 
         for reg in registros:
-            items = self._mw.db.get_items_for_registro(reg.id)
+            items = self._mw.services.registro.get_items(reg.id)
             meds_by_group: dict[int, list[str]] = {}
             for item in items:
                 meds_by_group.setdefault(item.process_group, []).append(
@@ -163,7 +163,8 @@ class PatientPage(BasePage):
 
         if highlight_row >= 0:
             self._table.selectRow(highlight_row)
-            self._table.scrollToItem(self._table.item(highlight_row, 0))
+            if item := self._table.item(highlight_row, 0):
+                self._table.scrollToItem(item)
 
         self._table.cellDoubleClicked.connect(self._on_row_double_clicked)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -239,7 +240,7 @@ class PatientPage(BasePage):
         reg_id = self._get_reg_id(row)
         if reg_id is None:
             return
-        reg = self._mw.db.get_registro_by_id(reg_id)
+        reg = self._mw.services.registro.get(reg_id)
         if reg:
             self._mw.navigate_to(
                 "entry", tipo=reg.tipo, edit_id=reg_id, return_to="patient",
@@ -268,7 +269,7 @@ class PatientPage(BasePage):
         menu.exec(self._table.viewport().mapToGlobal(pos))
 
     def _edit_registro(self, reg_id: int):
-        reg = self._mw.db.get_registro_by_id(reg_id)
+        reg = self._mw.services.registro.get(reg_id)
         if reg:
             self._mw.navigate_to(
                 "entry", tipo=reg.tipo, edit_id=reg_id, return_to="patient",
@@ -288,7 +289,7 @@ class PatientPage(BasePage):
         )
 
     def _edit_name(self):
-        paciente = self._mw.db.get_paciente_by_id(self._paciente_id)
+        paciente = self._mw.services.paciente.get(self._paciente_id)
         if not paciente:
             return
         new_name = open_input_dialog(
@@ -297,24 +298,24 @@ class PatientPage(BasePage):
         if not new_name or new_name == paciente.name:
             return
         try:
-            self._mw.db.update_paciente(self._paciente_id, new_name)
+            self._mw.services.paciente.update(self._paciente_id, name=new_name)
             self.refresh()
             self._toast("Nome atualizado", "positive")
         except Exception as e:
             self._handle_error(e)
 
     def _edit_cid(self):
-        from src.gui.pages.entry_page import _CidInput
+        from src.gui.widgets import CidInput
         from src.gui.widgets.dialogs import scaffold_dialog, make_dialog_button_row
 
-        paciente = self._mw.db.get_paciente_by_id(self._paciente_id)
+        paciente = self._mw.services.paciente.get(self._paciente_id)
         if not paciente:
             return
 
         dlg, layout = scaffold_dialog(self, "Editar CID")
         layout.addSpacing(4)
 
-        input_field = _CidInput()
+        input_field = CidInput()
         input_field.setText(paciente.cid or "")
         input_field.setMinimumWidth(170)
         input_field.setMaximumWidth(16777215)
@@ -337,7 +338,7 @@ class PatientPage(BasePage):
         if new_cid == (paciente.cid or ""):
             return
         try:
-            self._mw.db.update_paciente(self._paciente_id, paciente.name, cid=new_cid)
+            self._mw.services.paciente.update(self._paciente_id, cid=new_cid)
             self.refresh()
             self._toast("CID atualizado", "positive")
         except Exception as e:

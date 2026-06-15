@@ -7,7 +7,6 @@ Start Page — malote header, search, tipo buttons, export
 from contextlib import suppress
 
 from PySide6.QtWidgets import (
-    QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QSizePolicy,
@@ -167,7 +166,7 @@ class StartPage(BasePage):
             return {}
         malote = self._mw.state.get_active_malote()
         active_id = malote.id if malote else None
-        resultados = self._mw.db.search_registros_by_patient(query, active_id)
+        resultados = self._mw.services.registro.search_by_paciente(query, active_id)
         return {
             str(
                 r.id
@@ -180,7 +179,7 @@ class StartPage(BasePage):
             return
         with suppress(ValueError, TypeError):
             reg_id = int(data)
-            reg = self._mw.db.get_registro_by_id(reg_id)
+            reg = self._mw.services.registro.get(reg_id)
             if reg:
                 self._pre_search_malote = self._mw.state.get_active_malote()
                 self._mw.navigate_to("patient", paciente_id=reg.paciente_id, highlight_registro=reg_id)
@@ -192,15 +191,18 @@ class StartPage(BasePage):
         return True
     
     def _on_tipo_click(self, tipo_key: str):
-        if not self._require_malote(): return
+        if not self._require_malote():
+            return
         self._mw.navigate_to("entry", tipo=tipo_key)
 
     def _on_preview(self):
-        if not self._require_malote(): return
+        if not self._require_malote():
+            return
         self._mw.navigate_to("preview")
 
     def _on_export(self):
-        if not self._require_malote(): return
+        if not self._require_malote():
+            return
         malote = self._mw.state.get_active_malote()
         exporter = ExcelExporter(self._mw.db)
         export_with_fallback(

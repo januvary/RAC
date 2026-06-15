@@ -265,7 +265,7 @@ class TestRegistroItems:
         r = db.create_registro("entrada", paciente.id, malote.id)
         item_ids = [catalog_items[0].id, catalog_items[1].id]
         db.set_registro_items(r.id, [(iid, 1) for iid in item_ids])
-        items = db.get_items_for_registro(r.id)
+        items = db.get_items_by_registro(r.id)
         assert len(items) == 2
         returned_ids = {i.item_id for i in items}
         assert returned_ids == set(item_ids)
@@ -276,24 +276,24 @@ class TestRegistroItems:
         db.set_registro_items(
             r.id, [(catalog_items[1].id, 1), (catalog_items[2].id, 1)]
         )
-        items = db.get_items_for_registro(r.id)
+        items = db.get_items_by_registro(r.id)
         assert len(items) == 2
 
     def test_set_items_empty_clears(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
         db.set_registro_items(r.id, [(catalog_items[0].id, 1)])
         db.set_registro_items(r.id, [])
-        items = db.get_items_for_registro(r.id)
+        items = db.get_items_by_registro(r.id)
         assert len(items) == 0
 
     def test_cascade_delete_on_registro(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
         db.set_registro_items(r.id, [(catalog_items[0].id, 1)])
         db.delete_registro(r.id)
-        items = db.get_items_for_registro(r.id)
+        items = db.get_items_by_registro(r.id)
         assert len(items) == 0
 
-    def test_get_items_for_paciente_distinct(self, full_setup):
+    def test_get_items_by_paciente_distinct(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
         paciente = full_setup["paciente"]
@@ -302,7 +302,7 @@ class TestRegistroItems:
         r2 = db.create_registro("renovacao", paciente.id, malote.id)
         db.set_registro_items(r2.id, [(items[0].id, 1), (items[2].id, 1)])
 
-        patient_items = db.get_items_for_paciente(paciente.id)
+        patient_items = db.get_items_by_paciente(paciente.id)
         assert len(patient_items) == 3
         returned_ids = {i.id for i in patient_items}
         assert returned_ids == {i.id for i in items}
@@ -368,19 +368,19 @@ class TestSearchRegistrosByPatient:
     def test_search_by_name(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        results = db.search_registros_by_patient("silva", malote.id)
+        results = db.search_registros_by_paciente("silva", malote.id)
         assert len(results) == 1
         assert results[0].paciente_name == "JOAO SILVA"
 
     def test_search_by_name_accent_insensitive(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        results = db.search_registros_by_patient("joao", malote.id)
+        results = db.search_registros_by_paciente("joao", malote.id)
         assert len(results) == 1
         assert results[0].paciente_name == "JOAO SILVA"
 
     def test_search_no_match(self, full_setup):
         db = full_setup["db"]
         malote = full_setup["malote"]
-        results = db.search_registros_by_patient("xyz", malote.id)
+        results = db.search_registros_by_paciente("xyz", malote.id)
         assert len(results) == 0
