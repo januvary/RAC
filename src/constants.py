@@ -6,6 +6,7 @@ TIPO_LABELS = {
     "renovacao": "Renovação",
     "retirada": "Retirada",
     "urgente": "Resolver na hora",
+    "medcasa": "Remédio em Casa",
 }
 
 TIPO_TITLES = {
@@ -13,4 +14,7 @@ TIPO_TITLES = {
     "renovacao": "RENOVAÇÕES",
     "retirada": "RETIRADAS",
     "urgente": "RESOLVER NA HORA",
+    "medcasa": "REMÉDIOS EM CASA",
 }
+
+TIPOS_WITH_MONTHS = frozenset({"retirada", "renovacao"})

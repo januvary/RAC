@@ -4,13 +4,14 @@
 Shared constants for RAC PySide6 app
 """
 
-from src.constants import TIPO_LABELS, TIPO_TITLES  # noqa: F401
+from src.constants import TIPO_LABELS, TIPO_TITLES, TIPOS_WITH_MONTHS  # noqa: F401
 
 TIPO_HEX = {
     "entrada": "#10B981",
     "renovacao": "#3B82F6",
     "retirada": "#D97706",
     "urgente": "#EF4444",
+    "medcasa": "#06B6D4",
 }
 
 TIPO_SYMBOLS = {
@@ -18,6 +19,7 @@ TIPO_SYMBOLS = {
     "renovacao": "\u21bb",
     "retirada": "\u25bc",
     "urgente": "!",
+    "medcasa": "\u2302",
 }
 
 SHORTCUT_LABELS: dict[str, tuple[str, str]] = {
@@ -37,4 +39,5 @@ TIPO_SHORTCUT_KEYS: dict[str, str] = {
     "renovacao": "Ctrl+2",
     "retirada": "Ctrl+3",
     "urgente": "Ctrl+4",
+    "medcasa": "Ctrl+5",
 }

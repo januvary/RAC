@@ -16,7 +16,6 @@ from PySide6.QtCore import Qt
 
 from andaime.widgets import SearchableComboBox
 from src.gui.widgets import (
-    SectionLabel,
     TipoButton,
     make_button,
     make_hbox,
@@ -50,8 +49,6 @@ class StartPage(BasePage):
         self._build_malote_header(layout)
         layout.addSpacing(20)
 
-        layout.addWidget(SectionLabel("Buscar registro"))
-        layout.addSpacing(8)
         self._build_search(layout)
         layout.addSpacing(20)
 
@@ -91,10 +88,7 @@ class StartPage(BasePage):
 
         left = QVBoxLayout()
         left.setSpacing(8)
-        left.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-
-        left_label = SectionLabel("Criar novo registro")
-        left.addWidget(left_label)
+        left.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self._tipo_btns: list[TipoButton] = []
         for tipo_key in TIPO_LABELS:
@@ -108,7 +102,7 @@ class StartPage(BasePage):
 
         left.addSpacing(24)
 
-        columns.addLayout(left)
+        columns.addLayout(left, 1)
         columns.addSpacing(8)
 
         self._sep_line = QFrame()
@@ -125,11 +119,7 @@ class StartPage(BasePage):
 
         right = QVBoxLayout()
         right.setSpacing(8)
-        right.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-
-        right_label = SectionLabel("Op\u00e7\u00f5es")
-        right_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        right.addWidget(right_label)
+        right.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self._shortcut_widgets = {}
 
@@ -143,6 +133,7 @@ class StartPage(BasePage):
             shortcut_btn = make_button(label, "flat")
             shortcut_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             shortcut_btn.setFixedHeight(54)
+            shortcut_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             shortcut_btn.setStyleSheet(self._flat_btn_style(c, "right"))
             shortcut_btn.clicked.connect(handler)
             right.addWidget(shortcut_btn)
@@ -150,7 +141,7 @@ class StartPage(BasePage):
 
         right.addSpacing(24)
 
-        columns.addLayout(right)
+        columns.addLayout(right, 1)
         layout.addLayout(columns)
 
     def refresh(self):

@@ -6,6 +6,7 @@ import pytest
 from src.database.rac_database import RACDatabase
 from src.services.registro_service import RegistroService, SaveResult, EditContext
 from src.services.exceptions import DuplicateRecordError, ValidationError
+from src.constants import TIPO_LABELS
 
 
 @pytest.fixture
@@ -509,10 +510,11 @@ class TestComplexWorkflows:
         assert len(items_entrada) == 2
         assert len(items_renovacao) == 1
 
-    def test_cycle_all_four_tipos(self, service, db, malote, catalog_items):
+    def test_cycle_all_tipos(self, service, db, malote, catalog_items):
         paciente_name = "Maria Santos"
-        ids = [c.id for c in catalog_items[:4]]
-        tipos = ["entrada", "renovacao", "retirada", "urgente"]
+        tipos = list(TIPO_LABELS.keys())
+        n = len(tipos)
+        ids = [c.id for c in catalog_items[:n]]
         result_ids = []
 
         for i, tipo in enumerate(tipos):
@@ -525,14 +527,14 @@ class TestComplexWorkflows:
             assert r.is_update is False
             result_ids.append(r.registro_id)
 
-        assert len(set(result_ids)) == 4
+        assert len(set(result_ids)) == n
 
         for i, tipo in enumerate(tipos):
             r = service.save(
                 tipo=tipo,
                 paciente_name=paciente_name,
                 malote_id=malote.id,
-                items=[(ids[i], 1), (ids[(i + 1) % 4], 1)],
+                items=[(ids[i], 1), (ids[(i + 1) % n], 1)],
             )
             assert r.is_update is True
             assert r.registro_id == result_ids[i]

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
+from src.constants import TIPOS_WITH_MONTHS
+
 from andaime.dates import DateCalculator
 
 if TYPE_CHECKING:
@@ -130,6 +132,12 @@ def calculate_return_dates(
             for g, m in process_groups
         ]
 
+    if tipo == "medcasa":
+        return [
+            ProcessReturnInfo(g, m, None)
+            for g, m in process_groups
+        ]
+
     if tipo == "urgente":
         effective_arrival = arrival_date
         if db and current_malote_id:
@@ -144,7 +152,7 @@ def calculate_return_dates(
             for g, m in process_groups
         ]
 
-    if tipo in ("retirada", "renovacao"):
+    if tipo in TIPOS_WITH_MONTHS:
         has_months = any(m > 0 for _, m in process_groups)
         if has_months:
             return _calculate_retirada_returns(

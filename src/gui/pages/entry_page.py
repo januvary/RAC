@@ -33,6 +33,7 @@ from src.gui.widgets.buttons import make_icon_button
 from src.models import Registro
 from src.services.registro_service import EditContext
 from src.services.exceptions import ValidationError, DuplicateRecordError
+from src.constants import TIPOS_WITH_MONTHS
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
@@ -343,7 +344,7 @@ class EntryPage(BasePage):
             on_change=lambda v: self._on_months_changed(rd, v),
         )
         rd.months_btn.setToolTip("Meses de medicação (clique p/ alterar)")
-        rd.months_btn.setVisible(self._tipo in ("retirada", "renovacao"))
+        rd.months_btn.setVisible(self._tipo in TIPOS_WITH_MONTHS)
         self._rows.append(rd)
         row_h.addWidget(rd.months_btn)
 
@@ -401,7 +402,7 @@ class EntryPage(BasePage):
 
     def _on_tipo_changed_months(self, tipo: str):
         self._tipo = tipo
-        visible = tipo in ("retirada", "renovacao")
+        visible = tipo in TIPOS_WITH_MONTHS
         for rd in self._rows:
             if rd.months_btn:
                 rd.months_btn.setVisible(visible)
@@ -488,7 +489,7 @@ class EntryPage(BasePage):
             dlg.reject()
             return
 
-        if tipo in ("retirada", "renovacao") and ms > 0:
+        if tipo in TIPOS_WITH_MONTHS and ms > 0:
             runs_out = date.today() + timedelta(days=ms * 30)
             nearest = find_nearest_arrival_after(runs_out, db=self._mw.db, top=1)
             best_arrival = nearest[0][0] if nearest else arrival_date

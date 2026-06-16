@@ -203,13 +203,6 @@ class MainWindow(QMainWindow):
 
         self._push_page(PatientPage, paciente_id, highlight_registro)
 
-    _TIPO_SHORTCUTS = {
-        0: "entrada",
-        1: "renovacao",
-        2: "retirada",
-        3: "urgente",
-    }
-
     def _setup_shortcuts(self):
         shortcuts = [
             ("Ctrl+S", self._shortcut_save),
@@ -230,7 +223,7 @@ class MainWindow(QMainWindow):
             if isinstance(key, str):
                 shifted = QKeySequence(key.replace("Ctrl+", "Ctrl+Shift+"))
                 QShortcut(shifted, self, handler)
-        for idx, tipo in self._TIPO_SHORTCUTS.items():
+        for idx, tipo in enumerate(TIPO_LABELS):
             def handler(_checked=False, t=tipo):
                 self._shortcut_tipo_by_key(t)
             for modifier in ("Ctrl+", "Ctrl+Shift+"):
