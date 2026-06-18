@@ -3,4 +3,4 @@ RAC - Registros Alto Custo
 Sistema de gerenciamento de registros do Alto Custo
 """
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"
