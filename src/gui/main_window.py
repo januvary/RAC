@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self._services = None
         self._shortcut_peek_active = False
         self._last_patient_id: int | None = None
+        self._patient_return_to: str = "start"
 
     def init_backend(self):
         self.config = ConfigManager()
@@ -131,9 +132,10 @@ class MainWindow(QMainWindow):
         elif page_name == "patient":
             paciente_id = kwargs.get("paciente_id") or self._last_patient_id
             highlight = kwargs.get("highlight_registro")
+            return_to = kwargs.get("return_to")
             if paciente_id:
                 self._last_patient_id = paciente_id
-                self._show_patient_page(paciente_id, highlight)
+                self._show_patient_page(paciente_id, highlight, return_to)
         elif page_name == "entry":
             tipo = kwargs.get("tipo", "entrada")
             edit_id = kwargs.get("edit_id")
@@ -142,8 +144,10 @@ class MainWindow(QMainWindow):
             self._show_entry_page(tipo, edit_id, return_to, paciente_id)
         elif page_name == "preview":
             self._show_preview_page()
-        elif page_name == "lists":
-            self._show_list_manage_page()
+        elif page_name == "medicamentos":
+            self._show_medicamentos_page()
+        elif page_name == "pacientes":
+            self._show_pacientes_page()
         elif page_name == "stats":
             self._show_stats_page()
 
@@ -188,20 +192,27 @@ class MainWindow(QMainWindow):
 
         self._push_page(PreviewPage)
 
-    def _show_list_manage_page(self):
-        from src.gui.pages.list_manage_page import ListManagePage
+    def _show_medicamentos_page(self):
+        from src.gui.pages.medicamentos_page import MedicamentosPage
 
-        self._push_page(ListManagePage)
+        self._push_page(MedicamentosPage)
+
+    def _show_pacientes_page(self):
+        from src.gui.pages.pacientes_page import PacientesPage
+
+        self._push_page(PacientesPage)
 
     def _show_stats_page(self):
         from src.gui.pages.stats_page import StatsPage
 
         self._push_page(StatsPage)
 
-    def _show_patient_page(self, paciente_id: int, highlight_registro: int | None = None):
+    def _show_patient_page(self, paciente_id: int, highlight_registro: int | None = None, return_to: str | None = None):
         from src.gui.pages.patient_page import PatientPage
 
-        self._push_page(PatientPage, paciente_id, highlight_registro)
+        if return_to is not None:
+            self._patient_return_to = return_to
+        self._push_page(PatientPage, paciente_id, highlight_registro, self._patient_return_to)
 
     def _setup_shortcuts(self):
         shortcuts = [
@@ -211,7 +222,8 @@ class MainWindow(QMainWindow):
             ("Ctrl+D", self._shortcut_malote_dialog),
             ("Ctrl+R", self._shortcut_focus_search),
             ("Ctrl+G", self._shortcut_preview),
-            ("Ctrl+T", self._shortcut_lists),
+            ("Ctrl+M", self._shortcut_medicamentos),
+            ("Ctrl+P", self._shortcut_pacientes),
             ("Ctrl+F", self._shortcut_add_item),
             ("Ctrl+W", self._shortcut_toggle_docs),
             ("Ctrl+Q", self._shortcut_toggle_stay_on_page),
@@ -250,12 +262,18 @@ class MainWindow(QMainWindow):
     def _shortcut_back(self):
         from src.gui.pages.entry_page import EntryPage
         from src.gui.pages.preview_page import PreviewPage
-        from src.gui.pages.list_manage_page import ListManagePage
+        from src.gui.pages.medicamentos_page import MedicamentosPage
+        from src.gui.pages.pacientes_page import PacientesPage
         from src.gui.pages.patient_page import PatientPage
         from src.gui.pages.stats_page import StatsPage
 
-        self._on_page(EntryPage, lambda p: self.navigate_to(p._return_to))
-        self._on_page((PreviewPage, ListManagePage, PatientPage, StatsPage), lambda p: self.navigate_to("start"))
+        page = self._current_page()
+        if isinstance(page, EntryPage):
+            self.navigate_to(page._return_to)
+        elif isinstance(page, PatientPage):
+            self.navigate_to(page._return_to)
+        elif isinstance(page, (PreviewPage, MedicamentosPage, PacientesPage, StatsPage)):
+            self.navigate_to("start")
 
     def _shortcut_malote_dialog(self):
         page = self._current_page()
@@ -266,19 +284,16 @@ class MainWindow(QMainWindow):
         page = self._current_page()
         from src.gui.pages.start_page import StartPage
         from src.gui.pages.entry_page import EntryPage
-        from src.gui.pages.list_manage_page import ListManagePage
+        from src.gui.pages.medicamentos_page import MedicamentosPage
+        from src.gui.pages.pacientes_page import PacientesPage
         from src.gui.pages.preview_page import PreviewPage
 
         if isinstance(page, StartPage):
             page._search_combo.focus_search()
         elif isinstance(page, EntryPage):
             page.focus_next_field()
-        elif isinstance(page, ListManagePage):
-            search = (
-                page._items_tab.search
-                if page._tabs.currentIndex() == 0
-                else page._pacientes_tab.search
-            )
+        elif isinstance(page, (MedicamentosPage, PacientesPage)):
+            search = page._crud.search
             search.setFocus()
             search.selectAll()
         elif isinstance(page, PreviewPage):
@@ -314,8 +329,11 @@ class MainWindow(QMainWindow):
     def _shortcut_preview(self):
         self._navigate_from_start("preview")
 
-    def _shortcut_lists(self):
-        self._navigate_from_start("lists")
+    def _shortcut_medicamentos(self):
+        self._navigate_from_start("medicamentos")
+
+    def _shortcut_pacientes(self):
+        self._navigate_from_start("pacientes")
 
     def _shortcut_stats(self):
         self._navigate_from_start("stats")

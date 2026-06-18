@@ -681,6 +681,24 @@ class RACDatabase(BaseDatabase):
             "pacientes", "name COLLATE NOCASE"
         )]
 
+    @db_op("read")
+    def get_all_pacientes_with_last_registro(self) -> list[Paciente]:
+        return [Paciente.from_row(r) for r in self._fetch_all(
+            "SELECT p.id, p.name, p.cid, "
+            "lr.tipo AS last_registro_tipo, "
+            "lm.date AS last_registro_date "
+            "FROM pacientes p "
+            "LEFT JOIN registros lr ON lr.id = ("
+            "  SELECT r.id FROM registros r "
+            "  JOIN malotes m ON r.malote_id = m.id "
+            "  WHERE r.paciente_id = p.id "
+            "  ORDER BY m.date DESC, r.created_at DESC "
+            "  LIMIT 1"
+            ") "
+            "LEFT JOIN malotes lm ON lm.id = lr.malote_id "
+            "ORDER BY p.name COLLATE NOCASE"
+        )]
+
     # ========== EXPORT HELPERS ==========
 
     @db_op("read")

@@ -14,7 +14,7 @@ TIPO_TITLES = {
     "renovacao": "RENOVAÇÕES",
     "retirada": "RETIRADAS",
     "urgente": "RESOLVER NA HORA",
-    "medcasa": "REMÉDIOS EM CASA",
+    "medcasa": "REMÉDIO EM CASA",
 }
 
 TIPOS_WITH_MONTHS = frozenset({"retirada", "renovacao"})

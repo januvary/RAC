@@ -126,7 +126,8 @@ class StartPage(BasePage):
         for key, handler in (
             ("preview", self._on_preview),
             ("export", self._on_export),
-            ("lists", self._on_lists),
+            ("medicamentos", self._on_medicamentos),
+            ("pacientes", self._on_pacientes),
             ("stats", self._on_stats),
         ):
             _, label = SHORTCUT_LABELS[key]
@@ -202,8 +203,11 @@ class StartPage(BasePage):
             "Nenhum registro para exportar",
         )
 
-    def _on_lists(self):
-        self._mw.navigate_to("lists")
+    def _on_medicamentos(self):
+        self._mw.navigate_to("medicamentos")
+
+    def _on_pacientes(self):
+        self._mw.navigate_to("pacientes")
 
     def _on_stats(self):
         self._mw.navigate_to("stats")

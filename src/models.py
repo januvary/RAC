@@ -24,6 +24,8 @@ class Paciente:
     id: int | None = None
     name: str = ""
     cid: str = ""
+    last_registro_date: str | None = None
+    last_registro_tipo: str | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> Paciente:
@@ -31,6 +33,8 @@ class Paciente:
             id=row.get("id"),
             name=row.get("name", ""),
             cid=row.get("cid", ""),
+            last_registro_date=row.get("last_registro_date"),
+            last_registro_tipo=row.get("last_registro_tipo"),
         )
 
 

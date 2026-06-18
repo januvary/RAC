@@ -81,7 +81,9 @@ class PreviewPage(BasePage):
             table.horizontalHeader().setSectionResizeMode(
                 0, QHeaderView.ResizeMode.ResizeToContents
             )
-            table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+            table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            if hdr := table.horizontalHeaderItem(1):
+                hdr.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             table.verticalHeader().setVisible(False)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -101,7 +103,7 @@ class PreviewPage(BasePage):
                     table.insertRow(row)
 
                     name_item = QTableWidgetItem(reg.paciente_name or "")
-                    name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                     name_item.setData(Qt.ItemDataRole.UserRole, reg.id)
                     table.setItem(row, 0, name_item)
 
@@ -111,11 +113,12 @@ class PreviewPage(BasePage):
                     ]
                     items_str = " / ".join(formatted)
                     meds_item = QTableWidgetItem(items_str)
-                    meds_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    meds_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                     table.setItem(row, 1, meds_item)
 
             table.resizeRowsToContents()
             table.setSortingEnabled(True)
+            table.sortByColumn(0, Qt.SortOrder.AscendingOrder)
 
             table.cellDoubleClicked.connect(
                 lambda r, c, t=table: self._on_row_double_clicked(t, r)

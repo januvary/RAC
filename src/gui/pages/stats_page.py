@@ -40,13 +40,13 @@ class _TipoCard(QWidget):
     def __init__(self, tipo_key: str, value: str, label: str | None = None, label_color: str | None = None):
         super().__init__()
         c = colors()
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         self.setStyleSheet(
             f"QWidget {{ background: transparent; border: 1px solid {c['border_light']}; "
             f"border-radius: 6px; }}"
         )
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(2)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -84,7 +84,6 @@ class StatsPage(BasePage):
         layout.addSpacing(12)
 
         self._build_tipo_cards(layout)
-        layout.addSpacing(10)
 
         self._build_medications_table(layout)
         layout.addSpacing(12)
@@ -96,11 +95,16 @@ class StatsPage(BasePage):
         layout.addWidget(export_btn)
 
     def _build_header(self, layout: QVBoxLayout):
-        self._add_back_button(layout)
+        back_btn = make_button("Voltar", "flat")
+        back_btn.clicked.connect(lambda: self._mw.navigate_to("start"))
+        self._shortcut_widgets["back"] = back_btn
 
+        c = colors()
         row = QHBoxLayout()
-        row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         row.setSpacing(0)
+
+        row.addWidget(back_btn)
+        row.addStretch(1)
 
         self._from_btn = make_button("Inicio", "flat")
         self._from_btn.setFixedWidth(115)
@@ -109,7 +113,6 @@ class StatsPage(BasePage):
 
         row.addSpacing(20)
 
-        c = colors()
         sep = QLabel("\u2192")
         sep.setStyleSheet(f"color: {c['text_secondary']}; border: none;")
         row.addWidget(sep)
@@ -120,6 +123,12 @@ class StatsPage(BasePage):
         self._to_btn.setFixedWidth(115)
         self._to_btn.clicked.connect(lambda: self._pick_date("to"))
         row.addWidget(self._to_btn)
+
+        row.addStretch(1)
+
+        spacer = QWidget()
+        spacer.setFixedWidth(back_btn.sizeHint().width())
+        row.addWidget(spacer)
 
         layout.addLayout(row)
 
@@ -151,26 +160,31 @@ class StatsPage(BasePage):
         )
 
     def _build_tipo_cards(self, layout: QVBoxLayout):
-        row = QHBoxLayout()
-        row.setSpacing(10)
-        row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tipo_row = QHBoxLayout()
+        tipo_row.setSpacing(10)
+        tipo_row.addStretch(1)
         self._tipo_cards: dict[str, _TipoCard] = {}
         for tipo_key in TIPO_LABELS:
             card = _TipoCard(tipo_key, "0", label_color=faded_tipo_color(TIPO_HEX[tipo_key]))
-            card.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             self._tipo_cards[tipo_key] = card
-            row.addWidget(card)
-        row.addSpacing(10)
+            tipo_row.addWidget(card)
+        tipo_row.addStretch(1)
+        layout.addLayout(tipo_row)
+
+        layout.addSpacing(8)
+
+        totals_row = QHBoxLayout()
+        totals_row.setSpacing(10)
+        totals_row.addStretch(1)
         self._total_registros_card = _TipoCard("__total_reg", "0", label="Total Registros")
-        self._total_registros_card.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        row.addWidget(self._total_registros_card)
+        totals_row.addWidget(self._total_registros_card)
         self._total_pacientes_card = _TipoCard("__total_pac", "0", label="Total Pacientes")
-        self._total_pacientes_card.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        row.addWidget(self._total_pacientes_card)
-        layout.addLayout(row)
+        totals_row.addWidget(self._total_pacientes_card)
+        totals_row.addStretch(1)
+        layout.addLayout(totals_row)
 
     def _build_medications_table(self, layout: QVBoxLayout):
-        layout.addSpacing(8)
+        layout.addSpacing(2)
 
         self._meds_search = QLineEdit()
         self._meds_search.setPlaceholderText("Buscar medicamento...")

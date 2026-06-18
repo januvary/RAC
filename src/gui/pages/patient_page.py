@@ -44,10 +44,11 @@ def _remove_layout_item(item):
 
 
 class PatientPage(BasePage):
-    def __init__(self, main_window, paciente_id: int, highlight_registro: int | None = None):
+    def __init__(self, main_window, paciente_id: int, highlight_registro: int | None = None, return_to: str = "start"):
         super().__init__(main_window)
         self._paciente_id = paciente_id
         self._highlight_registro = highlight_registro
+        self._return_to = return_to
         self._build_ui()
 
     def _build_ui(self):
@@ -59,7 +60,7 @@ class PatientPage(BasePage):
         self._build_tipo_buttons(layout)
 
     def _build_header(self, layout: QVBoxLayout):
-        h = self._add_back_button(layout)
+        h = self._add_back_button(layout, target=self._return_to)
 
         paciente = self._mw.services.paciente.get(self._paciente_id)
         name = paciente.name if paciente else "?"

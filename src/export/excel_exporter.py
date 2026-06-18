@@ -42,6 +42,7 @@ def _format_item(name: str) -> str:
 def _ensure_openpyxl():
     try:
         import openpyxl
+
         return openpyxl
     except ImportError:
         ErrorHandler.log(
@@ -53,12 +54,12 @@ def _ensure_openpyxl():
 
 
 def _make_excel_styles():
-    from openpyxl.styles import Alignment, Border, Font, Side
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
     return {
-        "main_font": Font(name="Arial", size=11),
-        "title1_font": Font(name="Arial", size=20),
-        "title2_font": Font(name="Arial", size=16),
+        "main_font": Font(name="Tahoma", size=11),
+        "title1_font": Font(name="Tahoma", size=20),
+        "title2_font": Font(name="Tahoma", size=16),
         "center": Alignment(horizontal="center", vertical="center"),
         "left_wrap": Alignment(horizontal="left", vertical="center", wrap_text=True),
         "thin_border": Border(
@@ -66,6 +67,10 @@ def _make_excel_styles():
             right=Side(style="thin"),
             top=Side(style="thin"),
             bottom=Side(style="thin"),
+        ),
+        "fill_even": PatternFill(fill_type=None),
+        "fill_odd": PatternFill(
+            start_color="F0F0F0", end_color="F0F0F0", fill_type="solid"
         ),
     }
 
@@ -82,19 +87,23 @@ def _apply_page_setup(ws):
     ws.print_options.verticalCentered = False
 
 
-def _style_title_row(ws, row_num, styles, font_key="title1_font", height=30):
+def _style_title_row(ws, row_num, styles, font_key="title1_font", height=30, fill=None):
     for cell in ws[row_num]:
         cell.font = styles[font_key]
         cell.alignment = styles["center"]
         cell.border = styles["thin_border"]
+        if fill is not None:
+            cell.fill = fill
     ws.row_dimensions[row_num].height = height
 
 
 def _style_data_rows(ws, start_row, styles):
-    for row in ws.iter_rows(min_row=start_row, max_row=ws.max_row):
+    for offset, row in enumerate(ws.iter_rows(min_row=start_row, max_row=ws.max_row)):
+        fill = styles["fill_odd"] if offset % 2 else styles["fill_even"]
         for cell in row:
             cell.font = styles["main_font"]
             cell.alignment = styles["left_wrap"]
+            cell.fill = fill
             if cell.value is not None:
                 cell.border = styles["thin_border"]
 
@@ -103,7 +112,9 @@ class ExcelExporter:
     def __init__(self, db: RACDatabase) -> None:
         self._db = db
 
-    def _save_workbook(self, wb, base_filename, date_label="", log_label="Planilha exportada"):
+    def _save_workbook(
+        self, wb, base_filename, date_label="", log_label="Planilha exportada"
+    ):
         try:
             timestamp = datetime.now().strftime("%H%M%S")
             if date_label:
@@ -180,10 +191,7 @@ class ExcelExporter:
 
             for reg in tipo_registros:
                 for proc in reg.processes:
-                    formatted_items = [
-                        _format_item(name)
-                        for name in proc.items
-                    ]
+                    formatted_items = [_format_item(name) for name in proc.items]
                     items_str = " / ".join(formatted_items)
                     ws.append(
                         [
@@ -196,7 +204,7 @@ class ExcelExporter:
             ws.column_dimensions["B"].width = 60
 
             _style_title_row(ws, 1, styles)
-            _style_title_row(ws, 2, styles, "title2_font", 26)
+            _style_title_row(ws, 2, styles, "title2_font", 26, styles["fill_odd"])
             _style_data_rows(ws, 3, styles)
 
             _apply_page_setup(ws)
@@ -214,9 +222,7 @@ class ExcelExporter:
             return None
 
         tipo_rows = self._db.get_stats_by_tipo(date_from=date_from, date_to=date_to)
-        med_rows = self._db.get_stats_top_itens(
-            date_from=date_from, date_to=date_to
-        )
+        med_rows = self._db.get_stats_top_itens(date_from=date_from, date_to=date_to)
         if not tipo_rows and not med_rows:
             return None
 
@@ -275,7 +281,7 @@ class ExcelExporter:
         ws.column_dimensions["C"].width = 15
 
         _style_title_row(ws, 1, styles)
-        _style_title_row(ws, 2, styles, "title2_font", 26)
+        _style_title_row(ws, 2, styles, "title2_font", 26, styles["fill_odd"])
         _style_data_rows(ws, 3, styles)
 
         _apply_page_setup(ws)
@@ -285,18 +291,16 @@ class ExcelExporter:
             parts = []
             if date_from:
                 try:
-                    parts.append(
-                        datetime.fromisoformat(date_from).strftime("%d-%m-%Y")
-                    )
+                    parts.append(datetime.fromisoformat(date_from).strftime("%d-%m-%Y"))
                 except ValueError:
                     parts.append(date_from)
             parts.append("a")
             if date_to:
                 try:
-                    parts.append(
-                        datetime.fromisoformat(date_to).strftime("%d-%m-%Y")
-                    )
+                    parts.append(datetime.fromisoformat(date_to).strftime("%d-%m-%Y"))
                 except ValueError:
                     parts.append(date_to)
             date_label = "_".join(parts)
-        return self._save_workbook(wb, "Estatisticas", date_label, "Estatísticas exportadas")
+        return self._save_workbook(
+            wb, "Estatisticas", date_label, "Estatísticas exportadas"
+        )

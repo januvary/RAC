@@ -177,7 +177,8 @@ src/
       start_page.py         -- StartPage
       entry_page.py          -- EntryPage
       preview_page.py        -- PreviewPage
-      list_manage_page.py    -- ListManagePage
+      medicamentos_page.py    -- MedicamentosPage
+      pacientes_page.py       -- PacientesPage
     widgets/
       __init__.py            -- re-exports all widgets
       malote.py              -- MaloteLabel, malote dialog/new/edit

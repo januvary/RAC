@@ -25,6 +25,9 @@ class PacienteService:
     def all(self) -> list[Paciente]:
         return self._db.get_all_pacientes()
 
+    def all_with_last_registro(self) -> list[Paciente]:
+        return self._db.get_all_pacientes_with_last_registro()
+
     def update(
         self, paciente_id: int, *, name: str | None = None, cid: str | None = None
     ) -> None:
