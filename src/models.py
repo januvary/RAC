@@ -23,7 +23,6 @@ class Malote:
 class Paciente:
     id: int | None = None
     name: str = ""
-    cid: str = ""
     last_registro_date: str | None = None
     last_registro_tipo: str | None = None
 
@@ -32,7 +31,6 @@ class Paciente:
         return cls(
             id=row.get("id"),
             name=row.get("name", ""),
-            cid=row.get("cid", ""),
             last_registro_date=row.get("last_registro_date"),
             last_registro_tipo=row.get("last_registro_tipo"),
         )
@@ -43,6 +41,7 @@ class ItemCatalog:
     id: int | None = None
     name: str = ""
     unidade: str = "un"
+    cids: str = ""
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> ItemCatalog:
@@ -50,6 +49,7 @@ class ItemCatalog:
             id=row.get("id"),
             name=row.get("name", ""),
             unidade=row.get("unidade", "un"),
+            cids=row.get("cids", ""),
         )
 
 
@@ -106,6 +106,7 @@ class RegistroItem:
     item_name: str | None = None
     unidade: str | None = None
     process_group: int = 1
+    cid: str = ""
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> RegistroItem:
@@ -117,6 +118,7 @@ class RegistroItem:
             item_name=row.get("item_name"),
             unidade=row.get("unidade"),
             process_group=row.get("process_group", 1),
+            cid=row.get("cid", ""),
         )
 
 

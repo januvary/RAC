@@ -30,12 +30,11 @@ from src.models import (
 
 
 class RACDatabase(BaseDatabase):
-    SCHEMA_VERSION = 5
+    SCHEMA_VERSION = 6
 
     _MIGRATIONS: dict[int, str] = {
         2: "ALTER TABLE malotes ADD COLUMN arrival_date TEXT;",
         3: "ALTER TABLE registro_items ADD COLUMN process_group INTEGER NOT NULL DEFAULT 1;",
-        4: "ALTER TABLE pacientes ADD COLUMN cid TEXT DEFAULT '';",
     }
 
     def __init__(self, db_path: Optional[str] = None) -> None:
@@ -63,6 +62,7 @@ class RACDatabase(BaseDatabase):
 
         if stored_version == self.SCHEMA_VERSION:
             self._ensure_v5_column()
+            self._ensure_v6_columns()
             self._seed_catalog_if_empty()
             return
 
@@ -93,6 +93,19 @@ class RACDatabase(BaseDatabase):
                 return
         self._migrate_v5()
 
+    def _ensure_v6_columns(self) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT name FROM pragma_table_info('items_catalog') WHERE name='cids'"
+            )
+            has_cids = cur.fetchone() is not None
+            cur.execute(
+                "SELECT name FROM pragma_table_info('registro_items') WHERE name='cid'"
+            )
+            has_cid = cur.fetchone() is not None
+        if not has_cids or not has_cid:
+            self._migrate_v6()
+
     def _create_fresh_schema(self) -> None:
         with self._cursor() as cur:
             cur.executescript("""
@@ -104,14 +117,14 @@ class RACDatabase(BaseDatabase):
 
                 CREATE TABLE IF NOT EXISTS pacientes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    cid TEXT NOT NULL DEFAULT ''
+                    name TEXT NOT NULL UNIQUE
                 );
 
                 CREATE TABLE IF NOT EXISTS items_catalog (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL UNIQUE,
-                    unidade TEXT NOT NULL DEFAULT 'un'
+                    unidade TEXT NOT NULL DEFAULT 'un',
+                    cids TEXT NOT NULL DEFAULT ''
                 );
 
                 CREATE TABLE IF NOT EXISTS registros (
@@ -136,7 +149,8 @@ class RACDatabase(BaseDatabase):
                     registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
                     process_id INTEGER REFERENCES processes(id),
                     item_id INTEGER NOT NULL REFERENCES items_catalog(id),
-                    process_group INTEGER NOT NULL DEFAULT 1
+                    process_group INTEGER NOT NULL DEFAULT 1,
+                    cid TEXT NOT NULL DEFAULT ''
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_registros_malote ON registros(malote_id);
@@ -156,6 +170,13 @@ class RACDatabase(BaseDatabase):
             self._migrate_v5()
             ErrorHandler.log(
                 "Migration v5 applied successfully",
+                level=ErrorLevel.INFO,
+                context="Database",
+            )
+        if self.SCHEMA_VERSION >= 6 and from_version < 6:
+            self._migrate_v6()
+            ErrorHandler.log(
+                "Migration v6 applied successfully",
                 level=ErrorLevel.INFO,
                 context="Database",
             )
@@ -219,6 +240,70 @@ class RACDatabase(BaseDatabase):
                 pass
             self._commit()
 
+    def _migrate_v6(self) -> None:
+        import json
+
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT name FROM pragma_table_info('items_catalog') WHERE name='cids'"
+            )
+            if not cur.fetchone():
+                cur.execute(
+                    "ALTER TABLE items_catalog ADD COLUMN cids TEXT NOT NULL DEFAULT ''"
+                )
+
+            cur.execute(
+                "SELECT name FROM pragma_table_info('registro_items') WHERE name='cid'"
+            )
+            if not cur.fetchone():
+                cur.execute(
+                    "ALTER TABLE registro_items ADD COLUMN cid TEXT NOT NULL DEFAULT ''"
+                )
+
+            for name, unidade, cids_json in DEFINITIVE_CATALOG:
+                cur.execute(
+                    "UPDATE items_catalog SET cids = ? WHERE name = ? AND cids = ''",
+                    (cids_json, to_upper_normalized(name)),
+                )
+
+            cur.execute(
+                "SELECT name FROM pragma_table_info('pacientes') WHERE name='cid'"
+            )
+            if cur.fetchone():
+                patient_cids: dict[int, str] = {
+                    row["id"]: row["cid"]
+                    for row in cur.execute(
+                        "SELECT id, cid FROM pacientes WHERE cid IS NOT NULL AND cid != ''"
+                    ).fetchall()
+                }
+                for pid, cid in patient_cids.items():
+                    cur.execute(
+                        "UPDATE registro_items SET cid = ? "
+                        "WHERE cid = '' AND registro_id IN ("
+                        "  SELECT id FROM registros WHERE paciente_id = ?"
+                        ") AND item_id IN ("
+                        "  SELECT id FROM items_catalog WHERE cids LIKE ?"
+                        ")",
+                        (cid, pid, f"%{cid}%"),
+                    )
+                try:
+                    cur.execute("ALTER TABLE pacientes DROP COLUMN cid")
+                except sqlite3.OperationalError:
+                    cur.executescript("""
+                        CREATE TABLE pacientes_v6 (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name TEXT NOT NULL UNIQUE
+                        );
+                        INSERT INTO pacientes_v6 (id, name)
+                            SELECT id, name FROM pacientes;
+                        DROP TABLE pacientes;
+                        ALTER TABLE pacientes_v6 RENAME TO pacientes;
+                        CREATE INDEX IF NOT EXISTS idx_pacientes_nome
+                            ON pacientes(name COLLATE NOCASE);
+                    """)
+
+            self._commit()
+
     def _log_initialization_success(self) -> None:
         count = self._get_catalog_count()
         ErrorHandler.log(
@@ -233,10 +318,10 @@ class RACDatabase(BaseDatabase):
             count = cur.fetchone()[0]
 
             if count == 0:
-                for name, unidade in DEFINITIVE_CATALOG:
+                for name, unidade, cids_json in DEFINITIVE_CATALOG:
                     cur.execute(
-                        "INSERT INTO items_catalog (name, unidade) VALUES (?, ?)",
-                        (to_upper_normalized(name), unidade),
+                        "INSERT INTO items_catalog (name, unidade, cids) VALUES (?, ?, ?)",
+                        (to_upper_normalized(name), unidade, cids_json),
                     )
                 self._commit()
                 ErrorHandler.log(
@@ -337,11 +422,10 @@ class RACDatabase(BaseDatabase):
         )]
 
     @db_op("write")
-    def update_paciente(self, paciente_id: int, name: str, cid: str | None = None) -> bool:
-        updates = {"name": to_upper_normalized(name.strip())}
-        if cid is not None:
-            updates["cid"] = cid
-        return self._update_row("pacientes", paciente_id, **updates)
+    def update_paciente(self, paciente_id: int, name: str) -> bool:
+        return self._update_row(
+            "pacientes", paciente_id, name=to_upper_normalized(name.strip())
+        )
 
     @db_op("write")
     def delete_paciente(self, paciente_id: int) -> bool:
@@ -501,7 +585,7 @@ class RACDatabase(BaseDatabase):
 
     @db_op("write")
     def set_registro_items(
-        self, registro_id: int, items: list[tuple[int, int]]
+        self, registro_id: int, items: list[tuple[int, int, str]]
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
@@ -510,14 +594,14 @@ class RACDatabase(BaseDatabase):
             )
             if items:
                 cur.executemany(
-                    "INSERT INTO registro_items (registro_id, item_id, process_group) VALUES (?, ?, ?)",
-                    [(registro_id, iid, pg) for iid, pg in items],
+                    "INSERT INTO registro_items (registro_id, item_id, process_group, cid) VALUES (?, ?, ?, ?)",
+                    [(registro_id, iid, pg, cid) for iid, pg, cid in items],
                 )
             self._commit()
 
     @db_op("write")
     def set_registro_items_with_process(
-        self, registro_id: int, items: list[tuple[int, int, int | None]]
+        self, registro_id: int, items: list[tuple[int, int, int | None, str]]
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
@@ -526,10 +610,10 @@ class RACDatabase(BaseDatabase):
             )
             if items:
                 cur.executemany(
-                    "INSERT INTO registro_items (registro_id, item_id, process_group, process_id) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO registro_items (registro_id, item_id, process_group, process_id, cid) VALUES (?, ?, ?, ?, ?)",
                     [
-                        (registro_id, iid, pg, pid)
-                        for iid, pg, pid in items
+                        (registro_id, iid, pg, pid, cid)
+                        for iid, pg, pid, cid in items
                     ],
                 )
             self._commit()
@@ -548,7 +632,7 @@ class RACDatabase(BaseDatabase):
     @db_op("read")
     def get_items_by_paciente(self, paciente_id: int) -> list[ItemCatalog]:
         return [ItemCatalog.from_row(r) for r in self._fetch_all(
-            "SELECT DISTINCT ri.item_id as id, ic.name, ic.unidade "
+            "SELECT DISTINCT ri.item_id as id, ic.name, ic.unidade, ic.cids "
             "FROM registro_items ri "
             "JOIN registros r ON ri.registro_id = r.id "
             "JOIN items_catalog ic ON ri.item_id = ic.id "
@@ -556,6 +640,23 @@ class RACDatabase(BaseDatabase):
             "ORDER BY ic.name COLLATE NOCASE",
             (paciente_id,),
         )]
+
+    @db_op("read")
+    def get_last_cids_by_paciente(self, paciente_id: int) -> dict[int, str]:
+        rows = self._fetch_all(
+            "SELECT ri.item_id, ri.cid "
+            "FROM registro_items ri "
+            "JOIN registros r ON ri.registro_id = r.id "
+            "WHERE r.paciente_id = ? AND ri.cid != '' "
+            "ORDER BY r.created_at DESC",
+            (paciente_id,),
+        )
+        result: dict[int, str] = {}
+        for row in rows:
+            iid = row["item_id"]
+            if iid not in result:
+                result[iid] = row["cid"]
+        return result
 
     # ========== PROCESSES ==========
 
@@ -656,16 +757,20 @@ class RACDatabase(BaseDatabase):
         )]
 
     @db_op("write")
-    def create_item(self, name: str, unidade: str = "un") -> ItemCatalog:
+    def create_item(self, name: str, unidade: str = "un", cids: str = "") -> ItemCatalog:
         normalized = to_upper_normalized(name.strip())
-        iid = self._insert_row("items_catalog", name=normalized, unidade=unidade)
-        return ItemCatalog(id=iid, name=normalized, unidade=unidade)
+        iid = self._insert_row("items_catalog", name=normalized, unidade=unidade, cids=cids)
+        return ItemCatalog(id=iid, name=normalized, unidade=unidade, cids=cids)
 
     @db_op("write")
     def update_item(self, item_id: int, name: str) -> bool:
         return self._update_row(
             "items_catalog", item_id, name=to_upper_normalized(name.strip())
         )
+
+    @db_op("write")
+    def update_item_cids(self, item_id: int, cids: str) -> bool:
+        return self._update_row("items_catalog", item_id, cids=cids)
 
     @db_op("write")
     def delete_item(self, item_id: int) -> bool:
@@ -684,7 +789,7 @@ class RACDatabase(BaseDatabase):
     @db_op("read")
     def get_all_pacientes_with_last_registro(self) -> list[Paciente]:
         return [Paciente.from_row(r) for r in self._fetch_all(
-            "SELECT p.id, p.name, p.cid, "
+            "SELECT p.id, p.name, "
             "lr.tipo AS last_registro_tipo, "
             "lm.date AS last_registro_date "
             "FROM pacientes p "

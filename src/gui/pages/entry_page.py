@@ -26,7 +26,6 @@ from src.gui.widgets import (
     make_button,
     make_hbox,
     BasePage,
-    CidInput,
     delete_registro_with_undo,
 )
 from src.gui.widgets.buttons import make_icon_button
@@ -96,6 +95,7 @@ class _RowData:
     months_btn: _CycleButton | None = None
     return_btn: QPushButton | None = None
     combo: SearchableComboBox | None = None
+    cid_combo: SearchableComboBox | None = None
     pg: int = 1
     ms: int = -1
 
@@ -108,6 +108,7 @@ class EntryPage(BasePage):
         edit_id: int | None = None,
         return_to: str = "start",
         paciente_id: int | None = None,
+        patient_return_to: str = "start",
     ):
         super().__init__(main_window)
         self._tipo = tipo
@@ -115,6 +116,7 @@ class EntryPage(BasePage):
         self._edit_ctx: EditContext | None = None
         self._focus_index: int = -1
         self._return_to = return_to
+        self._patient_return_to = patient_return_to
         self._pre_paciente_id: int | None = paciente_id
         self._rows: list[_RowData] = []
         self._shortcut_widgets: dict[str, QPushButton | QLabel | QCheckBox] = {}
@@ -184,20 +186,16 @@ class EntryPage(BasePage):
             "Nome do Paciente", on_search=self._search_pacientes
         )
 
-        self._cid_input = CidInput()
-
         prefill_id = self._edit_registro.paciente_id if self._edit_registro else self._pre_paciente_id
         if prefill_id:
             paciente = self._mw.services.paciente.get(prefill_id)
             if paciente:
                 self._paciente_combo.set_options({str(paciente.id): paciente.name})
                 self._paciente_combo.set_current_by_data(str(paciente.id))
-                self._cid_input.setText(paciente.cid or "")
 
         self._paciente_combo.selection_changed.connect(self._on_paciente_selected)
         self._paciente_combo.exact_match_changed.connect(self._on_paciente_selected)
         h.addWidget(self._paciente_combo)
-        h.addWidget(self._cid_input)
 
         self._shortcut_searches = [
             ("Nome do Paciente", self._paciente_combo._line_edit),
@@ -214,7 +212,16 @@ class EntryPage(BasePage):
         return {k: v for k, v in self._catalog_options.items() if normalized in v}
 
     def _build_items_section(self, layout: QVBoxLayout):
-        self._catalog_options = {str(i.id): i.name for i in self._mw.services.item_catalog.all()}
+        all_items = self._mw.services.item_catalog.all()
+        self._catalog_options = {str(i.id): i.name for i in all_items}
+        self._item_cids: dict[int, list[str]] = {}
+        for i in all_items:
+            if i.id is not None and i.cids:
+                import json
+                try:
+                    self._item_cids[i.id] = json.loads(i.cids)
+                except (json.JSONDecodeError, TypeError):
+                    self._item_cids[i.id] = []
 
         self._items_container = QVBoxLayout()
         self._items_container.setSpacing(4)
@@ -228,12 +235,13 @@ class EntryPage(BasePage):
 
         if self._edit_ctx:
             months_by_group = dict(self._edit_ctx.processes)
-            for item_id, process_group in self._edit_ctx.items:
+            for item_id, process_group, cid in self._edit_ctx.items:
                 ms = months_by_group.get(process_group, 0)
                 self._add_item_row(
                     item_id=item_id,
                     process_group=process_group,
                     months_supply=ms,
+                    cid=cid,
                 )
         else:
             self._add_item_row()
@@ -300,7 +308,7 @@ class EntryPage(BasePage):
             f"color: {c['text_secondary']}; font-size: 12px; font-style: italic;"
         )
 
-    def _add_item_row(self, item_id: int | None = None, process_group: int = 1, months_supply: int | None = None):
+    def _add_item_row(self, item_id: int | None = None, process_group: int = 1, months_supply: int | None = None, cid: str = ""):
         if months_supply is None:
             months_supply = 1 if self._tipo == "retirada" else 0
         row = QWidget()
@@ -331,6 +339,21 @@ class EntryPage(BasePage):
         rd.combo = combo
         row_h.addWidget(combo)
 
+        cid_combo = SearchableComboBox(
+            "CID",
+            on_delete_empty=None,
+        )
+        cid_combo.setFixedWidth(80)
+        rd.cid_combo = cid_combo
+        row_h.addWidget(cid_combo)
+
+        if item_id is not None:
+            self._populate_cid_combo(rd, item_id, cid)
+
+        combo.selection_changed.connect(
+            lambda data, r=rd: self._on_item_selected_in_row(r, data)
+        )
+
         return_label = make_icon_button("--/--/----", "positive", width=85, font_size=11)
         return_label.setToolTip("Data prevista de retorno (clique p/ ver opções)")
         return_label.clicked.connect(lambda _checked=False: self._show_return_date_popup(rd))
@@ -355,6 +378,33 @@ class EntryPage(BasePage):
 
         self._items_container.addWidget(row)
         return combo
+
+    def _on_item_selected_in_row(self, rd: _RowData, data: str | None):
+        if not data:
+            if rd.cid_combo:
+                rd.cid_combo.clear()
+                rd.cid_combo.set_options({})
+            return
+        try:
+            item_id = int(data)
+        except (ValueError, TypeError):
+            return
+        self._populate_cid_combo(rd, item_id, "")
+
+    def _populate_cid_combo(self, rd: _RowData, item_id: int, selected_cid: str):
+        if not rd.cid_combo:
+            return
+        cids = self._item_cids.get(item_id, [])
+        if not cids:
+            rd.cid_combo.clear()
+            rd.cid_combo.set_options({})
+            return
+        options = {cid: cid for cid in cids}
+        rd.cid_combo.set_options(options)
+        if selected_cid and selected_cid in options:
+            rd.cid_combo.set_current_by_data(selected_cid)
+        elif len(cids) == 1:
+            rd.cid_combo.set_current_by_data(cids[0])
 
     def _on_group_changed(self, rd: _RowData, new_pg: int):
         rd.pg = new_pg
@@ -386,7 +436,6 @@ class EntryPage(BasePage):
         if getattr(self, "_last_paciente_id", None) == paciente_id:
             return
         self._last_paciente_id = paciente_id
-        self._load_cid_for_paciente(paciente_id)
         self._load_items_for_context(paciente_id)
         self._refresh_return_dates()
 
@@ -514,13 +563,6 @@ class EntryPage(BasePage):
             b.setText(date_str)
         dialog.accept()
 
-    def _load_cid_for_paciente(self, paciente_id: int):
-        paciente = self._mw.services.paciente.get(paciente_id)
-        if paciente:
-            self._cid_input.setText(paciente.cid or "")
-        else:
-            self._cid_input.clear()
-
     def _resolve_current_patient(self) -> int | None:
         pid = self._paciente_combo.current_data()
         if not pid:
@@ -545,14 +587,17 @@ class EntryPage(BasePage):
                 w.setParent(None)
                 w.deleteLater()
 
-    def _collect_items(self) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    def _collect_items(self) -> tuple[list[tuple[int, int, str]], list[tuple[int, int]]]:
         items = []
         months_by_group: dict[int, int] = {}
         for rd in self._rows:
             data = rd.combo.current_data() if rd.combo else None
             if not data:
                 continue
-            items.append((int(data), rd.pg))
+            cid = ""
+            if rd.cid_combo:
+                cid = rd.cid_combo.current_data() or ""
+            items.append((int(data), rd.pg, cid))
             if rd.pg not in months_by_group:
                 months_by_group[rd.pg] = rd.ms
         process_months = [(g, m) for g, m in months_by_group.items()]
@@ -571,20 +616,21 @@ class EntryPage(BasePage):
             self._update_registro_status(True)
             months_by_group = dict(ctx.processes)
             if ctx.items:
-                for item_id, process_group in ctx.items:
+                for item_id, process_group, cid in ctx.items:
                     ms = months_by_group.get(process_group, 0)
                     self._add_item_row(
                         item_id=item_id,
                         process_group=process_group,
                         months_supply=ms,
+                        cid=cid,
                     )
             else:
                 self._add_item_row()
         else:
             self._update_registro_status(False)
-            if ctx.suggested_item_ids:
-                for item_id in ctx.suggested_item_ids:
-                    self._add_item_row(item_id=item_id)
+            if ctx.suggested_items:
+                for item_id, cid in ctx.suggested_items:
+                    self._add_item_row(item_id=item_id, cid=cid)
             else:
                 self._add_item_row()
 
@@ -654,28 +700,16 @@ class EntryPage(BasePage):
         msg = "Registro editado!" if result.is_update else "Registro salvo!"
         self._toast(msg, "positive")
 
-        self._save_cid(paciente_id)
-
         if self._auto_switch.isChecked():
             QTimer.singleShot(350, self._reset_form)
         else:
-            QTimer.singleShot(350, lambda: self._mw.navigate_to(self._return_to))
-
-    def _save_cid(self, paciente_id: int | None):
-        if paciente_id is None:
-            return
-        try:
-            cid = self._cid_input.text().strip()
-            self._mw.services.paciente.update(paciente_id, cid=cid)
-        except Exception as e:
-            self._handle_error(e, context="CID")
+            QTimer.singleShot(350, self._navigate_back)
 
     def _reset_form(self):
         self._edit_id = None
         self._edit_ctx = None
         self._paciente_combo.set_options({})
         self._paciente_combo.clear()
-        self._cid_input.clear()
         self._clear_item_rows()
         self._add_item_row()
         self._docs_check.blockSignals(True)
@@ -695,7 +729,13 @@ class EntryPage(BasePage):
             self,
             self._mw.db,
             self._edit_id,
-            on_refresh=lambda: QTimer.singleShot(
-                800, lambda: self._mw.navigate_to(self._return_to)
-            ),
+            on_refresh=lambda: QTimer.singleShot(800, self._navigate_back),
         )
+
+    def _navigate_back(self):
+        if self._return_to == "patient":
+            self._mw.navigate_to(
+                "patient", return_to=self._patient_return_to
+            )
+        else:
+            self._mw.navigate_to(self._return_to)

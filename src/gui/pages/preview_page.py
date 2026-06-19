@@ -42,6 +42,8 @@ class PreviewPage(BasePage):
         self._build_header(layout)
         layout.addSpacing(20)
         self._build_tabs(layout)
+        layout.addSpacing(12)
+        self._add_export_button(layout, self._export_active_malote)
 
     def _build_header(self, layout: QVBoxLayout):
         h = self._add_back_button(layout)
@@ -59,7 +61,7 @@ class PreviewPage(BasePage):
         registros = self._mw.services.registro.get_with_items_by_malote(malote.id)
 
         self._tabs = QTabWidget()
-        self._tabs.setMinimumHeight(550)
+        self._tabs.setMinimumHeight(500)
         self._tab_tipo_keys: list[str] = []
         self._tabs.setStyleSheet(tab_style_qss())
         self._tab_searches: dict[int, QLineEdit] = {}
@@ -381,7 +383,7 @@ class PreviewPage(BasePage):
     def _view_patient(self, reg_id: int):
         reg = self._mw.services.registro.get(reg_id)
         if reg and reg.paciente_id:
-            self._mw.navigate_to("patient", paciente_id=reg.paciente_id, highlight_registro=reg_id)
+            self._mw.navigate_to("patient", paciente_id=reg.paciente_id, highlight_registro=reg_id, return_to="preview")
 
     def set_shortcuts_visible(self, show: bool):
         super().set_shortcuts_visible(show)

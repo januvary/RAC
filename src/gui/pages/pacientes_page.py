@@ -6,7 +6,8 @@ Pacientes Page — manage the patient list
 
 from datetime import datetime
 
-from src.gui.widgets import BasePage, CrudList, HeadingLabel
+from src.gui.widgets import BasePage, CrudList, HeadingLabel, export_with_fallback
+from src.export.excel_exporter import ExcelExporter
 from src.models import Paciente
 
 
@@ -52,7 +53,17 @@ class PacientesPage(BasePage):
             on_activate=lambda pid: self._mw.navigate_to("patient", paciente_id=pid, return_to="pacientes"),
         )
         layout.addWidget(self._crud.widget)
+        layout.addSpacing(12)
+        self._add_export_button(layout, self._on_export, label="Exportar Pacientes")
 
         self._shortcut_searches = [
             ("Buscar paciente...", self._crud.search),
         ]
+
+    def _on_export(self):
+        exporter = ExcelExporter(self._mw.db)
+        export_with_fallback(
+            self,
+            lambda: exporter.export_pacientes(),
+            "Nenhum paciente para exportar",
+        )

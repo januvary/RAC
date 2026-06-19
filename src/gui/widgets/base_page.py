@@ -128,6 +128,29 @@ class BasePage(QWidget, ToastMixin):
         layout.addLayout(h)
         return h
 
+    def _add_export_button(self, layout: QVBoxLayout, on_export, label: str = "Exportar Planilha"):
+        btn = make_button(label, "positive")
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        btn.setFixedHeight(44)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(on_export)
+        layout.addWidget(btn)
+        return btn
+
+    def _export_active_malote(self):
+        from src.export.excel_exporter import ExcelExporter
+
+        if not self._mw.state.has_active_malote():
+            self._toast("Selecione um malote primeiro!", "warning")
+            return
+        malote = self._mw.state.get_active_malote()
+        exporter = ExcelExporter(self._mw.db)
+        export_with_fallback(
+            self,
+            lambda: exporter.export_malote(malote.id),
+            "Nenhum registro para exportar",
+        )
+
 
 def make_tab(margins=(16, 16, 16, 16), spacing=12):
     from PySide6.QtWidgets import QWidget, QVBoxLayout

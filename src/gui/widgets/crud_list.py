@@ -53,7 +53,9 @@ class CrudList:
                  secondary_value: Callable[[object], str] | None = None,
                  secondary_sort_key: Callable[[object], object] | None = None,
                  sortable: bool = True,
-                 on_activate: Callable[[object], None] | None = None):
+                 on_activate: Callable[[object], None] | None = None,
+                 extra_context_items: list[tuple[str, Callable[[int], None]]] | None = None,
+                 secondary_tooltip: Callable[[object], str] | None = None):
         self._page = page
         self._title = title
         self._entity_label = entity_label
@@ -69,6 +71,8 @@ class CrudList:
         self._secondary_sort_key = secondary_sort_key
         self._sortable = sortable
         self._on_activate = on_activate
+        self._extra_context_items = extra_context_items or []
+        self._secondary_tooltip = secondary_tooltip
         self._all_items: list = []
         self.list_widget: QTableWidget
         self.search: QLineEdit
@@ -76,7 +80,7 @@ class CrudList:
         self._build(search_placeholder)
 
     def _build(self, search_placeholder):
-        tab, tab_layout = make_tab()
+        tab, tab_layout = make_tab(margins=(0, 0, 0, 0))
 
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
@@ -108,14 +112,19 @@ class CrudList:
         self.list_widget.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.list_widget.setAlternatingRowColors(True)
         self.list_widget.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.list_widget.setMinimumHeight(460)
+        self.list_widget.setMinimumHeight(410)
         self.list_widget.setStyleSheet(
             data_view_style_qss(include_selected=True, include_hover=True)
         )
         if has_secondary:
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
             header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             header.setVisible(True)
+            if name_hdr := self.list_widget.horizontalHeaderItem(0):
+                name_hdr.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            if sec_hdr := self.list_widget.horizontalHeaderItem(1):
+                sec_hdr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         else:
             header.setVisible(False)
             header.setStretchLastSection(True)
@@ -173,6 +182,8 @@ class CrudList:
                 sec_item.setFlags(
                     sec_item.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable
                 )
+                if self._secondary_tooltip is not None:
+                    sec_item.setToolTip(self._secondary_tooltip(item))
                 table.setItem(row, 1, sec_item)
 
         if self._sortable:
@@ -231,6 +242,12 @@ class CrudList:
         edit_action.triggered.connect(
             lambda _checked=False, it=item: self._edit_item(it)
         )
+        item_id = item.data(Qt.ItemDataRole.UserRole)
+        for label, callback in self._extra_context_items:
+            action = menu.addAction(label)
+            action.triggered.connect(
+                lambda _checked=False, cb=callback, iid=item_id: cb(iid)
+            )
         delete_action = menu.addAction("Excluir")
         delete_action.triggered.connect(
             lambda _checked=False: self.delete_selected()

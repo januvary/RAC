@@ -304,3 +304,80 @@ class ExcelExporter:
         return self._save_workbook(
             wb, "Estatisticas", date_label, "Estatísticas exportadas"
         )
+
+    def export_pacientes(self) -> Optional[str]:
+        openpyxl = _ensure_openpyxl()
+        if openpyxl is None:
+            return None
+
+        pacientes = self._db.get_all_pacientes_with_last_registro()
+        if not pacientes:
+            return None
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        if ws is not None:
+            ws.title = "Pacientes"
+
+        styles = _make_excel_styles()
+
+        ws["A1"] = "USAFA OCIAN - Pacientes"
+        ws.merge_cells("A1:B1")
+        ws["A2"] = f"Total: {len(pacientes)}"
+        ws.merge_cells("A2:B2")
+
+        ws.append(["Nome", "Último Registro"])
+        for p in pacientes:
+            date_raw = (p.last_registro_date or "").strip()
+            if date_raw:
+                try:
+                    last = datetime.fromisoformat(date_raw).strftime("%d/%m/%Y")
+                except ValueError:
+                    last = date_raw
+            else:
+                last = "—"
+            ws.append([p.name, last])
+
+        ws.column_dimensions["A"].width = 45
+        ws.column_dimensions["B"].width = 20
+
+        _style_title_row(ws, 1, styles)
+        _style_title_row(ws, 2, styles, "title2_font", 26, styles["fill_odd"])
+        _style_data_rows(ws, 3, styles)
+
+        _apply_page_setup(ws)
+
+        return self._save_workbook(wb, "Pacientes", log_label="Pacientes exportados")
+
+    def export_catalog(self) -> Optional[str]:
+        openpyxl = _ensure_openpyxl()
+        if openpyxl is None:
+            return None
+
+        items = self._db.get_all_items()
+        if not items:
+            return None
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        if ws is not None:
+            ws.title = "Catálogo"
+
+        styles = _make_excel_styles()
+
+        ws["A1"] = "Catálogo de Medicamentos"
+        ws["A2"] = f"Total: {len(items)}"
+
+        ws.append(["Medicamento"])
+        for it in items:
+            ws.append([it.name])
+
+        ws.column_dimensions["A"].width = 45
+
+        _style_title_row(ws, 1, styles)
+        _style_title_row(ws, 2, styles, "title2_font", 26, styles["fill_odd"])
+        _style_data_rows(ws, 3, styles)
+
+        _apply_page_setup(ws)
+
+        return self._save_workbook(wb, "Catalogo", log_label="Catálogo exportado")

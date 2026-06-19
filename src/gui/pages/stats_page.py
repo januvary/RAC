@@ -212,7 +212,7 @@ class StatsPage(BasePage):
         self._meds_table.setAlternatingRowColors(True)
         self._meds_table.verticalHeader().setDefaultSectionSize(32)
         self._meds_table.setMinimumHeight(28 + 32 * 8)
-        self._meds_table.setStyleSheet(data_view_style_qss(border=f"1px solid {colors()['border_light']}", item_padding="6px 10px", include_selected=False, header_bg_key="bg_card_alt", header_padding="4px 10px", header_border_key="border_light"))
+        self._meds_table.setStyleSheet(data_view_style_qss(include_selected=False, include_hover=True))
         layout.addWidget(self._meds_table)
 
         self._meds_search.textChanged.connect(self._filter_meds_table)

@@ -44,7 +44,6 @@ class MainWindow(QMainWindow):
         self._services = None
         self._shortcut_peek_active = False
         self._last_patient_id: int | None = None
-        self._patient_return_to: str = "start"
 
     def init_backend(self):
         self.config = ConfigManager()
@@ -141,7 +140,8 @@ class MainWindow(QMainWindow):
             edit_id = kwargs.get("edit_id")
             return_to = kwargs.get("return_to", "start")
             paciente_id = kwargs.get("paciente_id")
-            self._show_entry_page(tipo, edit_id, return_to, paciente_id)
+            patient_return_to = kwargs.get("patient_return_to", "start")
+            self._show_entry_page(tipo, edit_id, return_to, paciente_id, patient_return_to)
         elif page_name == "preview":
             self._show_preview_page()
         elif page_name == "medicamentos":
@@ -181,11 +181,11 @@ class MainWindow(QMainWindow):
 
     def _show_entry_page(
         self, tipo: str, edit_id: int | None = None, return_to: str = "start",
-        paciente_id: int | None = None,
+        paciente_id: int | None = None, patient_return_to: str = "start",
     ):
         from src.gui.pages.entry_page import EntryPage
 
-        self._push_page(EntryPage, tipo, edit_id, return_to, paciente_id)
+        self._push_page(EntryPage, tipo, edit_id, return_to, paciente_id, patient_return_to)
 
     def _show_preview_page(self):
         from src.gui.pages.preview_page import PreviewPage
@@ -210,9 +210,7 @@ class MainWindow(QMainWindow):
     def _show_patient_page(self, paciente_id: int, highlight_registro: int | None = None, return_to: str | None = None):
         from src.gui.pages.patient_page import PatientPage
 
-        if return_to is not None:
-            self._patient_return_to = return_to
-        self._push_page(PatientPage, paciente_id, highlight_registro, self._patient_return_to)
+        self._push_page(PatientPage, paciente_id, highlight_registro, return_to or "start")
 
     def _setup_shortcuts(self):
         shortcuts = [

@@ -18,5 +18,8 @@ class ItemCatalogService:
     def update(self, item_id: int, name: str) -> bool:
         return self._db.update_item(item_id, name)
 
+    def update_cids(self, item_id: int, cids: str) -> bool:
+        return self._db.update_item_cids(item_id, cids)
+
     def delete(self, item_id: int) -> bool:
         return self._db.delete_item(item_id)

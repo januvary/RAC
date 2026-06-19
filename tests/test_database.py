@@ -40,7 +40,7 @@ def registro(db, malote, paciente):
 def full_setup(db, malote, paciente, catalog_items):
     reg = db.create_registro("entrada", paciente.id, malote.id)
     items = catalog_items[:3]
-    db.set_registro_items(reg.id, [(i.id, 1) for i in items])
+    db.set_registro_items(reg.id, [(i.id, 1, "") for i in items])
     return {
         "db": db,
         "malote": malote,
@@ -264,7 +264,7 @@ class TestRegistroItems:
     def test_set_and_get_items(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
         item_ids = [catalog_items[0].id, catalog_items[1].id]
-        db.set_registro_items(r.id, [(iid, 1) for iid in item_ids])
+        db.set_registro_items(r.id, [(iid, 1, "") for iid in item_ids])
         items = db.get_items_by_registro(r.id)
         assert len(items) == 2
         returned_ids = {i.item_id for i in items}
@@ -272,23 +272,23 @@ class TestRegistroItems:
 
     def test_set_items_replaces(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
-        db.set_registro_items(r.id, [(catalog_items[0].id, 1)])
+        db.set_registro_items(r.id, [(catalog_items[0].id, 1, "")])
         db.set_registro_items(
-            r.id, [(catalog_items[1].id, 1), (catalog_items[2].id, 1)]
+            r.id, [(catalog_items[1].id, 1, ""), (catalog_items[2].id, 1, "")]
         )
         items = db.get_items_by_registro(r.id)
         assert len(items) == 2
 
     def test_set_items_empty_clears(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
-        db.set_registro_items(r.id, [(catalog_items[0].id, 1)])
+        db.set_registro_items(r.id, [(catalog_items[0].id, 1, "")])
         db.set_registro_items(r.id, [])
         items = db.get_items_by_registro(r.id)
         assert len(items) == 0
 
     def test_cascade_delete_on_registro(self, db, malote, paciente, catalog_items):
         r = db.create_registro("entrada", paciente.id, malote.id)
-        db.set_registro_items(r.id, [(catalog_items[0].id, 1)])
+        db.set_registro_items(r.id, [(catalog_items[0].id, 1, "")])
         db.delete_registro(r.id)
         items = db.get_items_by_registro(r.id)
         assert len(items) == 0
@@ -300,7 +300,7 @@ class TestRegistroItems:
         items = full_setup["items"]
 
         r2 = db.create_registro("renovacao", paciente.id, malote.id)
-        db.set_registro_items(r2.id, [(items[0].id, 1), (items[2].id, 1)])
+        db.set_registro_items(r2.id, [(items[0].id, 1, ""), (items[2].id, 1, "")])
 
         patient_items = db.get_items_by_paciente(paciente.id)
         assert len(patient_items) == 3
@@ -328,7 +328,7 @@ class TestExportHelpers:
 
         p2 = db.create_paciente("Ana Costa")
         r2 = db.create_registro("renovacao", p2.id, malote.id)
-        db.set_registro_items(r2.id, [(items[0].id, 1)])
+        db.set_registro_items(r2.id, [(items[0].id, 1, "")])
 
         exports = db.get_registros_with_items_by_malote(malote.id)
         assert len(exports) == 2

@@ -64,7 +64,6 @@ class PatientPage(BasePage):
 
         paciente = self._mw.services.paciente.get(self._paciente_id)
         name = paciente.name if paciente else "?"
-        cid = paciente.cid if paciente else ""
         c = colors()
 
         header_h = make_hbox(spacing=12)
@@ -80,28 +79,25 @@ class PatientPage(BasePage):
         name_btn.clicked.connect(self._edit_name)
         header_h.addWidget(name_btn)
 
-        cid_btn = make_button(f"CID: {cid}" if cid else "CID: —", "flat")
-        cid_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cid_btn.setStyleSheet(
-            f'QPushButton {{ background: transparent; border: 1px solid {c["border_light"]}; '
-            f"border-radius: 4px; padding: 2px 8px; color: {c['text_secondary']}; font-size: 12px; }}"
-            f'QPushButton:hover {{ background: {c["bg_hover"]}; }}'
-        )
-        cid_btn.clicked.connect(self._edit_cid)
-        header_h.addWidget(cid_btn)
         h.addLayout(header_h)
 
     def _build_table(self, layout: QVBoxLayout):
         registros = self._mw.services.registro.get_by_paciente(self._paciente_id)
 
-        self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(["Malote", "Tipo", "Medicamentos"])
-        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table = QTableWidget(0, 4)
+        self._table.setHorizontalHeaderLabels(["Malote", "Tipo", "Medicamentos", "CIDs"])
+        self._table.horizontalHeader().setStretchLastSection(False)
         self._table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
         self._table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Stretch
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
         )
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.verticalHeader().setVisible(False)
@@ -134,6 +130,14 @@ class PatientPage(BasePage):
 
             meds_str = " | ".join(meds_parts) if meds_parts else "—"
 
+            cids = sorted(set(item.cid for item in items if item.cid))
+            if not cids:
+                cids_str = "—"
+            elif len(cids) <= 2:
+                cids_str = ", ".join(cids)
+            else:
+                cids_str = ", ".join(cids[:2]) + "…"
+
             row = self._table.rowCount()
             self._table.insertRow(row)
 
@@ -155,6 +159,10 @@ class PatientPage(BasePage):
             meds_item = QTableWidgetItem(meds_str)
             meds_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             self._table.setItem(row, 2, meds_item)
+
+            cids_item = QTableWidgetItem(cids_str)
+            cids_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._table.setItem(row, 3, cids_item)
 
             if self._highlight_registro is not None and reg.id == self._highlight_registro:
                 highlight_row = row
@@ -245,7 +253,7 @@ class PatientPage(BasePage):
         if reg:
             self._mw.navigate_to(
                 "entry", tipo=reg.tipo, edit_id=reg_id, return_to="patient",
-                paciente_id=self._paciente_id,
+                paciente_id=self._paciente_id, patient_return_to=self._return_to,
             )
 
     def _show_row_menu(self, pos):
@@ -274,7 +282,7 @@ class PatientPage(BasePage):
         if reg:
             self._mw.navigate_to(
                 "entry", tipo=reg.tipo, edit_id=reg_id, return_to="patient",
-                paciente_id=self._paciente_id,
+                paciente_id=self._paciente_id, patient_return_to=self._return_to,
             )
 
     def _delete_registro(self, reg_id: int):
@@ -286,7 +294,7 @@ class PatientPage(BasePage):
             return
         self._mw.navigate_to(
             "entry", tipo=tipo, return_to="patient",
-            paciente_id=self._paciente_id,
+            paciente_id=self._paciente_id, patient_return_to=self._return_to,
         )
 
     def _edit_name(self):
@@ -302,46 +310,6 @@ class PatientPage(BasePage):
             self._mw.services.paciente.update(self._paciente_id, name=new_name)
             self.refresh()
             self._toast("Nome atualizado", "positive")
-        except Exception as e:
-            self._handle_error(e)
-
-    def _edit_cid(self):
-        from src.gui.widgets import CidInput
-        from src.gui.widgets.dialogs import scaffold_dialog, make_dialog_button_row
-
-        paciente = self._mw.services.paciente.get(self._paciente_id)
-        if not paciente:
-            return
-
-        dlg, layout = scaffold_dialog(self, "Editar CID")
-        layout.addSpacing(4)
-
-        input_field = CidInput()
-        input_field.setText(paciente.cid or "")
-        input_field.setMinimumWidth(170)
-        input_field.setMaximumWidth(16777215)
-        layout.addWidget(input_field)
-
-        btn_row, [cancel, confirm] = make_dialog_button_row([
-            ("Cancelar", "flat"),
-            ("Confirmar", "primary"),
-        ])
-        cancel.clicked.connect(dlg.reject)
-        layout.addLayout(btn_row)
-
-        input_field.returnPressed.connect(dlg.accept)
-        confirm.clicked.connect(dlg.accept)
-
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        new_cid = input_field.text().strip()
-        if new_cid == (paciente.cid or ""):
-            return
-        try:
-            self._mw.services.paciente.update(self._paciente_id, cid=new_cid)
-            self.refresh()
-            self._toast("CID atualizado", "positive")
         except Exception as e:
             self._handle_error(e)
 

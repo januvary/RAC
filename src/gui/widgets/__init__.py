@@ -7,7 +7,6 @@ from src.gui.widgets.inputs import (
     TipoCombo,
     _CenteredComboBox,
 )
-from src.gui.widgets.cid_input import CidInput
 from src.gui.widgets.toast import show_toast, ToastMixin
 from src.gui.widgets.malote import MaloteLabel
 from src.gui.widgets.base_page import BasePage, make_tab, make_hbox, export_with_fallback
@@ -29,7 +28,6 @@ __all__ = [
     "TipoLabel",
     "TipoCombo",
     "_CenteredComboBox",
-    "CidInput",
     "show_toast",
     "ToastMixin",
     "MaloteLabel",
