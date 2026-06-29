@@ -4,20 +4,19 @@
 Shared constants for RAC PySide6 app
 """
 
-from src.constants import TIPO_LABELS, TIPO_TITLES  # noqa: F401
-
-TIPO_HEX = {
-    "entrada": "#10B981",
-    "renovacao": "#3B82F6",
-    "retirada": "#D97706",
-    "urgente": "#EF4444",
-}
+from src.constants import (  # noqa: F401
+    TIPO_LABELS,
+    TIPO_TITLES,
+    TIPOS_WITH_MONTHS,
+    TIPO_HEX,
+)
 
 TIPO_SYMBOLS = {
     "entrada": "\u25b2",
     "renovacao": "\u21bb",
     "retirada": "\u25bc",
     "urgente": "!",
+    "medcasa": "\u2302",
 }
 
 SHORTCUT_LABELS: dict[str, tuple[str, str]] = {
@@ -25,7 +24,8 @@ SHORTCUT_LABELS: dict[str, tuple[str, str]] = {
     "export": ("Ctrl+E", "Exportar Planilha"),
     "back": ("Esc", "Voltar"),
     "preview": ("Ctrl+G", "Visualizar Malote"),
-    "lists": ("Ctrl+T", "Gerenciar Listas"),
+    "medicamentos": ("Ctrl+M", "Medicamentos"),
+    "pacientes": ("Ctrl+P", "Pacientes"),
     "stats": ("Ctrl+Y", "Estatisticas"),
     "add_item": ("Ctrl+F", "+ Adicionar Item"),
     "toggle_docs": ("Ctrl+W", "Esperando documentos"),
@@ -37,4 +37,5 @@ TIPO_SHORTCUT_KEYS: dict[str, str] = {
     "renovacao": "Ctrl+2",
     "retirada": "Ctrl+3",
     "urgente": "Ctrl+4",
+    "medcasa": "Ctrl+5",
 }
