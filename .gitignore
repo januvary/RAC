@@ -27,3 +27,11 @@ data/backups/
 *.swo
 
 .env
+
+# Test/coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+
+# Generated panel artifact
+painel.html
