@@ -12,11 +12,9 @@ from PySide6.QtWidgets import (
     QPushButton,
     QCheckBox,
     QSizePolicy,
-    QDialog,
 )
 from PySide6.QtCore import Qt, QTimer
 from dataclasses import dataclass
-from functools import partial
 
 from andaime.widgets import SearchableComboBox
 from src.gui.widgets import (
@@ -93,7 +91,6 @@ class _RowData:
     group_btn: _CycleButton
     row_widget: QWidget
     months_btn: _CycleButton | None = None
-    return_btn: QPushButton | None = None
     combo: SearchableComboBox | None = None
     cid_combo: SearchableComboBox | None = None
     pg: int = 1
@@ -154,7 +151,6 @@ class EntryPage(BasePage):
         self._build_action_bar(layout)
 
         QTimer.singleShot(0, self._paciente_combo.focus_search)
-        QTimer.singleShot(0, self._refresh_return_dates)
         if self._pre_paciente_id and not self._edit_id:
             QTimer.singleShot(
                 0, lambda: self._on_paciente_selected(str(self._pre_paciente_id))
@@ -172,7 +168,6 @@ class EntryPage(BasePage):
 
         self._tipo_combo.tipo_changed.connect(self._on_context_changed)
         self._tipo_combo.tipo_changed.connect(self._on_tipo_changed_months)
-        self._malote_label.malote_changed.connect(self._on_malote_changed)
 
         h = self._add_back_button(layout, target=self._return_to)
         h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -229,7 +224,7 @@ class EntryPage(BasePage):
 
         layout.addSpacing(4)
         add_btn = make_button("+ Adicionar Item", "flat")
-        add_btn.clicked.connect(lambda: (self._add_item_row(), self._refresh_return_dates()))
+        add_btn.clicked.connect(self._add_item_row)
         self._shortcut_widgets["add_item"] = add_btn
         layout.addWidget(add_btn)
 
@@ -354,12 +349,6 @@ class EntryPage(BasePage):
             lambda data, r=rd: self._on_item_selected_in_row(r, data)
         )
 
-        return_label = make_icon_button("--/--/----", "positive", width=85, font_size=11)
-        return_label.setToolTip("Data prevista de retorno (clique p/ ver opções)")
-        return_label.clicked.connect(lambda _checked=False: self._show_return_date_popup(rd))
-        rd.return_btn = return_label
-        row_h.addWidget(return_label)
-
         rd.months_btn = _CycleButton(
             f"{months_supply}m", "positive",
             modulus=7, base=0, initial=months_supply, width=36, font_size=11,
@@ -408,12 +397,10 @@ class EntryPage(BasePage):
 
     def _on_group_changed(self, rd: _RowData, new_pg: int):
         rd.pg = new_pg
-        self._refresh_return_dates()
 
     def _on_months_changed(self, rd: _RowData, new_ms: int):
         rd.ms = new_ms
         self._sync_months_for_group(rd.pg, new_ms)
-        self._refresh_return_dates()
 
     def _sync_months_for_group(self, group_number: int, new_ms: int):
         for rd in self._rows:
@@ -437,17 +424,12 @@ class EntryPage(BasePage):
             return
         self._last_paciente_id = paciente_id
         self._load_items_for_context(paciente_id)
-        self._refresh_return_dates()
 
     def _on_context_changed(self, *_):
         paciente_id = self._resolve_current_patient()
         if paciente_id is None:
             return
         self._load_items_for_context(paciente_id)
-        self._refresh_return_dates()
-
-    def _on_malote_changed(self, *_):
-        self._refresh_return_dates()
 
     def _on_tipo_changed_months(self, tipo: str):
         self._tipo = tipo
@@ -455,113 +437,9 @@ class EntryPage(BasePage):
         for rd in self._rows:
             if rd.months_btn:
                 rd.months_btn.setVisible(visible)
-        self._refresh_return_dates()
 
     def _on_waiting_docs_toggled(self, checked: bool):
-        if checked:
-            for rd in self._rows:
-                if rd.return_btn:
-                    rd.return_btn.setText("--/--/----")
-        else:
-            self._refresh_return_dates()
-
-    def _refresh_return_dates(self):
-        from src.utils.date_calculator import calculate_return_dates, resolve_arrival_from_malote
-
-        malote = self._mw.state.get_active_malote()
-        tipo = self._tipo_combo.current_tipo()
-        if not malote or not tipo:
-            return
-
-        arrival_date = resolve_arrival_from_malote(malote)
-
-        row_data: dict[int, tuple[int, list[_RowData]]] = {}
-        for rd in self._rows:
-            if rd.pg not in row_data:
-                row_data[rd.pg] = (rd.ms, [])
-            row_data[rd.pg][1].append(rd)
-
-        process_groups = [(g, ms) for g, (ms, _) in row_data.items()]
-        if not process_groups:
-            return
-
-        returns = calculate_return_dates(
-            tipo=tipo,
-            arrival_date=arrival_date,
-            process_groups=process_groups,
-            db=self._mw.db,
-            current_malote_id=malote.id,
-            waiting_docs=self._docs_check.isChecked(),
-        )
-
-        for ret in returns:
-            _, rows = row_data.get(ret.group_number, (0, []))
-            for rd in rows:
-                if rd.return_btn:
-                    if ret.expected_return_date:
-                        rd.return_btn.setText(ret.expected_return_date.strftime("%d/%m/%Y"))
-                    else:
-                        rd.return_btn.setText("--/--/----")
-
-    def _get_return_buttons_for_group(self, group_number: int) -> list[QPushButton]:
-        return [rd.return_btn for rd in self._rows if rd.pg == group_number and rd.return_btn]
-
-    def _show_return_date_popup(self, rd: _RowData):
-        try:
-            self._do_show_return_date_popup(rd)
-        except Exception as e:
-            from andaime.error_handler import ErrorHandler
-            ErrorHandler.handle_error(e, context="ReturnDatePopup", show_dialog=True)
-
-    def _do_show_return_date_popup(self, rd: _RowData):
-        from datetime import date, timedelta
-        from src.utils.date_calculator import (
-            find_nearest_arrival_after,
-            get_candidate_days_after_arrival,
-            resolve_arrival_from_malote,
-        )
-        malote = self._mw.state.get_active_malote()
-        if not malote:
-            return
-
-        arrival_date = resolve_arrival_from_malote(malote)
-
-        ms = rd.ms
-        tipo = self._tipo_combo.current_tipo()
-
-        dlg = QDialog(self.window())
-        dlg.setMinimumWidth(300)
-        dlg_layout = QVBoxLayout(dlg)
-        dlg_layout.setSpacing(6)
-
-        if arrival_date is None:
-            dlg.reject()
-            return
-
-        if tipo in TIPOS_WITH_MONTHS and ms > 0:
-            runs_out = date.today() + timedelta(days=ms * 30)
-            nearest = find_nearest_arrival_after(runs_out, db=self._mw.db, top=1)
-            best_arrival = nearest[0][0] if nearest else arrival_date
-            candidates = get_candidate_days_after_arrival(best_arrival)
-        else:
-            candidates = get_candidate_days_after_arrival(arrival_date)
-
-        for c in candidates:
-            date_str = c.strftime("%d/%m/%Y")
-            day_name = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][c.weekday()]
-            btn = make_button(f"{date_str}  ({day_name})", "flat")
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(
-                partial(self._apply_return_date, date_str, dlg, rd.pg)
-            )
-            dlg_layout.addWidget(btn)
-
-        dlg.exec()
-
-    def _apply_return_date(self, date_str: str, dialog: QDialog, group_number: int):
-        for b in self._get_return_buttons_for_group(group_number):
-            b.setText(date_str)
-        dialog.accept()
+        pass
 
     def _resolve_current_patient(self) -> int | None:
         pid = self._paciente_combo.current_data()
@@ -716,7 +594,6 @@ class EntryPage(BasePage):
         self._docs_check.setChecked(False)
         self._docs_check.blockSignals(False)
         self._update_registro_status(False)
-        self._refresh_return_dates()
         if self._delete_btn:
             self._delete_btn.hide()
         self._paciente_combo.focus_search()

@@ -1,0 +1,30 @@
+name: Publish Panel
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  push:
+    branches: [collection]
+    paths: ['data/*.json.enc']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install cryptography
+
+      - run: python -m panel --from-collection --publish
+        env:
+          ADMIN_PRIVATE_KEY: ${{ secrets.ADMIN_PRIVATE_KEY }}
+          PANEL_PASSWORD: ${{ secrets.PANEL_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

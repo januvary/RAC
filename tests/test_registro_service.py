@@ -134,12 +134,12 @@ class TestSaveDedup:
         assert r1.registro_id == r2.registro_id
         assert r2.is_update is True
 
-    def test_different_tipos_create_separate(self, service, db, malote):
+    def test_different_tipos_create_separate(self, service, db, malote, catalog_items):
         r1 = service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,
-            items=[],
+            items=[(catalog_items[0].id, 1, "")],
         )
         r2 = service.save(
             tipo="renovacao",
@@ -345,7 +345,7 @@ class TestDoubleSaveWorkflow:
     def test_save_then_change_tipo_with_edit_id_raises_duplicate(
         self, service, db, malote, catalog_items
     ):
-        r1 = service.save(
+        service.save(
             tipo="entrada",
             paciente_name="Maria Santos",
             malote_id=malote.id,

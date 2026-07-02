@@ -51,11 +51,11 @@ class MaloteService:
         registros = self._db.get_registros_by_malote(malote_id)
         svc = RegistroService(self._db)
         for reg in registros:
-            if reg.id is None:
+            if reg.id is None or reg.paciente_id is None or reg.malote_id is None:
                 continue
             items = self._db.get_items_by_registro(reg.id)
             item_tuples = [
-                (i.item_id, i.process_group)
+                (i.item_id, i.process_group, i.cid)
                 for i in items
                 if i.item_id is not None
             ]

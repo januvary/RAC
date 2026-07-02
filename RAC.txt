@@ -6,7 +6,7 @@ RAC
 
 ## Overview
 
-Desktop application for registering and managing patient medication records across four workflow types, with batch-based organization and weekly spreadsheet export. Built in Python with **PySide6** + SQLite, with a layered architecture (database → services → state → GUI).
+Desktop application for registering and managing patient medication records across five workflow types, with batch-based organization and weekly spreadsheet export. Built in Python with **PySide6** + SQLite, with a layered architecture (database → services → state → GUI).
 
 ---
 
@@ -28,7 +28,7 @@ items_catalog
 
 registros
   id            INTEGER PRIMARY KEY AUTOINCREMENT
-  tipo          TEXT NOT NULL     -- 'entrada' | 'renovacao' | 'retirada' | 'urgente'
+  tipo          TEXT NOT NULL     -- 'entrada' | 'renovacao' | 'retirada' | 'urgente' | 'medcasa'
   paciente_id   INTEGER NOT NULL REFERENCES pacientes(id)
   malote_id     INTEGER NOT NULL REFERENCES malotes(id)
   created_at    TEXT NOT NULL
@@ -53,6 +53,7 @@ Indexes on `registros(malote_id)`, `registros(paciente_id)`, `registros(tipo)`, 
 | renovacao  | Renovação          |
 | retirada   | Retirada           |
 | urgente    | Resolver na hora   |
+| medcasa    | Remédio em Casa    |
 
 ---
 
@@ -109,6 +110,23 @@ Tabbed view for managing medications and patients:
 - **Medicamentos tab** — searchable list of all items from `items_catalog`. Add, edit (double-click), delete items. Delete blocked if item is in use.
 - **Pacientes tab** — searchable list of all patients. Add, edit (double-click), delete patients. Delete blocked if patient has registros.
 
+### Patient Page
+
+Per-patient detail view (reached from the preview page, search results, or patient list):
+
+- **Header** — patient name (editable), back button.
+- **Registro history** — table of all registros for the patient across malotes, with tipo badge, malote date, and formatted medications. A specific registro can be highlighted on entry.
+- **Actions** — open a registro in the Entry Page (edit), delete with undo, change tipo/malote, rename patient.
+
+### Stats Page
+
+Aggregate statistics view over a selectable date range:
+
+- **Date filters** — from/to date pickers scoped to the malote date range.
+- **By tipo** — count of registros and distinct patients per tipo, plus totals.
+- **Top medicamentos** — most-used items with percentage share.
+- **Export** — generates an `Estatisticas` spreadsheet of the filtered data.
+
 ---
 
 ## Keyboard Shortcuts
@@ -117,14 +135,16 @@ Holding **Ctrl+Shift** shows shortcut hints on all buttons and search fields.
 
 | Shortcut   | Action                        |
 |------------|-------------------------------|
-| Ctrl+1-4   | Navigate to tipo / switch tipo |
+| Ctrl+1-5   | Navigate to tipo / switch tipo |
 | Ctrl+S     | Save registro                 |
 | Ctrl+E     | Export spreadsheet            |
 | Escape     | Back to start page            |
 | Ctrl+D     | Open malote dialog            |
 | Ctrl+R     | Focus search field            |
 | Ctrl+G     | Open preview page             |
-| Ctrl+T     | Open list manage page         |
+| Ctrl+M     | Open medicamentos page        |
+| Ctrl+P     | Open pacientes page           |
+| Ctrl+Y     | Open stats page               |
 | Ctrl+F     | Add new item row              |
 | Ctrl+W     | Toggle "waiting docs"         |
 | Ctrl+Q     | Toggle "stay on page"         |
@@ -133,15 +153,36 @@ Holding **Ctrl+Shift** shows shortcut hints on all buttons and search fields.
 
 ## Export
 
-Single `.xlsx` file, generated on demand. Structure:
+`.xlsx` files generated on demand via `ExcelExporter`. Medication names are run through `format_item` (in `utils/text_utils.py`) to extract brand + dosage from catalog names.
 
-- One tab per tipo: *Entrada*, *Renovação*, *Retirada*, *Resolver na hora*
+### Malote export
+
+- One tab per tipo (see Tipo Labels table)
 - Filtered to active malote, excluding `waiting_docs=1` registros
 - Header row 1: "USAFA OCIAN" (merged, font 20pt Arial, centered)
 - Header row 2: "[TIPO TITLE] - [dd/mm]" (merged, font 16pt Arial, centered)
 - Data rows: **Nome** | **Medicamentos** (newline-separated item names), centered with wrap text, thin borders
 - Auto-sized columns, A4 portrait, fit-to-width, no gridlines, centered printing
 - Filename: `Malote_[dd-mm]_[HHMMSS].xlsx`
+
+### Stats export
+
+- Single "Estatísticas" sheet over a from/to date range (defaults to full malote date range).
+- **By tipo** block: label, registro count, distinct patient count, plus a totals row.
+- **Top medicamentos** block: item, count, and percentage share.
+- Filename: `Estatisticas_[from]_a_[to].xlsx` (date label omitted when unfiltered).
+
+### Pacientes export
+
+- Single "Pacientes" sheet listing every patient with their last registro date.
+- Filename: `Pacientes_[HHMMSS].xlsx`.
+
+### Catálogo export
+
+- Single "Catálogo" sheet listing every item in `items_catalog`.
+- Filename: `Catalogo_[HHMMSS].xlsx`.
+
+All exports resolve the destination from `config.save_path` (defaulting to the user's Downloads) and fall back gracefully if `openpyxl` is unavailable.
 
 ---
 
@@ -179,6 +220,8 @@ src/
       preview_page.py        -- PreviewPage
       medicamentos_page.py    -- MedicamentosPage
       pacientes_page.py       -- PacientesPage
+      patient_page.py         -- PatientPage (per-patient detail/history)
+      stats_page.py           -- StatsPage (aggregate statistics + export)
     widgets/
       __init__.py            -- re-exports all widgets
       malote.py              -- MaloteLabel, malote dialog/new/edit
@@ -189,10 +232,13 @@ src/
       _completer.py          -- completer utilities
   export/
     __init__.py
-    excel_exporter.py        -- ExcelExporter
+    excel_exporter.py        -- ExcelExporter (malote, stats, pacientes, catálogo)
   services/
     __init__.py
     registro_service.py      -- RegistroService (save/delete/edit logic)
+    paciente_service.py      -- PacienteService (patient CRUD, rename)
+    malote_service.py        -- MaloteService (malote CRUD, registro move)
+    item_catalog_service.py  -- ItemCatalogService (item CRUD)
     exceptions.py            -- ValidationError, DuplicateRecordError
   state/
     __init__.py
@@ -203,7 +249,7 @@ src/
     database_base.py         -- BaseDatabase (shared DB infra)
     paths.py                 -- resolve_db_path, get_root_directory
     error_handler.py         -- ErrorHandler, ErrorContext, ErrorLevel
-    text_utils.py            -- to_upper_normalized, parse_date, format_malote_date
+    text_utils.py            -- to_upper_normalized, parse_date, format_malote_date, format_item
 main.py                      -- entry point
 data/
   config.json
@@ -219,3 +265,7 @@ data/
 - Registro deletion (delete button in Entry Page edit mode)
 - Malote edit/delete (via malote dialog context menu)
 - Preview page with inline tipo/malote/patient editing
+- `medcasa` ("Remédio em Casa") fifth tipo
+- Patient detail page (per-patient history across malotes)
+- Stats page (aggregate counts + top medicamentos, with export)
+- Additional exports: stats, pacientes, catálogo spreadsheets

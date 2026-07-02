@@ -4,15 +4,12 @@
 Shared constants for RAC PySide6 app
 """
 
-from src.constants import TIPO_LABELS, TIPO_TITLES, TIPOS_WITH_MONTHS  # noqa: F401
-
-TIPO_HEX = {
-    "entrada": "#10B981",
-    "renovacao": "#3B82F6",
-    "retirada": "#D97706",
-    "urgente": "#EF4444",
-    "medcasa": "#06B6D4",
-}
+from src.constants import (  # noqa: F401
+    TIPO_LABELS,
+    TIPO_TITLES,
+    TIPOS_WITH_MONTHS,
+    TIPO_HEX,
+)
 
 TIPO_SYMBOLS = {
     "entrada": "\u25b2",

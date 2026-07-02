@@ -232,7 +232,7 @@ class RegistroService:
             self._db.find_registro(tipo, paciente_id, malote_id)
             if malote_id else None
         )
-        if existing:
+        if existing and existing.id is not None:
             items = self._db.get_items_by_registro(existing.id)
             processes = self._db.get_processes_by_registro(existing.id)
             return ContextResult(
@@ -265,6 +265,8 @@ class RegistroService:
         reg = self._db.get_registro_by_id(registro_id)
         if not reg:
             raise ValidationError("Registro não encontrado")
+        if reg.paciente_id is None or reg.malote_id is None:
+            raise ValidationError("Registro inválido")
         items = self._db.get_items_by_registro(registro_id)
         item_tuples = [
             (i.item_id, i.process_group, i.cid) for i in items if i.item_id is not None
@@ -282,7 +284,7 @@ class RegistroService:
         errors = 0
         for rid in registro_ids:
             reg = self._db.get_registro_by_id(rid)
-            if not reg:
+            if not reg or reg.paciente_id is None:
                 continue
             items = self._db.get_items_by_registro(rid)
             item_tuples = [
@@ -302,6 +304,8 @@ class RegistroService:
     def delete_with_snapshot(self, registro_id: int) -> DeleteSnapshot | None:
         reg = self._db.get_registro_by_id(registro_id)
         if not reg:
+            return None
+        if reg.paciente_id is None or reg.malote_id is None:
             return None
         items = self._db.get_items_by_registro(registro_id)
         processes = self._db.get_processes_by_registro(registro_id)

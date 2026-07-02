@@ -26,10 +26,9 @@ from src.gui.widgets import (
 from src.gui.constants import TIPO_HEX, TIPO_LABELS
 from src.gui.styles import faded_tipo_color, tab_style_qss, filter_table_rows, data_view_style_qss
 
-from src.utils.text_utils import format_malote_date
+from src.utils.text_utils import format_malote_date, format_item
 from src.services.exceptions import DuplicateRecordError
 from src.services.registro_service import DeleteSnapshot
-from src.export.excel_exporter import _format_item
 
 
 class PreviewPage(BasePage):
@@ -110,7 +109,7 @@ class PreviewPage(BasePage):
                     table.setItem(row, 0, name_item)
 
                     formatted = [
-                        _format_item(name)
+                        format_item(name)
                         for name in proc.items
                     ]
                     items_str = " / ".join(formatted)
@@ -138,6 +137,7 @@ class PreviewPage(BasePage):
             self._shortcut_searches.append(("_search_placeholder", search))
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
+        self._on_tab_changed(0)
         layout.addWidget(self._tabs)
 
     def _on_tab_changed(self, idx):

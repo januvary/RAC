@@ -32,20 +32,10 @@ from src.models import (
 class RACDatabase(BaseDatabase):
     SCHEMA_VERSION = 6
 
-    _MIGRATIONS: dict[int, str] = {
-        2: "ALTER TABLE malotes ADD COLUMN arrival_date TEXT;",
-        3: "ALTER TABLE registro_items ADD COLUMN process_group INTEGER NOT NULL DEFAULT 1;",
-    }
-
     def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
             db_path = resolve_db_path("registros.db", create_dir=True)
         super().__init__(db_path=db_path, entity_name="registros")
-
-    def _resolve_default_db_path(self) -> str:
-        return resolve_db_path("registros.db", create_dir=True)
-
-
 
     def _search_by_name(
         self, table: str, name_column: str, query: str, limit: int
@@ -58,53 +48,9 @@ class RACDatabase(BaseDatabase):
         )
 
     def _create_schema(self) -> None:
-        stored_version = self._ensure_schema_version()
-
-        if stored_version == self.SCHEMA_VERSION:
-            self._ensure_v5_column()
-            self._ensure_v6_columns()
-            self._seed_catalog_if_empty()
-            return
-
-        if stored_version == 0:
-            has_existing = False
-            with self._cursor() as cur:
-                cur.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='registros'"
-                )
-                has_existing = cur.fetchone() is not None
-            if has_existing:
-                self._run_migrations(4)
-                self._set_schema_version(self.SCHEMA_VERSION)
-            else:
-                self._create_fresh_schema()
-                self._set_schema_version(self.SCHEMA_VERSION)
-        else:
-            self._run_migrations(stored_version)
-            self._set_schema_version(self.SCHEMA_VERSION)
+        self._create_fresh_schema()
+        self._set_schema_version(self.SCHEMA_VERSION)
         self._seed_catalog_if_empty()
-
-    def _ensure_v5_column(self) -> None:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT name FROM pragma_table_info('registro_items') WHERE name='process_id'"
-            )
-            if cur.fetchone():
-                return
-        self._migrate_v5()
-
-    def _ensure_v6_columns(self) -> None:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT name FROM pragma_table_info('items_catalog') WHERE name='cids'"
-            )
-            has_cids = cur.fetchone() is not None
-            cur.execute(
-                "SELECT name FROM pragma_table_info('registro_items') WHERE name='cid'"
-            )
-            has_cid = cur.fetchone() is not None
-        if not has_cids or not has_cid:
-            self._migrate_v6()
 
     def _create_fresh_schema(self) -> None:
         with self._cursor() as cur:
@@ -163,145 +109,6 @@ class RACDatabase(BaseDatabase):
                 CREATE INDEX IF NOT EXISTS idx_processes_registro ON processes(registro_id);
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_registros_unique ON registros(tipo, paciente_id, malote_id);
                 """)
-            self._commit()
-
-    def _run_migrations(self, from_version: int) -> None:
-        if self.SCHEMA_VERSION >= 5 and from_version < 5:
-            self._migrate_v5()
-            ErrorHandler.log(
-                "Migration v5 applied successfully",
-                level=ErrorLevel.INFO,
-                context="Database",
-            )
-        if self.SCHEMA_VERSION >= 6 and from_version < 6:
-            self._migrate_v6()
-            ErrorHandler.log(
-                "Migration v6 applied successfully",
-                level=ErrorLevel.INFO,
-                context="Database",
-            )
-        for version in sorted(self._MIGRATIONS):
-            if version <= from_version:
-                continue
-            sql = self._MIGRATIONS[version]
-            with self._cursor() as cur:
-                try:
-                    cur.executescript(sql)
-                    self._commit()
-                except Exception as e:
-                    raise RuntimeError(f"Migration v{version} failed: {e}") from e
-            ErrorHandler.log(
-                f"Migration v{version} applied successfully",
-                level=ErrorLevel.INFO,
-                context="Database",
-            )
-
-    def _migrate_v5(self) -> None:
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT name FROM pragma_table_info('registro_items') WHERE name='process_id'"
-            )
-            if cur.fetchone():
-                return
-            cur.execute(
-                "ALTER TABLE registro_items ADD COLUMN process_id INTEGER REFERENCES processes(id)"
-            )
-            self._commit()
-            cur.executescript("""
-                CREATE TABLE IF NOT EXISTS processes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    registro_id INTEGER NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
-                    group_number INTEGER NOT NULL DEFAULT 1,
-                    months_supply INTEGER NOT NULL DEFAULT 0,
-                    expected_return_date TEXT
-                );
-                CREATE INDEX IF NOT EXISTS idx_processes_registro ON processes(registro_id);
-            """)
-            existing = cur.execute(
-                "SELECT DISTINCT registro_id, process_group FROM registro_items"
-            ).fetchall()
-            for row in existing:
-                rid = row["registro_id"]
-                pg = row["process_group"]
-                cur.execute(
-                    "INSERT INTO processes (registro_id, group_number) VALUES (?, ?)",
-                    (rid, pg),
-                )
-                pid = cur.lastrowid
-                cur.execute(
-                    "UPDATE registro_items SET process_id = ? WHERE registro_id = ? AND process_group = ?",
-                    (pid, rid, pg),
-                )
-            try:
-                cur.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_registro_items_process ON registro_items(process_id)"
-                )
-            except sqlite3.OperationalError:
-                pass
-            self._commit()
-
-    def _migrate_v6(self) -> None:
-        import json
-
-        with self._cursor() as cur:
-            cur.execute(
-                "SELECT name FROM pragma_table_info('items_catalog') WHERE name='cids'"
-            )
-            if not cur.fetchone():
-                cur.execute(
-                    "ALTER TABLE items_catalog ADD COLUMN cids TEXT NOT NULL DEFAULT ''"
-                )
-
-            cur.execute(
-                "SELECT name FROM pragma_table_info('registro_items') WHERE name='cid'"
-            )
-            if not cur.fetchone():
-                cur.execute(
-                    "ALTER TABLE registro_items ADD COLUMN cid TEXT NOT NULL DEFAULT ''"
-                )
-
-            for name, unidade, cids_json in DEFINITIVE_CATALOG:
-                cur.execute(
-                    "UPDATE items_catalog SET cids = ? WHERE name = ? AND cids = ''",
-                    (cids_json, to_upper_normalized(name)),
-                )
-
-            cur.execute(
-                "SELECT name FROM pragma_table_info('pacientes') WHERE name='cid'"
-            )
-            if cur.fetchone():
-                patient_cids: dict[int, str] = {
-                    row["id"]: row["cid"]
-                    for row in cur.execute(
-                        "SELECT id, cid FROM pacientes WHERE cid IS NOT NULL AND cid != ''"
-                    ).fetchall()
-                }
-                for pid, cid in patient_cids.items():
-                    cur.execute(
-                        "UPDATE registro_items SET cid = ? "
-                        "WHERE cid = '' AND registro_id IN ("
-                        "  SELECT id FROM registros WHERE paciente_id = ?"
-                        ") AND item_id IN ("
-                        "  SELECT id FROM items_catalog WHERE cids LIKE ?"
-                        ")",
-                        (cid, pid, f"%{cid}%"),
-                    )
-                try:
-                    cur.execute("ALTER TABLE pacientes DROP COLUMN cid")
-                except sqlite3.OperationalError:
-                    cur.executescript("""
-                        CREATE TABLE pacientes_v6 (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            name TEXT NOT NULL UNIQUE
-                        );
-                        INSERT INTO pacientes_v6 (id, name)
-                            SELECT id, name FROM pacientes;
-                        DROP TABLE pacientes;
-                        ALTER TABLE pacientes_v6 RENAME TO pacientes;
-                        CREATE INDEX IF NOT EXISTS idx_pacientes_nome
-                            ON pacientes(name COLLATE NOCASE);
-                    """)
-
             self._commit()
 
     def _log_initialization_success(self) -> None:
@@ -805,6 +612,20 @@ class RACDatabase(BaseDatabase):
         )]
 
     # ========== EXPORT HELPERS ==========
+
+    @db_op("read")
+    def dump_all_tables(self) -> dict[str, list[dict]]:
+        return {
+            name: self._fetch_all_table(name)
+            for name in (
+                "malotes",
+                "pacientes",
+                "items_catalog",
+                "registros",
+                "processes",
+                "registro_items",
+            )
+        }
 
     @db_op("read")
     def get_registros_with_items_by_malote(

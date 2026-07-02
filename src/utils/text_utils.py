@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, date as date_type
 from typing import TYPE_CHECKING, Optional
 
@@ -41,3 +42,18 @@ def format_malote_date(malote: Optional[Malote]) -> str:
         return dt.strftime("%d/%m/%Y")
     except ValueError:
         return malote.date or "?"
+
+
+def format_item(name: str) -> str:
+    paren = re.search(r"\(([^)]+)\)\s*$", name)
+    if not paren:
+        result = name
+    else:
+        brand = paren.group(1).strip().upper()
+        digit = re.search(r"\d", name)
+        if not digit:
+            result = brand
+        else:
+            dosage = name[digit.start() : paren.start()].strip()
+            result = f"{brand} {dosage}"
+    return result.replace(" ", "\u00a0")

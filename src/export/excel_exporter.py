@@ -7,7 +7,6 @@ Generates .xlsx spreadsheet from malote registros
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Optional
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +14,7 @@ from pathlib import Path
 from andaime.error_handler import ErrorHandler, ErrorLevel
 
 from src.constants import TIPO_LABELS, TIPO_TITLES
+from src.utils.text_utils import format_item
 
 if TYPE_CHECKING:
     from src.database.rac_database import RACDatabase
@@ -22,21 +22,6 @@ if TYPE_CHECKING:
 
 class SavePathError(Exception):
     pass
-
-
-def _format_item(name: str) -> str:
-    paren = re.search(r"\(([^)]+)\)\s*$", name)
-    if not paren:
-        result = name
-    else:
-        brand = paren.group(1).strip().upper()
-        digit = re.search(r"\d", name)
-        if not digit:
-            result = brand
-        else:
-            dosage = name[digit.start() : paren.start()].strip()
-            result = f"{brand} {dosage}"
-    return result.replace(" ", "\u00a0")
 
 
 def _ensure_openpyxl():
@@ -70,7 +55,7 @@ def _make_excel_styles():
         ),
         "fill_even": PatternFill(fill_type=None),
         "fill_odd": PatternFill(
-            start_color="F0F0F0", end_color="F0F0F0", fill_type="solid"
+            start_color="F3F3F3", end_color="F3F3F3", fill_type="solid"
         ),
     }
 
@@ -191,7 +176,7 @@ class ExcelExporter:
 
             for reg in tipo_registros:
                 for proc in reg.processes:
-                    formatted_items = [_format_item(name) for name in proc.items]
+                    formatted_items = [format_item(name) for name in proc.items]
                     items_str = " / ".join(formatted_items)
                     ws.append(
                         [
@@ -270,7 +255,7 @@ class ExcelExporter:
             pct = f"{med['registros'] / total * 100:.1f}%"
             ws.append(
                 [
-                    _format_item(med["medicamento"]),
+                    format_item(med["medicamento"]),
                     med["registros"],
                     pct,
                 ]

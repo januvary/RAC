@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QMenu,
-    QDialog,
 )
 from PySide6.QtCore import Qt
 
@@ -26,9 +25,8 @@ from src.gui.styles import (
     data_view_style_qss,
     faded_tipo_color,
 )
-from src.utils.text_utils import format_malote_date
+from src.utils.text_utils import format_malote_date, format_item
 from src.models import Malote
-from src.export.excel_exporter import _format_item
 
 
 def _remove_layout_item(item):
@@ -123,7 +121,7 @@ class PatientPage(BasePage):
             meds_parts = []
             for pg in sorted(meds_by_group):
                 names = sorted(set(meds_by_group[pg]))
-                formatted = [_format_item(n) for n in names if n]
+                formatted = [format_item(n) for n in names if n]
                 if formatted:
                     prefix = f"G{pg}: " if len(meds_by_group) > 1 else ""
                     meds_parts.append(f"{prefix}{', '.join(formatted)}")

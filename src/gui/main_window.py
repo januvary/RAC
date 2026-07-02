@@ -13,6 +13,13 @@ from src.state.rac_state_manager import RACStateManager
 from andaime.config import ConfigManager
 
 from src.gui.constants import TIPO_LABELS
+from src.gui.pages.start_page import StartPage
+from src.gui.pages.entry_page import EntryPage
+from src.gui.pages.preview_page import PreviewPage
+from src.gui.pages.medicamentos_page import MedicamentosPage
+from src.gui.pages.pacientes_page import PacientesPage
+from src.gui.pages.stats_page import StatsPage
+from src.gui.pages.patient_page import PatientPage
 
 
 class MainWindow(QMainWindow):
@@ -152,8 +159,6 @@ class MainWindow(QMainWindow):
             self._show_stats_page()
 
     def _show_start_page(self):
-        from src.gui.pages.start_page import StartPage
-
         for i in range(self._stack.count()):
             w = self._stack.widget(i)
             if isinstance(w, StartPage):
@@ -183,33 +188,21 @@ class MainWindow(QMainWindow):
         self, tipo: str, edit_id: int | None = None, return_to: str = "start",
         paciente_id: int | None = None, patient_return_to: str = "start",
     ):
-        from src.gui.pages.entry_page import EntryPage
-
         self._push_page(EntryPage, tipo, edit_id, return_to, paciente_id, patient_return_to)
 
     def _show_preview_page(self):
-        from src.gui.pages.preview_page import PreviewPage
-
         self._push_page(PreviewPage)
 
     def _show_medicamentos_page(self):
-        from src.gui.pages.medicamentos_page import MedicamentosPage
-
         self._push_page(MedicamentosPage)
 
     def _show_pacientes_page(self):
-        from src.gui.pages.pacientes_page import PacientesPage
-
         self._push_page(PacientesPage)
 
     def _show_stats_page(self):
-        from src.gui.pages.stats_page import StatsPage
-
         self._push_page(StatsPage)
 
     def _show_patient_page(self, paciente_id: int, highlight_registro: int | None = None, return_to: str | None = None):
-        from src.gui.pages.patient_page import PatientPage
-
         self._push_page(PatientPage, paciente_id, highlight_registro, return_to or "start")
 
     def _setup_shortcuts(self):
@@ -248,27 +241,14 @@ class MainWindow(QMainWindow):
             fn(page)
 
     def _shortcut_save(self):
-        from src.gui.pages.entry_page import EntryPage
-
         self._on_page(EntryPage, lambda p: p._on_save())
 
     def _shortcut_export(self):
-        from src.gui.pages.start_page import StartPage
-
         self._on_page(StartPage, lambda p: p._on_export())
 
     def _shortcut_back(self):
-        from src.gui.pages.entry_page import EntryPage
-        from src.gui.pages.preview_page import PreviewPage
-        from src.gui.pages.medicamentos_page import MedicamentosPage
-        from src.gui.pages.pacientes_page import PacientesPage
-        from src.gui.pages.patient_page import PatientPage
-        from src.gui.pages.stats_page import StatsPage
-
         page = self._current_page()
-        if isinstance(page, EntryPage):
-            self.navigate_to(page._return_to)
-        elif isinstance(page, PatientPage):
+        if isinstance(page, (EntryPage, PatientPage)):
             self.navigate_to(page._return_to)
         elif isinstance(page, (PreviewPage, MedicamentosPage, PacientesPage, StatsPage)):
             self.navigate_to("start")
@@ -280,12 +260,6 @@ class MainWindow(QMainWindow):
 
     def _shortcut_focus_search(self):
         page = self._current_page()
-        from src.gui.pages.start_page import StartPage
-        from src.gui.pages.entry_page import EntryPage
-        from src.gui.pages.medicamentos_page import MedicamentosPage
-        from src.gui.pages.pacientes_page import PacientesPage
-        from src.gui.pages.preview_page import PreviewPage
-
         if isinstance(page, StartPage):
             page._search_combo.focus_search()
         elif isinstance(page, EntryPage):
@@ -301,8 +275,6 @@ class MainWindow(QMainWindow):
                 search.selectAll()
 
     def _shortcut_add_item(self):
-        from src.gui.pages.entry_page import EntryPage
-
         def _do(p):
             combo = p._add_item_row()
             if combo:
@@ -310,18 +282,12 @@ class MainWindow(QMainWindow):
         self._on_page(EntryPage, _do)
 
     def _shortcut_toggle_docs(self):
-        from src.gui.pages.entry_page import EntryPage
-
         self._on_page(EntryPage, lambda p: p._docs_check.toggle())
 
     def _shortcut_toggle_stay_on_page(self):
-        from src.gui.pages.entry_page import EntryPage
-
         self._on_page(EntryPage, lambda p: p._auto_switch.toggle())
 
     def _navigate_from_start(self, target: str):
-        from src.gui.pages.start_page import StartPage
-
         self._on_page(StartPage, lambda p: self.navigate_to(target))
 
     def _shortcut_preview(self):
@@ -337,10 +303,6 @@ class MainWindow(QMainWindow):
         self._navigate_from_start("stats")
 
     def _shortcut_tipo_by_key(self, tipo: str):
-        from src.gui.pages.start_page import StartPage
-        from src.gui.pages.entry_page import EntryPage
-        from src.gui.pages.preview_page import PreviewPage
-
         if self.state and self.state.has_active_malote():
             self._on_page(StartPage, lambda p: self.navigate_to("entry", tipo=tipo))
         self._on_page(EntryPage, lambda p: p._tipo_combo.set_tipo(tipo))
