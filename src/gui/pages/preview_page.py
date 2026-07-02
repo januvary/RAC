@@ -51,7 +51,7 @@ class PreviewPage(BasePage):
         self._malote_label.malote_changed.connect(self.refresh)
         h.addWidget(self._malote_label, 0, Qt.AlignmentFlag.AlignTop)
 
-    def _build_tabs(self, layout: QVBoxLayout):
+    def _build_tabs(self, layout: QVBoxLayout, insert_index: int | None = None):
         self.clear_keyboard_nav()
         malote = self._mw.state.get_active_malote()
         if not malote:
@@ -138,7 +138,10 @@ class PreviewPage(BasePage):
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self._on_tab_changed(0)
-        layout.addWidget(self._tabs)
+        if insert_index is not None:
+            layout.insertWidget(insert_index, self._tabs)
+        else:
+            layout.addWidget(self._tabs)
 
     def _on_tab_changed(self, idx):
         if 0 <= idx < len(self._tab_tipo_keys):
@@ -147,11 +150,6 @@ class PreviewPage(BasePage):
 
     def refresh(self):
         self._malote_label.refresh()
-
-        old = self.findChild(QTabWidget)
-        if old:
-            old.setParent(None)
-            old.deleteLater()
 
         main_layout = self.layout()
         if main_layout is None:
@@ -165,7 +163,17 @@ class PreviewPage(BasePage):
         container_layout = container.layout()
         if not isinstance(container_layout, QVBoxLayout):
             return
-        self._build_tabs(container_layout)
+
+        old = self.findChild(QTabWidget)
+        insert_index = None
+        if old:
+            idx = container_layout.indexOf(old)
+            if idx >= 0:
+                insert_index = idx
+            old.setParent(None)
+            old.deleteLater()
+
+        self._build_tabs(container_layout, insert_index)
 
     def _on_row_double_clicked(self, table: QTableWidget, row: int):
         item = table.item(row, 0)
@@ -207,10 +215,11 @@ class PreviewPage(BasePage):
             return
 
         if not table.selectionModel().isRowSelected(row, table.rootIndex()):
-            table.selectRow(row)
-
-        selected_ids = self._get_selected_ids(table)
-        is_multi = len(selected_ids) > 1
+            selected_ids = [reg_id]
+            is_multi = False
+        else:
+            selected_ids = self._get_selected_ids(table)
+            is_multi = len(selected_ids) > 1
 
         menu = QMenu(self)
         editar_menu = menu.addMenu("Editar")

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.dialogs import confirm_delete_dialog, open_input_dialog
@@ -141,6 +141,7 @@ class CrudList:
 
         self.load()
         self.widget = tab
+        QTimer.singleShot(0, self.search.setFocus)
 
     def load(self):
         self._all_items = self._db_get_all()
@@ -220,7 +221,13 @@ class CrudList:
         if item is None:
             return
         if self._on_activate is not None:
-            self._on_activate(item.data(Qt.ItemDataRole.UserRole))
+            item_id = item.data(Qt.ItemDataRole.UserRole)
+            on_activate = self._on_activate
+            # Defer navigation so the trailing mouse events of a double-click
+            # are consumed by this list before the new page is shown — otherwise
+            # they can land on the destination page (e.g. its history table,
+            # which would re-fire its own double-click handler).
+            QTimer.singleShot(0, lambda: on_activate(item_id))
         else:
             self._edit_item(item)
 

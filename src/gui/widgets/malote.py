@@ -51,6 +51,15 @@ class MaloteLabel(QWidget):
         )
         layout.addWidget(self._shortcut_hint)
 
+        self._prefix_label = QLabel("Malote:")
+        self._prefix_label.setFixedHeight(28)
+        self._prefix_label.setStyleSheet(
+            "color: #9CA3AF; font-size: 14px; border: none;"
+        )
+        layout.addWidget(self._prefix_label)
+
+        layout.addSpacing(6)
+
         self._date_label = QLabel()
         self._date_label.setProperty("malotelabel", "true")
         self._date_label.setFixedHeight(28)
@@ -296,9 +305,8 @@ def _show_holidays_dialog(parent):
         for h in yr_holidays:
             is_ponto = h in pontos_set
             dn = day_names[h.weekday()]
-            tag = "  (facultativo)" if is_ponto else ""
             child = QTreeWidgetItem()
-            child.setText(0, f"    {h.strftime('%d/%m')}  ({dn}){tag}")
+            child.setText(0, f"    {h.strftime('%d/%m')}  ({dn})")
             child.setData(0, Qt.ItemDataRole.UserRole, h)
             child.setData(0, Qt.ItemDataRole.UserRole + 1, is_ponto)
             tree.addTopLevelItem(child)

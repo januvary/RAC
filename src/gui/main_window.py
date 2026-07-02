@@ -304,7 +304,7 @@ class MainWindow(QMainWindow):
 
     def _shortcut_tipo_by_key(self, tipo: str):
         if self.state and self.state.has_active_malote():
-            self._on_page(StartPage, lambda p: self.navigate_to("entry", tipo=tipo))
+            self._on_page(StartPage, lambda p: p._on_tipo_click(tipo))
         self._on_page(EntryPage, lambda p: p._tipo_combo.set_tipo(tipo))
 
         def _set_tab(p):

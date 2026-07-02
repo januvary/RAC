@@ -30,7 +30,6 @@ from src.gui.widgets.buttons import make_icon_button
 from src.models import Registro
 from src.services.registro_service import EditContext
 from src.services.exceptions import ValidationError, DuplicateRecordError
-from src.constants import TIPOS_WITH_MONTHS
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
@@ -90,7 +89,6 @@ class _CycleButton(QPushButton):
 class _RowData:
     group_btn: _CycleButton
     row_widget: QWidget
-    months_btn: _CycleButton | None = None
     combo: SearchableComboBox | None = None
     cid_combo: SearchableComboBox | None = None
     pg: int = 1
@@ -167,7 +165,6 @@ class EntryPage(BasePage):
         self._malote_label = MaloteLabel(self._mw)
 
         self._tipo_combo.tipo_changed.connect(self._on_context_changed)
-        self._tipo_combo.tipo_changed.connect(self._on_tipo_changed_months)
 
         h = self._add_back_button(layout, target=self._return_to)
         h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -349,16 +346,7 @@ class EntryPage(BasePage):
             lambda data, r=rd: self._on_item_selected_in_row(r, data)
         )
 
-        rd.months_btn = _CycleButton(
-            f"{months_supply}m", "positive",
-            modulus=7, base=0, initial=months_supply, width=36, font_size=11,
-            format_fn=lambda v: f"{v}m",
-            on_change=lambda v: self._on_months_changed(rd, v),
-        )
-        rd.months_btn.setToolTip("Meses de medicação (clique p/ alterar)")
-        rd.months_btn.setVisible(self._tipo in TIPOS_WITH_MONTHS)
         self._rows.append(rd)
-        row_h.addWidget(rd.months_btn)
 
         remove_btn = make_icon_button("\u00d7", "positive", font_size=16)
         remove_btn.setToolTip("Remover item")
@@ -398,16 +386,6 @@ class EntryPage(BasePage):
     def _on_group_changed(self, rd: _RowData, new_pg: int):
         rd.pg = new_pg
 
-    def _on_months_changed(self, rd: _RowData, new_ms: int):
-        rd.ms = new_ms
-        self._sync_months_for_group(rd.pg, new_ms)
-
-    def _sync_months_for_group(self, group_number: int, new_ms: int):
-        for rd in self._rows:
-            if rd.pg == group_number and rd.months_btn:
-                rd.ms = new_ms
-                rd.months_btn.value = new_ms
-
     def _remove_item(self, widget: QWidget):
         self._rows = [rd for rd in self._rows if rd.row_widget is not widget]
         widget.setParent(None)
@@ -426,17 +404,11 @@ class EntryPage(BasePage):
         self._load_items_for_context(paciente_id)
 
     def _on_context_changed(self, *_):
+        self._tipo = self._tipo_combo.current_tipo()
         paciente_id = self._resolve_current_patient()
         if paciente_id is None:
             return
         self._load_items_for_context(paciente_id)
-
-    def _on_tipo_changed_months(self, tipo: str):
-        self._tipo = tipo
-        visible = tipo in TIPOS_WITH_MONTHS
-        for rd in self._rows:
-            if rd.months_btn:
-                rd.months_btn.setVisible(visible)
 
     def _on_waiting_docs_toggled(self, checked: bool):
         pass

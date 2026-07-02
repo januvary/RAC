@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QLineEdit,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QItemSelectionModel
 from PySide6.QtGui import QKeyEvent
 from typing import Callable
 
@@ -68,11 +68,12 @@ class BasePage(QWidget, ToastMixin):
                 new_row = 0
             elif new_row >= count:
                 new_row = count - 1
-        (
-            widget.setCurrentCell(new_row, 0)
-            if hasattr(widget, "setCurrentCell")
-            else widget.setCurrentRow(new_row)
-        )
+        sm = widget.selectionModel()
+        if sm is not None:
+            sm.setCurrentIndex(
+                widget.model().index(new_row, 0),
+                QItemSelectionModel.SelectionFlag.NoUpdate,
+            )
 
     def eventFilter(self, obj, event):
         if isinstance(event, QKeyEvent) and event.type() == event.Type.KeyPress:

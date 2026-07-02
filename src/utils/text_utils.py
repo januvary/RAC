@@ -44,6 +44,15 @@ def format_malote_date(malote: Optional[Malote]) -> str:
         return malote.date or "?"
 
 
+def is_malote_past(malote: Optional[Malote]) -> bool:
+    if not malote or not malote.date:
+        return False
+    try:
+        return date_type.fromisoformat(malote.date) < date_type.today()
+    except ValueError:
+        return False
+
+
 def format_item(name: str) -> str:
     paren = re.search(r"\(([^)]+)\)\s*$", name)
     if not paren:
