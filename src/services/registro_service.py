@@ -278,27 +278,42 @@ class RegistroService:
             item_tuples, reg.waiting_docs, process_months,
         )
 
+    def change_tipos(self, reg_ids: list[int], new_tipo: str) -> int:
+        """Bulk ``change_tipo``: batches all updates into a single commit.
+
+        Returns the count of registros skipped due to duplicates.
+        """
+        errors = 0
+        with self._db.transaction():
+            for rid in reg_ids:
+                try:
+                    self.change_tipo(rid, new_tipo)
+                except DuplicateRecordError:
+                    errors += 1
+        return errors
+
     def move_to_malote(
         self, registro_ids: list[int], new_malote_id: int
     ) -> int:
         errors = 0
-        for rid in registro_ids:
-            reg = self._db.get_registro_by_id(rid)
-            if not reg or reg.paciente_id is None:
-                continue
-            items = self._db.get_items_by_registro(rid)
-            item_tuples = [
-                (i.item_id, i.process_group, i.cid) for i in items if i.item_id is not None
-            ]
-            processes = self._db.get_processes_by_registro(rid)
-            process_months = [(p.group_number, p.months_supply) for p in processes]
-            try:
-                self.update(
-                    rid, reg.tipo, reg.paciente_id, new_malote_id,
-                    item_tuples, reg.waiting_docs, process_months,
-                )
-            except DuplicateRecordError:
-                errors += 1
+        with self._db.transaction():
+            for rid in registro_ids:
+                reg = self._db.get_registro_by_id(rid)
+                if not reg or reg.paciente_id is None:
+                    continue
+                items = self._db.get_items_by_registro(rid)
+                item_tuples = [
+                    (i.item_id, i.process_group, i.cid) for i in items if i.item_id is not None
+                ]
+                processes = self._db.get_processes_by_registro(rid)
+                process_months = [(p.group_number, p.months_supply) for p in processes]
+                try:
+                    self.update(
+                        rid, reg.tipo, reg.paciente_id, new_malote_id,
+                        item_tuples, reg.waiting_docs, process_months,
+                    )
+                except DuplicateRecordError:
+                    errors += 1
         return errors
 
     def delete_with_snapshot(self, registro_id: int) -> DeleteSnapshot | None:

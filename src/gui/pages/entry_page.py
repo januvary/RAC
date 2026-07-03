@@ -25,11 +25,13 @@ from src.gui.widgets import (
     make_hbox,
     BasePage,
     delete_registro_with_undo,
+    confirm_past_malote,
 )
 from src.gui.widgets.buttons import make_icon_button
 from src.models import Registro
 from src.services.registro_service import EditContext
 from src.services.exceptions import ValidationError, DuplicateRecordError
+from src.utils.text_utils import is_malote_past
 from andaime.text import to_upper_normalized
 
 from src.gui.styles import colors
@@ -165,6 +167,7 @@ class EntryPage(BasePage):
         self._malote_label = MaloteLabel(self._mw)
 
         self._tipo_combo.tipo_changed.connect(self._on_context_changed)
+        self._malote_label.malote_changed.connect(self._on_malote_changed)
 
         h = self._add_back_button(layout, target=self._return_to)
         h.addWidget(self._tipo_combo, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -412,6 +415,13 @@ class EntryPage(BasePage):
 
     def _on_waiting_docs_toggled(self, checked: bool):
         pass
+
+    def _on_malote_changed(self):
+        malote = self._mw.state.get_active_malote()
+        if malote and is_malote_past(malote):
+            confirm_past_malote(
+                self.window(), malote, on_change=self._malote_label.open_dialog
+            )
 
     def _resolve_current_patient(self) -> int | None:
         pid = self._paciente_combo.current_data()

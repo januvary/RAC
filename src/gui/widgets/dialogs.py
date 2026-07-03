@@ -10,12 +10,15 @@ from PySide6.QtWidgets import (
     QDialog,
     QPushButton,
 )
+from typing import Callable, Optional
 
 from src.gui.widgets.buttons import make_button
 from src.gui.widgets.labels import HeadingLabel
 from src.gui.styles import colors
 from src.gui.widgets.toast import show_toast
 from src.services.registro_service import RegistroService
+from src.models import Malote
+from src.utils.text_utils import format_malote_date
 from andaime.error_handler import ErrorHandler
 import weakref
 
@@ -97,6 +100,44 @@ def open_input_dialog(
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None
     return input_field.text().strip() or None
+
+
+def confirm_past_malote(
+    parent: QWidget,
+    malote: Malote,
+    on_change: Optional[Callable[[], None]] = None,
+) -> bool:
+    dlg, layout = scaffold_dialog(parent, "Malote já enviado")
+    layout.addSpacing(4)
+
+    msg = QLabel(
+        f"O malote {format_malote_date(malote)} já foi enviado. Continuar?"
+    )
+    msg.setWordWrap(True)
+    c = colors()
+    msg.setStyleSheet(f"color: {c['text_secondary']}; font-size: 13px;")
+    layout.addWidget(msg)
+
+    change = False
+
+    def on_change_clicked():
+        nonlocal change
+        change = True
+        dlg.reject()
+
+    btn_row, [continue_btn, change_btn] = make_dialog_button_row([
+        ("Continuar", "flat"),
+        ("Trocar malote", "primary"),
+    ])
+    continue_btn.clicked.connect(dlg.accept)
+    change_btn.clicked.connect(on_change_clicked)
+    layout.addLayout(btn_row)
+
+    if dlg.exec() == QDialog.DialogCode.Accepted:
+        return True
+    if change and on_change:
+        on_change()
+    return False
 
 
 def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):

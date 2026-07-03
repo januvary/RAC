@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import andaime
+from andaime.error_handler import ErrorHandler, ErrorLevel
 from src.utils.config import RACConfig
 from src.database.rac_database import RACDatabase
 
@@ -78,11 +79,11 @@ def _start_update_check(window):
             restart_app()
 
     def _on_failed(msg):
-        print(f"[RAC] Update check failed: {msg}")
+        ErrorHandler.log(f"Update check failed: {msg}", level=ErrorLevel.WARNING, context="Updater")
 
     worker.update_ready.connect(_on_downloaded)
     worker.update_failed.connect(_on_failed)
-    worker.no_update.connect(lambda: print("[RAC] No update available."))
+    worker.no_update.connect(lambda: ErrorHandler.log("No update available", context="Updater"))
     worker.start()
 
 

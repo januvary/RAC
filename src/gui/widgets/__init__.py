@@ -16,6 +16,7 @@ from src.gui.widgets.dialogs import (
     open_input_dialog,
     delete_registro_with_undo,
     make_dialog_button_row,
+    confirm_past_malote,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "open_input_dialog",
     "delete_registro_with_undo",
     "make_dialog_button_row",
+    "confirm_past_malote",
 ]

@@ -23,6 +23,7 @@ from src.gui.widgets import (
     ThemeToggleButton,
     BasePage,
     export_with_fallback,
+    confirm_past_malote,
 )
 from src.gui.constants import (
     TIPO_LABELS,
@@ -186,46 +187,12 @@ class StartPage(BasePage):
         if not self._require_malote():
             return
         malote = self._mw.state.get_active_malote()
-        if malote and is_malote_past(malote) and not self._confirm_past_malote(malote):
-            return
+        if malote and is_malote_past(malote):
+            if not confirm_past_malote(
+                self.window(), malote, on_change=self._malote_label.open_dialog
+            ):
+                return
         self._mw.navigate_to("entry", tipo=tipo_key)
-
-    def _confirm_past_malote(self, malote: Malote) -> bool:
-        from PySide6.QtWidgets import QDialog, QLabel
-        from src.gui.widgets.dialogs import scaffold_dialog, make_dialog_button_row
-        from src.gui.styles import colors
-
-        dlg, layout = scaffold_dialog(self.window(), "Malote já enviado")
-        layout.addSpacing(4)
-
-        msg = QLabel(
-            f"O malote {format_malote_date(malote)} já foi enviado. Continuar?"
-        )
-        msg.setWordWrap(True)
-        c = colors()
-        msg.setStyleSheet(f"color: {c['text_secondary']}; font-size: 13px;")
-        layout.addWidget(msg)
-
-        change = False
-
-        def on_change():
-            nonlocal change
-            change = True
-            dlg.reject()
-
-        btn_row, [continue_btn, change_btn] = make_dialog_button_row([
-            ("Continuar", "flat"),
-            ("Trocar malote", "primary"),
-        ])
-        continue_btn.clicked.connect(dlg.accept)
-        change_btn.clicked.connect(on_change)
-        layout.addLayout(btn_row)
-
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            return True
-        if change:
-            self._malote_label.open_dialog()
-        return False
 
     def _on_preview(self):
         if not self._require_malote():

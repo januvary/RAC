@@ -26,11 +26,10 @@ from src.gui.widgets.toast import show_toast
 from src.gui.widgets.dialogs import confirm_delete_dialog, make_dialog_button_row, open_input_dialog, scaffold_dialog
 from src.gui.styles import colors
 
-def _activate_malote_if_changed(mw, malote, label):
+def _activate_malote_if_changed(mw, malote):
     current = mw.state.get_active_malote()
     if not current or current.id != malote.id or current.date != malote.date:
         mw.state.set_active_malote(malote)
-        label.malote_changed.emit()
 
 
 class MaloteLabel(QWidget):
@@ -162,7 +161,7 @@ def _show_malote_dialog(label: MaloteLabel):
     def on_item_clicked(item, _column):
         malote = item.data(0, Qt.ItemDataRole.UserRole)
         if malote:
-            _activate_malote_if_changed(mw, malote, label)
+            _activate_malote_if_changed(mw, malote)
             dlg.accept()
             label.refresh()
         else:
@@ -212,7 +211,6 @@ def _show_malote_dialog(label: MaloteLabel):
                     ]
                     mw.state.set_active_malote(remaining[0] if remaining else None)
                 label.refresh()
-                label.malote_changed.emit()
                 _populate_tree()
                 show_toast("Malote excluído", "positive", label)
             else:
@@ -249,7 +247,13 @@ def _show_malote_dialog(label: MaloteLabel):
     btn_row.addWidget(close_m)
     layout.addLayout(btn_row)
 
+    def _malote_key(m):
+        return (m.id, m.date, m.arrival_date) if m else None
+
+    initial = _malote_key(mw.state.get_active_malote())
     dlg.exec()
+    if _malote_key(mw.state.get_active_malote()) != initial:
+        label.malote_changed.emit()
 
 
 def _show_holidays_dialog(parent):
@@ -451,7 +455,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
                 arrival = calculate_arrival_date(send_dt)
                 arrival_iso = arrival.isoformat()
             malote = mw.services.malote.create(iso, arrival_date=arrival_iso)
-            _activate_malote_if_changed(mw, malote, label)
+            _activate_malote_if_changed(mw, malote)
             dlg.accept()
             label.refresh()
             show_toast(
@@ -535,7 +539,6 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
                 and mw.state.get_active_malote().id == malote.id
             ):
                 mw.state.set_active_malote(malote)
-                label.malote_changed.emit()
             label.refresh()
             dlg.accept()
             on_done()
