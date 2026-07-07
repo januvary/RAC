@@ -6,6 +6,7 @@ Preview Page — tabbed table view of malote registros
 
 from PySide6.QtWidgets import (
     QVBoxLayout,
+    QHBoxLayout,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -18,6 +19,7 @@ from PySide6.QtCore import Qt
 from src.gui.widgets import (
     MaloteLabel,
     BasePage,
+    make_button,
     open_input_dialog,
     delete_registro_with_undo,
     confirm_delete_dialog,
@@ -37,7 +39,7 @@ class PreviewPage(BasePage):
         self._build_ui()
 
     def _build_ui(self):
-        layout = self._scaffold()
+        layout = self._scaffold(expand_vertical=True)
         self._build_header(layout)
         layout.addSpacing(20)
         self._build_tabs(layout)
@@ -74,7 +76,20 @@ class PreviewPage(BasePage):
 
             search = QLineEdit()
             search.setPlaceholderText("Buscar paciente ou medicamento...")
-            tab_layout.addWidget(search)
+
+            add_btn = make_button("Novo Registro", "primary")
+            add_btn.setToolTip(f"Novo registro — {TIPO_LABELS.get(tipo, tipo)}")
+            add_btn.clicked.connect(
+                lambda _checked=False, t=tipo: self._mw.navigate_to(
+                    "entry", tipo=t, return_to="preview"
+                )
+            )
+
+            search_row = QHBoxLayout()
+            search_row.setSpacing(8)
+            search_row.addWidget(search)
+            search_row.addWidget(add_btn)
+            tab_layout.addLayout(search_row)
 
             table = QTableWidget(0, 2)
             table.setHorizontalHeaderLabels(["Nome", "Medicamentos"])
@@ -137,16 +152,22 @@ class PreviewPage(BasePage):
             self._shortcut_searches.append(("_search_placeholder", search))
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
-        self._on_tab_changed(0)
-        if insert_index is not None:
-            layout.insertWidget(insert_index, self._tabs)
+        saved = self._mw._last_preview_tipo
+        target_idx = self._tab_tipo_keys.index(saved) if saved in self._tab_tipo_keys else 0
+        if target_idx == self._tabs.currentIndex():
+            self._on_tab_changed(target_idx)
         else:
-            layout.addWidget(self._tabs)
+            self._tabs.setCurrentIndex(target_idx)
+        if insert_index is not None:
+            layout.insertWidget(insert_index, self._tabs, 1)
+        else:
+            layout.addWidget(self._tabs, 1)
 
     def _on_tab_changed(self, idx):
         if 0 <= idx < len(self._tab_tipo_keys):
             tipo_key = self._tab_tipo_keys[idx]
             self._tabs.setStyleSheet(tab_style_qss(faded_tipo_color(TIPO_HEX.get(tipo_key, ""))))
+            self._mw._last_preview_tipo = tipo_key
 
     def refresh(self):
         self._malote_label.refresh()
@@ -332,7 +353,7 @@ class PreviewPage(BasePage):
             ):
                 return
             try:
-                from andaime.error_handler import ErrorHandler
+                from andaime.error_handler import ErrorContext, ErrorHandler
 
                 service = self._mw.services.registro
                 snapshots: list[DeleteSnapshot] = []
@@ -344,7 +365,7 @@ class PreviewPage(BasePage):
                             snapshots.append(snap)
                     except Exception as e:
                         ErrorHandler.handle_error(
-                            e, context="Registro", show_dialog=False
+                            e, context=ErrorContext.REGISTRY, show_dialog=False
                         )
                         errors += 1
                 self.refresh()
@@ -368,7 +389,7 @@ class PreviewPage(BasePage):
                             )
                         except Exception as e:
                             ErrorHandler.handle_error(
-                                e, context="Registro", show_dialog=False
+                                e, context=ErrorContext.REGISTRY, show_dialog=False
                             )
 
                     from src.gui.widgets.toast import show_toast

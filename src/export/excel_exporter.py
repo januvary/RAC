@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Optional
 from datetime import datetime
 from pathlib import Path
 
-from andaime.error_handler import ErrorHandler, ErrorLevel
+from andaime.error_handler import ErrorHandler, ErrorContext, ErrorLevel
 
 from src.constants import TIPO_LABELS, TIPO_TITLES
 from src.utils.text_utils import format_item
@@ -33,7 +33,7 @@ def _ensure_openpyxl():
         ErrorHandler.log(
             "openpyxl não instalado",
             level=ErrorLevel.ERROR,
-            context="Exportação",
+            context=ErrorContext.EXPORT,
         )
         return None
 
@@ -123,7 +123,7 @@ class ExcelExporter:
             ErrorHandler.log(
                 f"{log_label}: {full_path}",
                 level=ErrorLevel.INFO,
-                context="Exportação",
+                context=ErrorContext.EXPORT,
             )
 
             return str(full_path)
@@ -131,7 +131,7 @@ class ExcelExporter:
         except Exception as e:
             ErrorHandler.handle_error(
                 e,
-                context="Exportação",
+                context=ErrorContext.EXPORT,
                 recovery_hint="Verifique permissões de escrita no diretório de salvamento",
             )
             raise SavePathError(str(e)) from e

@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         self._services = None
         self._shortcut_peek_active = False
         self._last_patient_id: int | None = None
+        self._last_preview_tipo: str | None = None
 
     def init_backend(self):
         self.config = ConfigManager()

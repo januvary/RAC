@@ -25,18 +25,24 @@ class BasePage(QWidget, ToastMixin):
         self._shortcut_searches: list[tuple[str, QLineEdit]] = []
         self._keyboard_nav: list[tuple[QWidget, QLineEdit, Callable]] = []
 
-    def _scaffold(self) -> QVBoxLayout:
+    def _scaffold(self, expand_vertical: bool = False) -> QVBoxLayout:
         outer = QVBoxLayout(self)
         outer.setContentsMargins(48, 32, 48, 32)
         outer.setSpacing(0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        if expand_vertical:
+            outer.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        else:
+            outer.setAlignment(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
+            )
 
         from PySide6.QtWidgets import QWidget as _W
 
         container = _W()
         container.setMaximumWidth(720)
         container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding if expand_vertical else QSizePolicy.Policy.Maximum,
         )
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -110,8 +116,10 @@ class BasePage(QWidget, ToastMixin):
                 f"{placeholder} (Ctrl+R)" if show else placeholder
             )
 
-    def _handle_error(self, e, context="App"):
-        from andaime.error_handler import ErrorHandler
+    def _handle_error(self, e, context=None):
+        from andaime.error_handler import ErrorContext, ErrorHandler
+        if context is None:
+            context = ErrorContext.APP
         ErrorHandler.handle_error(e, context=context, show_dialog=False)
         self._toast(f"Erro: {e}", "negative")
 
@@ -189,7 +197,7 @@ def export_with_fallback(page, export_fn, no_data_msg="Nenhum dado para exportar
     from PySide6.QtWidgets import QFileDialog
     from pathlib import Path
     from src.export.excel_exporter import SavePathError
-    from andaime.error_handler import ErrorHandler
+    from andaime.error_handler import ErrorContext, ErrorHandler
 
     from src.gui.widgets.toast import show_toast
 
@@ -222,5 +230,5 @@ def export_with_fallback(page, export_fn, no_data_msg="Nenhum dado para exportar
         except SavePathError as e:
             page._toast(f"Erro ao exportar: {e}", "negative")
     except Exception as e:
-        ErrorHandler.handle_error(e, context="Exportação", show_dialog=False)
+        ErrorHandler.handle_error(e, context=ErrorContext.EXPORT, show_dialog=False)
         page._toast(f"Erro ao exportar: {e}", "negative")

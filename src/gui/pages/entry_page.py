@@ -4,6 +4,9 @@
 Entry Page — record creation and editing
 """
 
+import json
+from dataclasses import dataclass
+
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,9 +17,9 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from PySide6.QtCore import Qt, QTimer
-from dataclasses import dataclass
 
 from andaime.widgets import SearchableComboBox
+from andaime.error_handler import ErrorContext
 from src.gui.widgets import (
     SectionLabel,
     TipoCombo,
@@ -94,7 +97,6 @@ class _RowData:
     combo: SearchableComboBox | None = None
     cid_combo: SearchableComboBox | None = None
     pg: int = 1
-    ms: int = -1
 
 
 class EntryPage(BasePage):
@@ -116,6 +118,8 @@ class EntryPage(BasePage):
         self._patient_return_to = patient_return_to
         self._pre_paciente_id: int | None = paciente_id
         self._rows: list[_RowData] = []
+        self._group_cids: dict[int, str] = {}
+        self._syncing: bool = False
         self._shortcut_widgets: dict[str, QPushButton | QLabel | QCheckBox] = {}
         self._delete_btn: QPushButton | None = None
 
@@ -212,7 +216,6 @@ class EntryPage(BasePage):
         self._item_cids: dict[int, list[str]] = {}
         for i in all_items:
             if i.id is not None and i.cids:
-                import json
                 try:
                     self._item_cids[i.id] = json.loads(i.cids)
                 except (json.JSONDecodeError, TypeError):
@@ -229,13 +232,10 @@ class EntryPage(BasePage):
         layout.addWidget(add_btn)
 
         if self._edit_ctx:
-            months_by_group = dict(self._edit_ctx.processes)
             for item_id, process_group, cid in self._edit_ctx.items:
-                ms = months_by_group.get(process_group, 0)
                 self._add_item_row(
                     item_id=item_id,
                     process_group=process_group,
-                    months_supply=ms,
                     cid=cid,
                 )
         else:
@@ -303,9 +303,7 @@ class EntryPage(BasePage):
             f"color: {c['text_secondary']}; font-size: 12px; font-style: italic;"
         )
 
-    def _add_item_row(self, item_id: int | None = None, process_group: int = 1, months_supply: int | None = None, cid: str = ""):
-        if months_supply is None:
-            months_supply = 1 if self._tipo == "retirada" else 0
+    def _add_item_row(self, item_id: int | None = None, process_group: int = 1, cid: str = ""):
         row = QWidget()
         row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row_h = make_hbox(spacing=2)
@@ -318,7 +316,7 @@ class EntryPage(BasePage):
                 modulus=5, base=1, initial=process_group, font_size=14,
                 on_change=lambda v: self._on_group_changed(rd, v),
             ),
-            row_widget=row, pg=process_group, ms=months_supply,
+            row_widget=row, pg=process_group,
         )
         rd.group_btn.setToolTip("Grupo do item (clique p/ alterar)")
         row_h.addWidget(rd.group_btn)
@@ -341,6 +339,10 @@ class EntryPage(BasePage):
         cid_combo.setFixedWidth(80)
         rd.cid_combo = cid_combo
         row_h.addWidget(cid_combo)
+
+        cid_combo.selection_changed.connect(
+            lambda data, r=rd: self._on_cid_changed_in_row(r, data)
+        )
 
         if item_id is not None:
             self._populate_cid_combo(rd, item_id, cid)
@@ -381,13 +383,58 @@ class EntryPage(BasePage):
             return
         options = {cid: cid for cid in cids}
         rd.cid_combo.set_options(options)
-        if selected_cid and selected_cid in options:
-            rd.cid_combo.set_current_by_data(selected_cid)
+        group_cid = self._group_cids.get(rd.pg, "")
+        chosen = selected_cid or group_cid
+        if chosen and chosen in options:
+            rd.cid_combo.set_current_by_data(chosen)
+            if selected_cid:
+                self._register_and_propagate_cid(rd, selected_cid)
         elif len(cids) == 1:
             rd.cid_combo.set_current_by_data(cids[0])
+            self._register_and_propagate_cid(rd, cids[0])
+
+    def _on_cid_changed_in_row(self, rd: _RowData, data: str | None):
+        if self._syncing or not data:
+            return
+        self._register_and_propagate_cid(rd, data)
+
+    def _register_and_propagate_cid(self, rd: _RowData, cid: str):
+        pg = rd.pg
+        if self._group_cids.get(pg) == cid:
+            return
+        self._group_cids[pg] = cid
+        self._syncing = True
+        try:
+            for other in self._rows:
+                if other is rd or other.pg != pg:
+                    continue
+                self._apply_cid_to_row_if_allowed(other, cid)
+        finally:
+            self._syncing = False
+
+    def _apply_cid_to_row_if_allowed(self, rd: _RowData, cid: str):
+        if not rd.cid_combo:
+            return
+        data = rd.combo.current_data() if rd.combo else None
+        if not data:
+            return
+        try:
+            item_id = int(data)
+        except (ValueError, TypeError):
+            return
+        allowed = self._item_cids.get(item_id, [])
+        if cid in allowed:
+            rd.cid_combo.set_current_by_data(cid)
 
     def _on_group_changed(self, rd: _RowData, new_pg: int):
         rd.pg = new_pg
+        group_cid = self._group_cids.get(new_pg, "")
+        if group_cid:
+            self._apply_cid_to_row_if_allowed(rd, group_cid)
+        else:
+            current = rd.cid_combo.current_data() if rd.cid_combo else None
+            if current:
+                self._register_and_propagate_cid(rd, current)
 
     def _remove_item(self, widget: QWidget):
         self._rows = [rd for rd in self._rows if rd.row_widget is not widget]
@@ -401,9 +448,6 @@ class EntryPage(BasePage):
             paciente_id = int(data)
         except (ValueError, TypeError):
             return
-        if getattr(self, "_last_paciente_id", None) == paciente_id:
-            return
-        self._last_paciente_id = paciente_id
         self._load_items_for_context(paciente_id)
 
     def _on_context_changed(self, *_):
@@ -440,6 +484,7 @@ class EntryPage(BasePage):
 
     def _clear_item_rows(self):
         self._rows.clear()
+        self._group_cids.clear()
         while self._items_container.count():
             item = self._items_container.takeAt(0)
             w = item.widget() if item else None
@@ -447,21 +492,15 @@ class EntryPage(BasePage):
                 w.setParent(None)
                 w.deleteLater()
 
-    def _collect_items(self) -> tuple[list[tuple[int, int, str]], list[tuple[int, int]]]:
+    def _collect_items(self) -> list[tuple[int, int, str]]:
         items = []
-        months_by_group: dict[int, int] = {}
         for rd in self._rows:
             data = rd.combo.current_data() if rd.combo else None
             if not data:
                 continue
-            cid = ""
-            if rd.cid_combo:
-                cid = rd.cid_combo.current_data() or ""
+            cid = rd.cid_combo.current_data() or "" if rd.cid_combo else ""
             items.append((int(data), rd.pg, cid))
-            if rd.pg not in months_by_group:
-                months_by_group[rd.pg] = rd.ms
-        process_months = [(g, m) for g, m in months_by_group.items()]
-        return items, process_months
+        return items
 
     def _load_items_for_context(self, paciente_id: int):
         malote = self._mw.state.get_active_malote()
@@ -474,14 +513,11 @@ class EntryPage(BasePage):
         self._clear_item_rows()
         if ctx.registro:
             self._update_registro_status(True)
-            months_by_group = dict(ctx.processes)
             if ctx.items:
                 for item_id, process_group, cid in ctx.items:
-                    ms = months_by_group.get(process_group, 0)
                     self._add_item_row(
                         item_id=item_id,
                         process_group=process_group,
-                        months_supply=ms,
                         cid=cid,
                     )
             else:
@@ -489,8 +525,12 @@ class EntryPage(BasePage):
         else:
             self._update_registro_status(False)
             if ctx.suggested_items:
-                for item_id, cid in ctx.suggested_items:
-                    self._add_item_row(item_id=item_id, cid=cid)
+                for item_id, process_group, cid in ctx.suggested_items:
+                    self._add_item_row(
+                        item_id=item_id,
+                        process_group=process_group,
+                        cid=cid,
+                    )
             else:
                 self._add_item_row()
 
@@ -517,7 +557,7 @@ class EntryPage(BasePage):
         return None
 
     def _on_save(self):
-        items, process_months = self._collect_items()
+        items = self._collect_items()
         if not items:
             self._toast("Adicione pelo menos um item", "warning")
             return
@@ -543,7 +583,6 @@ class EntryPage(BasePage):
                 edit_id=self._edit_id,
                 waiting_docs=waiting_docs,
                 paciente_id=paciente_id,
-                process_months=process_months,
             )
         except ValidationError as e:
             self._toast(str(e), "warning")
@@ -554,7 +593,7 @@ class EntryPage(BasePage):
             )
             return
         except Exception as e:
-            self._handle_error(e, context="Registro")
+            self._handle_error(e, context=ErrorContext.REGISTRY)
             return
 
         msg = "Registro editado!" if result.is_update else "Registro salvo!"

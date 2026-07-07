@@ -13,7 +13,7 @@ from datetime import date, datetime
 
 from andaime.database import BaseDatabase, db_op
 from andaime.paths import resolve_db_path
-from andaime.error_handler import ErrorHandler, ErrorLevel
+from andaime.error_handler import ErrorHandler, ErrorContext, ErrorLevel
 from andaime.text import to_upper_normalized
 
 from src.database.definitive_catalog import DEFINITIVE_CATALOG
@@ -116,7 +116,7 @@ class RACDatabase(BaseDatabase):
         ErrorHandler.log(
             f"RACDatabase inicializado - {count} itens no catálogo",
             level=ErrorLevel.INFO,
-            context="Database",
+            context=ErrorContext.DATABASE,
         )
 
     def _seed_catalog_if_empty(self) -> None:
@@ -134,7 +134,7 @@ class RACDatabase(BaseDatabase):
                 ErrorHandler.log(
                     f"Catálogo inicializado com {len(DEFINITIVE_CATALOG)} itens",
                     level=ErrorLevel.INFO,
-                    context="Database",
+                    context=ErrorContext.DATABASE,
                 )
 
     def _get_catalog_count(self) -> int:
@@ -449,20 +449,23 @@ class RACDatabase(BaseDatabase):
         )]
 
     @db_op("read")
-    def get_last_cids_by_paciente(self, paciente_id: int) -> dict[int, str]:
+    def get_last_usage_by_paciente(self, paciente_id: int) -> list[tuple[int, str]]:
         rows = self._fetch_all(
             "SELECT ri.item_id, ri.cid "
             "FROM registro_items ri "
             "JOIN registros r ON ri.registro_id = r.id "
-            "WHERE r.paciente_id = ? AND ri.cid != '' "
-            "ORDER BY r.created_at DESC",
+            "WHERE r.paciente_id = ? "
+            "ORDER BY r.created_at DESC, r.id DESC",
             (paciente_id,),
         )
-        result: dict[int, str] = {}
+        seen: set[int] = set()
+        result: list[tuple[int, str]] = []
         for row in rows:
             iid = row["item_id"]
-            if iid not in result:
-                result[iid] = row["cid"]
+            if iid in seen:
+                continue
+            seen.add(iid)
+            result.append((iid, row["cid"] or ""))
         return result
 
     # ========== PROCESSES ==========

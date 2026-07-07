@@ -19,7 +19,7 @@ from src.gui.widgets.toast import show_toast
 from src.services.registro_service import RegistroService
 from src.models import Malote
 from src.utils.text_utils import format_malote_date
-from andaime.error_handler import ErrorHandler
+from andaime.error_handler import ErrorContext, ErrorHandler
 import weakref
 
 
@@ -163,7 +163,7 @@ def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):
                     on_refresh()
                     show_toast("Registro restaurado", "positive", p)
                 except Exception as e:
-                    ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
+                    ErrorHandler.handle_error(e, context=ErrorContext.REGISTRY, show_dialog=False)
                     p = weak_page()
                     if p:
                         show_toast(f"Erro ao restaurar: {e}", "negative", p)
@@ -179,7 +179,7 @@ def delete_registro_with_undo(page, db, reg_id: int, on_refresh, on_error=None):
         else:
             show_toast("Registro excluido", "info", page)
     except Exception as e:
-        ErrorHandler.handle_error(e, context="Registro", show_dialog=False)
+        ErrorHandler.handle_error(e, context=ErrorContext.REGISTRY, show_dialog=False)
         if on_error:
             on_error(e)
         else:

@@ -37,7 +37,7 @@ class MedicamentosPage(BasePage):
         self._build_ui()
 
     def _build_ui(self):
-        layout = self._scaffold()
+        layout = self._scaffold(expand_vertical=True)
         self._add_back_button(layout)
         layout.addSpacing(20)
 
@@ -64,7 +64,7 @@ class MedicamentosPage(BasePage):
                 ("Editar CIDs", self._edit_cids),
             ],
         )
-        layout.addWidget(self._crud.widget)
+        layout.addWidget(self._crud.widget, 1)
         layout.addSpacing(12)
         self._add_export_button(layout, self._on_export, label="Exportar Catálogo")
 

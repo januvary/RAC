@@ -32,7 +32,7 @@ class ContextResult:
     registro: Registro | None
     items: list[tuple[int, int, str]]
     processes: list[tuple[int, int]]
-    suggested_items: list[tuple[int, str]]
+    suggested_items: list[tuple[int, int, str]]
 
 
 @dataclass
@@ -248,17 +248,20 @@ class RegistroService:
                 ],
                 suggested_items=[],
             )
-        patient_items = self._db.get_items_by_paciente(paciente_id)
-        last_cids = self._db.get_last_cids_by_paciente(paciente_id)
+        usage = self._db.get_last_usage_by_paciente(paciente_id)
+        cid_to_group: dict[str, int] = {}
+        next_group = 1
+        suggested: list[tuple[int, int, str]] = []
+        for item_id, cid in usage:
+            if cid not in cid_to_group:
+                cid_to_group[cid] = next_group
+                next_group += 1
+            suggested.append((item_id, cid_to_group[cid], cid))
         return ContextResult(
             registro=None,
             items=[],
             processes=[],
-            suggested_items=[
-                (i.id, last_cids.get(i.id, ""))
-                for i in patient_items
-                if i.id is not None
-            ],
+            suggested_items=suggested,
         )
 
     def change_tipo(self, registro_id: int, new_tipo: str) -> None:

@@ -79,7 +79,7 @@ class StatsPage(BasePage):
         self._load_stats()
 
     def _build_ui(self):
-        layout = self._scaffold()
+        layout = self._scaffold(expand_vertical=True)
         self._build_header(layout)
         layout.addSpacing(12)
 
@@ -213,7 +213,7 @@ class StatsPage(BasePage):
         self._meds_table.verticalHeader().setDefaultSectionSize(32)
         self._meds_table.setMinimumHeight(28 + 32 * 8)
         self._meds_table.setStyleSheet(data_view_style_qss(include_selected=False, include_hover=True))
-        layout.addWidget(self._meds_table)
+        layout.addWidget(self._meds_table, 1)
 
         self._meds_search.textChanged.connect(self._filter_meds_table)
         self._shortcut_searches.append(("Buscar medicamento", self._meds_search))

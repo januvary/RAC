@@ -27,7 +27,7 @@ class PacientesPage(BasePage):
         self._build_ui()
 
     def _build_ui(self):
-        layout = self._scaffold()
+        layout = self._scaffold(expand_vertical=True)
         self._add_back_button(layout)
         layout.addSpacing(20)
 
@@ -52,7 +52,7 @@ class PacientesPage(BasePage):
             secondary_sort_key=lambda p: p.last_registro_date or "",
             on_activate=lambda pid: self._mw.navigate_to("patient", paciente_id=pid, return_to="pacientes"),
         )
-        layout.addWidget(self._crud.widget)
+        layout.addWidget(self._crud.widget, 1)
         layout.addSpacing(12)
         self._add_export_button(layout, self._on_export, label="Exportar Pacientes")
 
