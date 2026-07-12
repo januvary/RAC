@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from andaime.widgets import SearchableComboBox
+from andaime.widgets import SearchableComboBox, static_search_fn
 from src.gui.widgets import (
     TipoButton,
     make_button,
@@ -71,7 +71,7 @@ class StartPage(BasePage):
 
     def _build_search(self, layout: QVBoxLayout):
         self._search_combo = SearchableComboBox(
-            "Nome do paciente...", on_search=self._search_registros
+            self._search_registros, "Nome do paciente..."
         )
         self._search_combo.selection_changed.connect(self._on_search_select)
         layout.addWidget(self._search_combo)
@@ -151,7 +151,6 @@ class StartPage(BasePage):
             self._mw.state.set_active_malote(self._pre_search_malote)
             self._pre_search_malote = None
         self._malote_label.refresh()
-        self._search_combo.set_options({})
         self._search_combo.clear()
 
     def _search_registros(self, query: str) -> dict[str, str]:
@@ -163,7 +162,7 @@ class StartPage(BasePage):
         return {
             str(
                 r.id
-            ): f"{r.paciente_name or ''} ({TIPO_LABELS.get(r.tipo, '')}) — {format_malote_date(Malote(date=r.malote_date or ''))}"
+            ): f"{format_malote_date(Malote(date=r.malote_date or ''))} — {r.paciente_name or ''} ({TIPO_LABELS.get(r.tipo, '')})"
             for r in resultados
         }
 

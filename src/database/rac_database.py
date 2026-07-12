@@ -384,7 +384,7 @@ class RACDatabase(BaseDatabase):
             "JOIN pacientes p ON r.paciente_id = p.id "
             "JOIN malotes m ON r.malote_id = m.id "
             "WHERE r.paciente_id = ? "
-            "ORDER BY m.date DESC, r.tipo",
+            "ORDER BY m.date DESC, r.created_at DESC",
             (paciente_id,),
         )]
 

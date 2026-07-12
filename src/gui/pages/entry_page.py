@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer
 
-from andaime.widgets import SearchableComboBox
+from andaime.widgets import SearchableComboBox, CycleButton, static_search_fn
 from andaime.error_handler import ErrorContext
 from src.gui.widgets import (
     SectionLabel,
@@ -40,59 +40,9 @@ from andaime.text import to_upper_normalized
 from src.gui.styles import colors
 
 
-class _CycleButton(QPushButton):
-    def __init__(
-        self,
-        label: str,
-        role: str,
-        *,
-        modulus: int,
-        base: int,
-        initial: int,
-        width: int = 40,
-        font_size: int = 14,
-        format_fn=None,
-        on_change=None,
-    ):
-        super().__init__(label)
-        self.setProperty("btnrole", role)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedWidth(width)
-        self.setStyleSheet(f"padding: 9px 0; font-size: {font_size}px; font-weight: 600;")
-        self._modulus = modulus
-        self._base = base
-        self._value = initial
-        self._format_fn = format_fn
-        self._on_change = on_change
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
-            self._value = ((self._value - self._base - 1) % self._modulus) + self._base
-        else:
-            self._value = ((self._value - self._base + 1) % self._modulus) + self._base
-        self._apply_label()
-        self.setDown(True)
-        QTimer.singleShot(120, lambda: self.setDown(False))
-        if self._on_change:
-            self._on_change(self._value)
-        super().mousePressEvent(event)
-
-    def _apply_label(self):
-        self.setText(self._format_fn(self._value) if self._format_fn else str(self._value))
-
-    @property
-    def value(self) -> int:
-        return self._value
-
-    @value.setter
-    def value(self, v: int):
-        self._value = v
-        self._apply_label()
-
-
 @dataclass
 class _RowData:
-    group_btn: _CycleButton
+    group_btn: CycleButton
     row_widget: QWidget
     combo: SearchableComboBox | None = None
     cid_combo: SearchableComboBox | None = None
@@ -182,18 +132,16 @@ class EntryPage(BasePage):
         h = make_hbox()
 
         self._paciente_combo = SearchableComboBox(
-            "Nome do Paciente", on_search=self._search_pacientes
+            self._search_pacientes, "Nome do Paciente"
         )
 
         prefill_id = self._edit_registro.paciente_id if self._edit_registro else self._pre_paciente_id
         if prefill_id:
             paciente = self._mw.services.paciente.get(prefill_id)
             if paciente:
-                self._paciente_combo.set_options({str(paciente.id): paciente.name})
-                self._paciente_combo.set_current_by_data(str(paciente.id))
+                self._paciente_combo.set_current(str(paciente.id), paciente.name)
 
         self._paciente_combo.selection_changed.connect(self._on_paciente_selected)
-        self._paciente_combo.exact_match_changed.connect(self._on_paciente_selected)
         h.addWidget(self._paciente_combo)
 
         self._shortcut_searches = [
@@ -311,7 +259,7 @@ class EntryPage(BasePage):
 
         rd: _RowData
         rd = _RowData(
-            group_btn=_CycleButton(
+            group_btn=CycleButton(
                 str(process_group), "positive",
                 modulus=5, base=1, initial=process_group, font_size=14,
                 on_change=lambda v: self._on_group_changed(rd, v),
@@ -321,21 +269,13 @@ class EntryPage(BasePage):
         rd.group_btn.setToolTip("Grupo do item (clique p/ alterar)")
         row_h.addWidget(rd.group_btn)
 
-        combo = SearchableComboBox(
-            "Buscar item...",
-            on_search=self._search_items,
-            on_delete_empty=lambda w=row: self._remove_item(w),
-        )
-        combo.set_options(self._catalog_options)
+        combo = SearchableComboBox(self._search_items, "Buscar item...")
         if item_id is not None:
             combo.set_current_by_data(str(item_id))
         rd.combo = combo
         row_h.addWidget(combo)
 
-        cid_combo = SearchableComboBox(
-            "CID",
-            on_delete_empty=None,
-        )
+        cid_combo = SearchableComboBox(static_search_fn({}), "CID")
         cid_combo.setFixedWidth(80)
         rd.cid_combo = cid_combo
         row_h.addWidget(cid_combo)
@@ -365,7 +305,7 @@ class EntryPage(BasePage):
         if not data:
             if rd.cid_combo:
                 rd.cid_combo.clear()
-                rd.cid_combo.set_options({})
+                rd.cid_combo.set_search_fn(static_search_fn({}))
             return
         try:
             item_id = int(data)
@@ -379,10 +319,10 @@ class EntryPage(BasePage):
         cids = self._item_cids.get(item_id, [])
         if not cids:
             rd.cid_combo.clear()
-            rd.cid_combo.set_options({})
+            rd.cid_combo.set_search_fn(static_search_fn({}))
             return
         options = {cid: cid for cid in cids}
-        rd.cid_combo.set_options(options)
+        rd.cid_combo.set_search_fn(static_search_fn(options))
         group_cid = self._group_cids.get(rd.pg, "")
         chosen = selected_cid or group_cid
         if chosen and chosen in options:
@@ -607,7 +547,6 @@ class EntryPage(BasePage):
     def _reset_form(self):
         self._edit_id = None
         self._edit_ctx = None
-        self._paciente_combo.set_options({})
         self._paciente_combo.clear()
         self._clear_item_rows()
         self._add_item_row()

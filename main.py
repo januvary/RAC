@@ -99,6 +99,10 @@ def main():
 
     qapp = QApplication(sys.argv)
 
+    # Dev: Ctrl+Shift+I abre o código-fonte do widget sob o cursor (var. DEV_INSPECTOR).
+    from andaime.qt.dev_inspector import enable_if_env
+    enable_if_env(qapp)
+
     icon_path = _get_app_icon_path()
     if icon_path.exists():
         qapp.setWindowIcon(QIcon(str(icon_path)))

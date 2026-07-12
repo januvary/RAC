@@ -1,68 +1,59 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Global QSS stylesheet — native Qt feel with theme support
+Global QSS stylesheet — native Qt feel with theme support.
+
+As cores neutras são mapeadas a partir da paleta compartilhada
+(``andaime.qt.theme``: rampa + níveis), mantendo o motor de tema
+centralizado. Cores de identidade do RAC (azul de acento, vermelhos
+destrutivos, sistema ``btnrole``, tipos de medicamento) continuam
+definidas localmente neste módulo.
 """
 
 _current_theme: str = "light"
 
-LIGHT_COLORS = {
-    "bg_main": "#F0EBE1",
-    "bg_card": "#FFFAF0",
-    "bg_card_alt": "#E1DAD0",
-    "bg_hover": "#D2CBC0",
-    "bg_pressed": "#C3BBB0",
-    "bg_input": "#FFFCF5",
-    "border": "#D6D3D1",
-    "border_light": "#E7E5E4",
-    "text_primary": "#44403C",
-    "text_secondary": "#78716C",
-    "text_dark": "#292524",
-    "selection_bg": "#D6CFBF",
-    "selection_text": "#292524",
-    "separator": "#E7E5E4",
-    "gridline": "#EDE8DE",
-    "scrollbar": "#D6D3D1",
-    "scrollbar_hover": "#A8A29E",
-    "table_alt_bg": "#F5F0E6",
-    "toast_positive_fg": "#059669",
-    "toast_positive_bg": "#EDF7ED",
-    "toast_warning_fg": "#D97706",
-    "toast_warning_bg": "#FFF7E5",
-    "toast_negative_fg": "#DC2626",
-    "toast_negative_bg": "#FDF0F0",
-    "toast_info_fg": "#2563EB",
-    "toast_info_bg": "#EFF2FA",
+from andaime.qt.theme import LIGHT as _SHARED_LIGHT, DARK as _SHARED_DARK
+
+
+# RAC key -> chave correspondente na paleta compartilhada. Chaves com o mesmo
+# nome não precisam de mapeamento (pass-through).
+_RAC_TO_SHARED = {
+    "bg_main": "window_bg",
+    "bg_card": "panel_bg",
+    "bg_card_alt": "panel_header_bg",
+    "bg_input": "input_bg",
+    "border": "panel_border",
+    "text_primary": "text",
+    "separator": "separador",
+    "table_alt_bg": "window_bg",
+    "toast_positive_fg": "status_success",
+    "toast_warning_fg": "status_warning",
+    "toast_negative_fg": "status_error",
 }
 
-DARK_COLORS = {
-    "bg_main": "#18181B",
-    "bg_card": "#27272A",
-    "bg_card_alt": "#2D2D31",
-    "bg_hover": "#3F3F46",
-    "bg_pressed": "#52525B",
-    "bg_input": "#27272A",
-    "border": "#3F3F46",
-    "border_light": "#52525B",
-    "text_primary": "#F4F4F5",
-    "text_secondary": "#A1A1AA",
-    "text_dark": "#F4F4F5",
-    "selection_bg": "#1E3A8A",
-    "selection_text": "#F4F4F5",
-    "separator": "#3F3F46",
-    "gridline": "#2A2A2E",
-    "scrollbar": "#52525B",
-    "scrollbar_hover": "#71717A",
-    "table_alt_bg": "#2D2D31",
-    "toast_positive_fg": "#34D399",
-    "toast_positive_bg": "#064E3B",
-    "toast_warning_fg": "#FBBF24",
-    "toast_warning_bg": "#78350F",
-    "toast_negative_fg": "#F87171",
-    "toast_negative_bg": "#7F1D1D",
-    "toast_info_fg": "#60A5FA",
-    "toast_info_bg": "#1E3A8A",
-}
+# Chaves do RAC (text_dark era morta e foi removida).
+_RAC_KEYS = (
+    "bg_main", "bg_card", "bg_card_alt", "bg_hover", "bg_pressed",
+    "bg_input", "border", "border_light", "text_primary", "text_secondary",
+    "selection_bg", "selection_text", "separator", "gridline", "scrollbar",
+    "scrollbar_hover", "table_alt_bg", "toast_positive_fg", "toast_positive_bg",
+    "toast_warning_fg", "toast_warning_bg", "toast_negative_fg",
+    "toast_negative_bg", "toast_info_fg", "toast_info_bg",
+)
+
+
+def _rac_palette(shared: dict) -> dict:
+    """Mapeia o vocabulário do RAC sobre a paleta compartilhada.
+
+    Os valores vêm de ``andaime.qt.theme`` (rama + níveis), centralizando o
+    motor de tema. Cores de identidade do RAC (azul de acento, vermelhos
+    destrutivos, sistema ``btnrole``, tipos de medicamento) continuam locais.
+    """
+    return {key: shared[_RAC_TO_SHARED.get(key, key)] for key in _RAC_KEYS}
+
+
+LIGHT_COLORS = _rac_palette(_SHARED_LIGHT)
+DARK_COLORS = _rac_palette(_SHARED_DARK)
 
 
 def set_theme(theme: str) -> None:

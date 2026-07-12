@@ -108,8 +108,6 @@ class PatientPage(BasePage):
         self._table.setStyleSheet(data_view_style_qss(include_selected=True))
         layout.addWidget(self._table)
 
-        highlight_row = -1
-
         for reg in registros:
             items = self._mw.services.registro.get_items(reg.id)
             meds_by_group: dict[int, list[str]] = {}
@@ -146,6 +144,7 @@ class PatientPage(BasePage):
             malote_display = format_malote_date(Malote(date=malote_date))
             date_item = QTableWidgetItem(malote_display)
             date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            date_item.setData(Qt.ItemDataRole.UserRole, reg.id)
             self._table.setItem(row, 0, date_item)
 
             tipo_item = QTableWidgetItem(tipo_label)
@@ -162,16 +161,15 @@ class PatientPage(BasePage):
             cids_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 3, cids_item)
 
-            if self._highlight_registro is not None and reg.id == self._highlight_registro:
-                highlight_row = row
-
         self._table.resizeRowsToContents()
-        self._table.setSortingEnabled(True)
 
-        if highlight_row >= 0:
-            self._table.selectRow(highlight_row)
-            if item := self._table.item(highlight_row, 0):
-                self._table.scrollToItem(item)
+        if self._highlight_registro is not None:
+            for r in range(self._table.rowCount()):
+                item = self._table.item(r, 0)
+                if item and item.data(Qt.ItemDataRole.UserRole) == self._highlight_registro:
+                    self._table.selectRow(r)
+                    self._table.scrollToItem(item)
+                    break
 
         self._table.cellDoubleClicked.connect(self._on_row_double_clicked)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

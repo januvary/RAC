@@ -421,14 +421,14 @@ def _show_new_malote_dialog(label: MaloteLabel):
     from src.utils.text_utils import parse_date, format_malote_date
     from src.utils.date_calculator import next_send_date, calculate_arrival_date
     from andaime.error_handler import ErrorContext, ErrorHandler
-    from datetime import date as date_cls
+    from andaime.widgets import DateLineEdit
 
     parent = label.window()
     mw = label._mw
 
     dlg, layout = scaffold_dialog(parent, "Novo Malote", spacing=16)
 
-    date_input = QLineEdit()
+    date_input = DateLineEdit()
     date_input.setPlaceholderText("dd/mm ou dd/mm/aa")
     with suppress(ValueError, TypeError):
         existing = set(mw.services.malote.get_dates())
@@ -444,15 +444,15 @@ def _show_new_malote_dialog(label: MaloteLabel):
     cancel.clicked.connect(dlg.reject)
 
     def do_create():
-        iso = parse_date(date_input.text())
-        if not iso:
+        parsed = parse_date(date_input.text())
+        if not parsed:
             show_toast("Data inválida", "negative", label)
             return
+        iso = parsed.isoformat()
         try:
             arrival_iso = None
             with suppress(ValueError, TypeError):
-                send_dt = date_cls.fromisoformat(iso)
-                arrival = calculate_arrival_date(send_dt)
+                arrival = calculate_arrival_date(parsed)
                 arrival_iso = arrival.isoformat()
             malote = mw.services.malote.create(iso, arrival_date=arrival_iso)
             _activate_malote_if_changed(mw, malote)
@@ -475,6 +475,7 @@ def _show_new_malote_dialog(label: MaloteLabel):
 def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
     from src.utils.text_utils import parse_date
     from andaime.error_handler import ErrorContext, ErrorHandler
+    from andaime.widgets import DateLineEdit
 
     parent = label.window()
     mw = label._mw
@@ -496,7 +497,7 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
     dlg, layout = scaffold_dialog(parent, title, spacing=16)
     layout.addSpacing(4)
 
-    date_input = QLineEdit()
+    date_input = DateLineEdit()
     date_input.setPlaceholderText("dd/mm ou dd/mm/aa")
     try:
         from datetime import datetime
@@ -516,10 +517,11 @@ def _show_date_dialog(label: MaloteLabel, malote, field: str, on_done):
     cancel.clicked.connect(dlg.reject)
 
     def do_save():
-        iso = parse_date(date_input.text())
-        if not iso:
+        parsed = parse_date(date_input.text())
+        if not parsed:
             show_toast("Data inválida", "negative", label)
             return
+        iso = parsed.isoformat()
         if iso == current_iso:
             dlg.accept()
             return

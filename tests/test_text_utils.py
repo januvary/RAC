@@ -1,3 +1,5 @@
+from datetime import date
+
 from andaime.text import normalize_text, to_upper_normalized
 from src.utils.text_utils import parse_date, format_malote_date
 from src.models import Malote
@@ -40,19 +42,19 @@ class TestToUpperNormalized:
 class TestParseDate:
     def test_dd_mm(self):
         result = parse_date("12/04")
-        assert result == "2026-04-12"
+        assert result == date(date.today().year, 4, 12)
 
     def test_dd_mm_yyyy(self):
-        assert parse_date("12/04/2025") == "2025-04-12"
+        assert parse_date("12/04/2025") == date(2025, 4, 12)
 
     def test_dd_mm_yy(self):
-        assert parse_date("12/04/25") == "2025-04-12"
+        assert parse_date("12/04/25") == date(2025, 4, 12)
 
     def test_dash_separator(self):
-        assert parse_date("12-04-2025") == "2025-04-12"
+        assert parse_date("12-04-2025") == date(2025, 4, 12)
 
     def test_dot_separator(self):
-        assert parse_date("12.04.2025") == "2025-04-12"
+        assert parse_date("12.04.2025") == date(2025, 4, 12)
 
     def test_empty_returns_none(self):
         assert parse_date("") is None
@@ -67,7 +69,7 @@ class TestParseDate:
         assert parse_date("12042025") is None
 
     def test_strips_whitespace(self):
-        assert parse_date("  12/04  ") == "2026-04-12"
+        assert parse_date("  12/04  ") == date(date.today().year, 4, 12)
 
 
 class TestFormatMaloteDate:
