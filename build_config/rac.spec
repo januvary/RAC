@@ -15,14 +15,20 @@ shutil.copytree(src_dir, clean_src, ignore=shutil.ignore_patterns("__pycache__")
 
 fonts_dir = os.path.join(here, "fonts")
 
-# Resolve andaime root (editable install) so PyInstaller can collect its modules
-import andaime
-andaime_root = os.path.dirname(os.path.dirname(andaime.__file__))
+# Resolve andaime source (explicit repo path; case-sensitive)
+andaime_root = os.path.join(project_root, "..", "Andaime", "andaime")
 
 datas = [
     (clean_src, "src"),
-    (os.path.join(andaime_root, "data"), os.path.join("andaime", "data")),
 ]
+
+andaime_data = os.path.join(andaime_root, "data")
+if os.path.isdir(andaime_data):
+    datas.append((andaime_data, os.path.join("andaime", "data")))
+
+# Bundle the andaime package itself (so its submodules are importable at runtime)
+if os.path.isdir(andaime_root):
+    datas.append((andaime_root, "andaime"))
 
 if os.path.exists(fonts_dir):
     datas.append((fonts_dir, "fonts"))
@@ -76,6 +82,7 @@ a = Analysis(
         "andaime.updater", "andaime.widgets", "andaime.qt",
         "andaime.qt.theme", "andaime.qt.table", "andaime.qt.dev_inspector",
         "andaime.db_worker",
+        "concurrent.futures",
         "holidays",
         "json", "sqlite3", "shutil", "traceback", "unicodedata",
         "dataclasses", "logging", "threading", "contextlib",

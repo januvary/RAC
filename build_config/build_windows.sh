@@ -50,6 +50,15 @@ fi
 WINE_PY_VER=$(wine $WINE_PYTHON --version 2>&1 | grep -v fixme | head -1)
 echo -e "  ${GREEN}Python:${NC} $WINE_PY_VER"
 
+# --- Prepare dependencies (self-contained, like the portable build) ---
+echo ""
+echo "[1.5/6] Preparing Wine Python dependencies..."
+wine $WINE_PYTHON -m pip install --upgrade \
+    PySide6 openpyxl pyinstaller \
+    2>&1 | grep -v fixme | grep -i "successfully\|already\|Downloading\|Installing" | tail -5
+ok() { echo -e "  ${GREEN}✓${NC} $1"; }
+ok "Wine Python deps ready (PySide6, openpyxl, pyinstaller)"
+
 # --- Clean ---
 echo ""
 echo "[2/6] Cleaning previous builds..."
