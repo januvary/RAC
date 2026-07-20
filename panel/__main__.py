@@ -48,7 +48,7 @@ def _build_from_local():
     from src.sync.provider import LocalSnapshotProvider
     from src.utils.config import RACConfig
 
-    andaime.init("RAC", "RACRegistros", root=_PROJECT_ROOT)
+    andaime.init("RAC", "RAC", root=_PROJECT_ROOT)
     ConfigManager.init(RACConfig)
     config = ConfigManager()
 

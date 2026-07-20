@@ -9,6 +9,6 @@ from src.utils.config import RACConfig
 @pytest.fixture(autouse=True)
 def _init_andaime(tmp_path):
     App.reset()
-    App("RAC-TEST", "RACRegistros", config_cls=RACConfig, db_cls=RACDatabase, root=tmp_path)
+    App("RAC-TEST", "RAC", config_cls=RACConfig, db_cls=RACDatabase, root=tmp_path)
     yield
     App.reset()
