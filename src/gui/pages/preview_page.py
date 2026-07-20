@@ -31,6 +31,7 @@ from src.gui.styles import faded_tipo_color, tab_style_qss, filter_table_rows, d
 from src.utils.text_utils import format_malote_date, format_item
 from src.services.exceptions import DuplicateRecordError
 from src.services.registro_service import DeleteSnapshot
+from andaime.qt.table import table_batch_populate
 
 
 class PreviewPage(BasePage):
@@ -113,11 +114,15 @@ class PreviewPage(BasePage):
                 lambda text, t=table: filter_table_rows(t, text)
             )
 
-            for reg in tipo_registros:
-                for proc in reg.processes:
-                    row = table.rowCount()
-                    table.insertRow(row)
+            rows_data = [
+                (reg, proc)
+                for reg in tipo_registros
+                for proc in reg.processes
+            ]
 
+            table.setRowCount(len(rows_data))
+            with table_batch_populate(table):
+                for row, (reg, proc) in enumerate(rows_data):
                     name_item = QTableWidgetItem(reg.paciente_name or "")
                     name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                     name_item.setData(Qt.ItemDataRole.UserRole, reg.id)

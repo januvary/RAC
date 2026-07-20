@@ -5,12 +5,12 @@ Main Window — QStackedWidget page navigation
 """
 
 from PySide6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout
-from PySide6.QtCore import Qt, Signal, QEvent
-from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtCore import Qt, Signal
 
 from src.database.rac_database import RACDatabase
 from src.state.rac_state_manager import RACStateManager
 from andaime.config import ConfigManager
+from andaime.qt import ShortcutManager
 
 from src.gui.constants import TIPO_LABELS
 from src.gui.pages.start_page import StartPage
@@ -43,13 +43,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._stack)
 
         self._pages: dict[str, QWidget] = {}
-        self.installEventFilter(self)
 
         self.db: RACDatabase | None = None
         self.state: RACStateManager | None = None
         self.config: ConfigManager | None = None
         self._services = None
-        self._shortcut_peek_active = False
         self._last_patient_id: int | None = None
         self._last_preview_tipo: str | None = None
 
@@ -75,35 +73,8 @@ class MainWindow(QMainWindow):
 
         self._setup_shortcuts()
 
-    def eventFilter(self, obj, event):
-        try:
-            etype = event.type()
-            if etype == QEvent.Type.KeyPress:
-                if (
-                    event.key() == Qt.Key.Key_Shift
-                    and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-                ):
-                    self._toggle_shortcut_peek(True)
-                elif (
-                    event.key() == Qt.Key.Key_Control
-                    and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-                ):
-                    self._toggle_shortcut_peek(True)
-            elif etype == QEvent.Type.KeyRelease:
-                if event.key() in (Qt.Key.Key_Shift, Qt.Key.Key_Control):
-                    mods = event.modifiers()
-                    has_ctrl = mods & Qt.KeyboardModifier.ControlModifier
-                    has_shift = mods & Qt.KeyboardModifier.ShiftModifier
-                    if not (has_ctrl and has_shift):
-                        self._toggle_shortcut_peek(False)
-        except RuntimeError:
-            pass
-        return super().eventFilter(obj, event)
-
     def _toggle_shortcut_peek(self, show: bool):
-        if show == self._shortcut_peek_active:
-            return
-        self._shortcut_peek_active = show
+        """Delega o peek à página atual (callback do ShortcutManager)."""
         page = self._current_page()
         if page and hasattr(page, "set_shortcuts_visible"):
             page.set_shortcuts_visible(show)
@@ -133,7 +104,7 @@ class MainWindow(QMainWindow):
             self.db.close()
 
     def navigate_to(self, page_name: str, **kwargs):
-        self._toggle_shortcut_peek(False)
+        self.shortcuts.reset_peek()
         if page_name == "start":
             self._show_start_page()
         elif page_name == "patient":
@@ -207,31 +178,26 @@ class MainWindow(QMainWindow):
         self._push_page(PatientPage, paciente_id, highlight_registro, return_to or "start")
 
     def _setup_shortcuts(self):
-        shortcuts = [
-            ("Ctrl+S", self._shortcut_save),
-            ("Ctrl+E", self._shortcut_export),
-            (Qt.Key.Key_Escape, self._shortcut_back),
-            ("Ctrl+D", self._shortcut_malote_dialog),
-            ("Ctrl+R", self._shortcut_focus_search),
-            ("Ctrl+G", self._shortcut_preview),
-            ("Ctrl+M", self._shortcut_medicamentos),
-            ("Ctrl+P", self._shortcut_pacientes),
-            ("Ctrl+F", self._shortcut_add_item),
-            ("Ctrl+W", self._shortcut_toggle_docs),
-            ("Ctrl+Q", self._shortcut_toggle_stay_on_page),
-            ("Ctrl+Y", self._shortcut_stats),
-        ]
-        for key, handler in shortcuts:
-            seq = QKeySequence(key)
-            QShortcut(seq, self, handler)
-            if isinstance(key, str):
-                shifted = QKeySequence(key.replace("Ctrl+", "Ctrl+Shift+"))
-                QShortcut(shifted, self, handler)
+        self.shortcuts = ShortcutManager(self)
+        self.shortcuts.on_peek(self._toggle_shortcut_peek)
+
+        self.shortcuts.bind("Ctrl+S", self._shortcut_save)
+        self.shortcuts.bind("Ctrl+E", self._shortcut_export)
+        self.shortcuts.bind(Qt.Key.Key_Escape, self._shortcut_back)
+        self.shortcuts.bind("Ctrl+D", self._shortcut_malote_dialog)
+        self.shortcuts.bind("Ctrl+R", self._shortcut_focus_search)
+        self.shortcuts.bind("Ctrl+G", self._shortcut_preview)
+        self.shortcuts.bind("Ctrl+M", self._shortcut_medicamentos)
+        self.shortcuts.bind("Ctrl+P", self._shortcut_pacientes)
+        self.shortcuts.bind("Ctrl+F", self._shortcut_add_item)
+        self.shortcuts.bind("Ctrl+W", self._shortcut_toggle_docs)
+        self.shortcuts.bind("Ctrl+Q", self._shortcut_toggle_stay_on_page)
+        self.shortcuts.bind("Ctrl+Y", self._shortcut_stats)
+
         for idx, tipo in enumerate(TIPO_LABELS):
             def handler(_checked=False, t=tipo):
                 self._shortcut_tipo_by_key(t)
-            for modifier in ("Ctrl+", "Ctrl+Shift+"):
-                QShortcut(QKeySequence(f"{modifier}{idx + 1}"), self, handler)
+            self.shortcuts.bind(f"Ctrl+{idx + 1}", handler)
 
     def _current_page(self):
         return self._stack.currentWidget()

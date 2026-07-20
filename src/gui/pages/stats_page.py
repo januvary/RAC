@@ -32,6 +32,7 @@ from src.gui.widgets._malote_tree import (
 from src.gui.constants import TIPO_LABELS, TIPO_HEX
 from src.gui.styles import colors, filter_table_rows, data_view_style_qss, faded_tipo_color
 from src.export.excel_exporter import ExcelExporter
+from andaime.qt.table import table_batch_populate
 
 _CANCELLED = object()
 
@@ -239,17 +240,16 @@ class StatsPage(BasePage):
         self._fill_meds_table(meds)
 
     def _fill_meds_table(self, rows: list[dict]):
-        self._meds_table.setRowCount(0)
         total = sum(r["registros"] for r in rows) or 1
-        for r in rows:
-            row = self._meds_table.rowCount()
-            self._meds_table.insertRow(row)
-            self._meds_table.setItem(row, 0, self._cell(r["medicamento"]))
-            self._meds_table.setItem(
-                row, 1, self._cell(str(r["registros"]), center=True)
-            )
-            pct = r["registros"] / total * 100
-            self._meds_table.setItem(row, 2, self._cell(f"{pct:.1f}%", center=True))
+        with table_batch_populate(self._meds_table):
+            self._meds_table.setRowCount(len(rows))
+            for row, r in enumerate(rows):
+                self._meds_table.setItem(row, 0, self._cell(r["medicamento"]))
+                self._meds_table.setItem(
+                    row, 1, self._cell(str(r["registros"]), center=True)
+                )
+                pct = r["registros"] / total * 100
+                self._meds_table.setItem(row, 2, self._cell(f"{pct:.1f}%", center=True))
 
     def _filter_meds_table(self, text: str):
         filter_table_rows(self._meds_table, text)

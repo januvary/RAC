@@ -27,6 +27,7 @@ from src.gui.styles import (
 )
 from src.utils.text_utils import format_malote_date, format_item
 from src.models import Malote
+from andaime.qt.table import table_batch_populate
 
 
 def _remove_layout_item(item):
@@ -108,58 +109,57 @@ class PatientPage(BasePage):
         self._table.setStyleSheet(data_view_style_qss(include_selected=True))
         layout.addWidget(self._table)
 
-        for reg in registros:
-            items = self._mw.services.registro.get_items(reg.id)
-            meds_by_group: dict[int, list[str]] = {}
-            for item in items:
-                meds_by_group.setdefault(item.process_group, []).append(
-                    item.item_name or ""
-                )
+        self._table.setRowCount(len(registros))
+        with table_batch_populate(self._table):
+            for row, reg in enumerate(registros):
+                items = self._mw.services.registro.get_items(reg.id)
+                meds_by_group: dict[int, list[str]] = {}
+                for item in items:
+                    meds_by_group.setdefault(item.process_group, []).append(
+                        item.item_name or ""
+                    )
 
-            meds_parts = []
-            for pg in sorted(meds_by_group):
-                names = sorted(set(meds_by_group[pg]))
-                formatted = [format_item(n) for n in names if n]
-                if formatted:
-                    prefix = f"G{pg}: " if len(meds_by_group) > 1 else ""
-                    meds_parts.append(f"{prefix}{', '.join(formatted)}")
+                meds_parts = []
+                for pg in sorted(meds_by_group):
+                    names = sorted(set(meds_by_group[pg]))
+                    formatted = [format_item(n) for n in names if n]
+                    if formatted:
+                        prefix = f"G{pg}: " if len(meds_by_group) > 1 else ""
+                        meds_parts.append(f"{prefix}{', '.join(formatted)}")
 
-            meds_str = " | ".join(meds_parts) if meds_parts else "—"
+                meds_str = " | ".join(meds_parts) if meds_parts else "—"
 
-            cids = sorted(set(item.cid for item in items if item.cid))
-            if not cids:
-                cids_str = "—"
-            elif len(cids) <= 2:
-                cids_str = ", ".join(cids)
-            else:
-                cids_str = ", ".join(cids[:2]) + "…"
+                cids = sorted(set(item.cid for item in items if item.cid))
+                if not cids:
+                    cids_str = "—"
+                elif len(cids) <= 2:
+                    cids_str = ", ".join(cids)
+                else:
+                    cids_str = ", ".join(cids[:2]) + "…"
 
-            row = self._table.rowCount()
-            self._table.insertRow(row)
+                tipo_key = reg.tipo
+                tipo_label = TIPO_LABELS.get(tipo_key, tipo_key)
 
-            tipo_key = reg.tipo
-            tipo_label = TIPO_LABELS.get(tipo_key, tipo_key)
+                malote_date = reg.malote_date or ""
+                malote_display = format_malote_date(Malote(date=malote_date))
+                date_item = QTableWidgetItem(malote_display)
+                date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                date_item.setData(Qt.ItemDataRole.UserRole, reg.id)
+                self._table.setItem(row, 0, date_item)
 
-            malote_date = reg.malote_date or ""
-            malote_display = format_malote_date(Malote(date=malote_date))
-            date_item = QTableWidgetItem(malote_display)
-            date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            date_item.setData(Qt.ItemDataRole.UserRole, reg.id)
-            self._table.setItem(row, 0, date_item)
+                tipo_item = QTableWidgetItem(tipo_label)
+                tipo_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                tipo_item.setData(Qt.ItemDataRole.UserRole, reg.id)
+                tipo_item.setData(Qt.ItemDataRole.UserRole + 1, tipo_key)
+                self._table.setItem(row, 1, tipo_item)
 
-            tipo_item = QTableWidgetItem(tipo_label)
-            tipo_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            tipo_item.setData(Qt.ItemDataRole.UserRole, reg.id)
-            tipo_item.setData(Qt.ItemDataRole.UserRole + 1, tipo_key)
-            self._table.setItem(row, 1, tipo_item)
+                meds_item = QTableWidgetItem(meds_str)
+                meds_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self._table.setItem(row, 2, meds_item)
 
-            meds_item = QTableWidgetItem(meds_str)
-            meds_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            self._table.setItem(row, 2, meds_item)
-
-            cids_item = QTableWidgetItem(cids_str)
-            cids_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(row, 3, cids_item)
+                cids_item = QTableWidgetItem(cids_str)
+                cids_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._table.setItem(row, 3, cids_item)
 
         self._table.resizeRowsToContents()
 

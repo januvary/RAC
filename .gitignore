@@ -1,7 +1,7 @@
 __pycache__/
+.mypy_cache/
 *.py[cod]
 *.pyo
-
 build/
 dist/
 *.spec
@@ -20,7 +20,7 @@ data/backups/
 
 *.egg-info/
 .eggs/
-
+.opencode/
 .idea/
 .vscode/
 *.swp
@@ -34,4 +34,10 @@ data/backups/
 htmlcov/
 
 # Generated panel artifact
+panel/
 painel.html
+cleanup_db.py
+generate_test_data.py
+quality_check.sh
+RAC.txt
+

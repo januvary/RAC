@@ -25,6 +25,7 @@ from src.gui.widgets.buttons import make_button
 from src.gui.widgets.dialogs import confirm_delete_dialog, open_input_dialog
 from src.gui.widgets.base_page import make_tab
 from src.gui.styles import data_view_style_qss, filter_table_rows
+from andaime.qt.table import table_batch_populate
 
 
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -154,42 +155,32 @@ class CrudList:
 
     def _populate(self, items):
         table = self.list_widget
-        sort_col = 0
-        sort_order = Qt.SortOrder.AscendingOrder
-        if self._sortable:
-            if table.isSortingEnabled():
-                sort_col = table.horizontalHeader().sortIndicatorSection()
-                sort_order = table.horizontalHeader().sortIndicatorOrder()
-            table.setSortingEnabled(False)
+        with table_batch_populate(table):
+            table.setRowCount(len(items))
+            for row, item in enumerate(items):
+                name_item = SortableTableWidgetItem(item.name)
+                name_item.setData(Qt.ItemDataRole.UserRole, item.id)
+                table.setItem(row, 0, name_item)
 
-        table.setRowCount(0)
-        for item in items:
-            row = table.rowCount()
-            table.insertRow(row)
+                if self._secondary_value is not None:
+                    display = self._secondary_value(item)
+                    sort_key = (
+                        self._secondary_sort_key(item)
+                        if self._secondary_sort_key is not None
+                        else display
+                    )
+                    sec_item = SortableTableWidgetItem(display, sort_key)
+                    sec_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    sec_item.setFlags(
+                        sec_item.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable
+                    )
+                    if self._secondary_tooltip is not None:
+                        sec_item.setToolTip(self._secondary_tooltip(item))
+                    table.setItem(row, 1, sec_item)
 
-            name_item = SortableTableWidgetItem(item.name)
-            name_item.setData(Qt.ItemDataRole.UserRole, item.id)
-            table.setItem(row, 0, name_item)
-
-            if self._secondary_value is not None:
-                display = self._secondary_value(item)
-                sort_key = (
-                    self._secondary_sort_key(item)
-                    if self._secondary_sort_key is not None
-                    else display
-                )
-                sec_item = SortableTableWidgetItem(display, sort_key)
-                sec_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                sec_item.setFlags(
-                    sec_item.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable
-                )
-                if self._secondary_tooltip is not None:
-                    sec_item.setToolTip(self._secondary_tooltip(item))
-                table.setItem(row, 1, sec_item)
-
-        if self._sortable:
+        if self._sortable and not table.isSortingEnabled():
             table.setSortingEnabled(True)
-            table.sortByColumn(sort_col, sort_order)
+            table.sortByColumn(0, Qt.SortOrder.AscendingOrder)
 
     def filter(self, text: str):
         filter_table_rows(self.list_widget, text)
