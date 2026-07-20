@@ -78,7 +78,6 @@ echo ""
 echo "[4/6] Organizing output..."
 mkdir -p "$DIST"
 cp -r "$BUILD_CONFIG/dist/RAC" "$DIST/"
-cp "$BUILD_CONFIG/update_windows.ps1" "$DIST/RAC/update.ps1"
 
 if [ ! -f "$DIST/RAC/RAC.exe" ]; then
     echo -e "${RED}[ERROR]${NC} RAC.exe was not created!"

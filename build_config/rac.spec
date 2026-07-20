@@ -15,14 +15,14 @@ shutil.copytree(src_dir, clean_src, ignore=shutil.ignore_patterns("__pycache__")
 
 fonts_dir = os.path.join(here, "fonts")
 
+# Resolve andaime root (editable install) so PyInstaller can collect its modules
+import andaime
+andaime_root = os.path.dirname(os.path.dirname(andaime.__file__))
+
 datas = [
     (clean_src, "src"),
-    (os.path.join(project_root, "..", "andaime", "andaime", "data"), os.path.join("andaime", "data")),
+    (os.path.join(andaime_root, "data"), os.path.join("andaime", "data")),
 ]
-
-andaime_src = os.path.join(project_root, "..", "andaime", "andaime")
-if os.path.isdir(andaime_src):
-    datas.append((andaime_src, "andaime"))
 
 if os.path.exists(fonts_dir):
     datas.append((fonts_dir, "fonts"))
@@ -56,22 +56,26 @@ excludes = [
 
 a = Analysis(
     [os.path.join(project_root, "main.py")],
-    pathex=[project_root],
+    pathex=[project_root, andaime_root],
     binaries=[],
     datas=datas,
     hiddenimports=[
         "PySide6", "PySide6.QtWidgets", "PySide6.QtCore", "PySide6.QtGui",
-        "src", "src.gui", "src.gui.main_window", "src.gui.components",
+        "src", "src.gui", "src.gui.main_window", "src.gui.widgets",
         "src.gui.styles", "src.gui.constants",
         "src.gui.pages.start_page", "src.gui.pages.entry_page",
-        "src.gui.pages.preview_page",
+        "src.gui.pages.preview_page", "src.gui.pages.pacientes_page",
+        "src.gui.pages.patient_page", "src.gui.pages.medicamentos_page",
+        "src.gui.pages.stats_page",
         "src.database.rac_database", "src.database.definitive_catalog",
         "src.state.rac_state_manager", "src.models",
         "src.utils.config", "src.utils.text_utils", "src.utils.date_calculator",
         "src.export.excel_exporter",
-        "andaime", "andaime.config", "andaime.database",
-         "andaime.dates",
+        "andaime", "andaime.config", "andaime.database", "andaime.dates",
         "andaime.error_handler", "andaime.paths", "andaime.text",
+        "andaime.updater", "andaime.widgets", "andaime.qt",
+        "andaime.qt.theme", "andaime.qt.table", "andaime.qt.dev_inspector",
+        "andaime.db_worker",
         "holidays",
         "json", "sqlite3", "shutil", "traceback", "unicodedata",
         "dataclasses", "logging", "threading", "contextlib",
