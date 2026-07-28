@@ -43,7 +43,7 @@ if ! wine $WINE_PYTHON --version &>/dev/null; then
     echo "  wget https://www.python.org/ftp/python/${PYTHON_VERSION}.11/python-${PYTHON_VERSION}.11-amd64.exe"
     echo "  wine python-${PYTHON_VERSION}.11-amd64.exe /passive InstallAllUsers=1 PrependPath=1 TargetDir=C:\\\\Python${PYTHON_SHORT}"
     echo "  wine $WINE_PYTHON -m pip install --upgrade pip"
-    echo "  wine $WINE_PYTHON -m pip install PySide6>=6.6.0 openpyxl>=3.1.0 pyinstaller>=6.0"
+    echo "  wine $WINE_PYTHON -m pip install \"PySide6==6.7.3\" openpyxl>=3.1.0 pyinstaller>=6.0"
     exit 1
 fi
 
@@ -53,8 +53,8 @@ echo -e "  ${GREEN}Python:${NC} $WINE_PY_VER"
 # --- Prepare dependencies (self-contained, like the portable build) ---
 echo ""
 echo "[1.5/6] Preparing Wine Python dependencies..."
-wine $WINE_PYTHON -m pip install --upgrade \
-    PySide6 openpyxl pyinstaller \
+wine $WINE_PYTHON -m pip install \
+    "PySide6==6.7.3" openpyxl pyinstaller \
     2>&1 | grep -v fixme | grep -i "successfully\|already\|Downloading\|Installing" | tail -5
 ok() { echo -e "  ${GREEN}✓${NC} $1"; }
 ok "Wine Python deps ready (PySide6, openpyxl, pyinstaller)"
@@ -150,6 +150,9 @@ if [ -d "$QT_BIN" ]; then
 
     # Software OpenGL renderer - keep as fallback for machines without GPU drivers
     # rm -f "$QT_BIN/opengl32sw.dll"
+
+    # Remove redundant MSVC runtime DLLs (already in _internal/)
+    rm -f "$QT_BIN"/MSVCP140*.dll "$QT_BIN"/VCRUNTIME140*.dll
 fi
 
 # --- Remove CJK codecs and readline ---

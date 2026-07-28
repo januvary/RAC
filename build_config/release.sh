@@ -25,8 +25,18 @@ cleanup() {
 }
 trap 'cleanup' EXIT
 
+cd "$(dirname "$0")/.."
+PROJECT_ROOT="$(pwd)"
+BUILD_CONFIG="$PROJECT_ROOT/build_config"
+DIST_WINDOWS="$BUILD_CONFIG/dist_windows"
+ZIP_NAME="RAC-${TAG}-windows.zip"
+ZIP_PATH="/tmp/${ZIP_NAME}"
+
 if [ -z "$1" ]; then
+    CURRENT_VERSION=$(grep "__version__" "$PROJECT_ROOT/src/__init__.py" | sed 's/.*"\([^"]*\)".*/\1/')
     echo -e "${YELLOW}RAC - Release${NC}"
+    echo ""
+    echo "Current version: $CURRENT_VERSION"
     echo ""
     read -rp "Version (e.g. 1.0.0): " VERSION
     if [ -z "$VERSION" ]; then

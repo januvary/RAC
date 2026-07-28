@@ -28,7 +28,7 @@ def _load_bundled_fonts():
 
 
 def _get_app_icon_path():
-    return Path(__file__).parent / "src" / "gui" / "img" / "folder-1486.svg"
+    return Path(__file__).parent / "icon.ico"
 
 
 def _apply_pending_update():

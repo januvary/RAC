@@ -22,6 +22,11 @@ datas = [
     (clean_src, "src"),
 ]
 
+# Bundle icon.ico next to main.py (for taskbar identity + window icon)
+icon_ico = os.path.join(project_root, "icon.ico")
+if os.path.exists(icon_ico):
+    datas.append((icon_ico, "."))
+
 andaime_data = os.path.join(andaime_root, "data")
 if os.path.isdir(andaime_data):
     datas.append((andaime_data, os.path.join("andaime", "data")))
