@@ -163,7 +163,7 @@ fi
 
 # --- Bundle VC++ runtime DLLs ---
 WINE_PY310="$HOME/.wine/drive_c/Python310"
-for dll in vcruntime140.dll vcruntime140_1.dll; do
+for dll in vcruntime140.dll vcruntime140_1.dll msvcp140.dll msvcp140_1.dll msvcp140_2.dll msvcp140_codecvt_ids.dll; do
     if [ -f "$WINE_PY310/$dll" ]; then
         cp "$WINE_PY310/$dll" "$DIST_INTERNAL/"
     fi
@@ -172,7 +172,7 @@ done
 # --- Check VC++ runtime ---
 echo "[5.5/6] Checking VC++ runtime DLLs..."
 VC_MISSING=0
-for dll in vcruntime140.dll vcruntime140_1.dll; do
+for dll in vcruntime140.dll vcruntime140_1.dll msvcp140.dll msvcp140_1.dll msvcp140_2.dll msvcp140_codecvt_ids.dll; do
     if ! find "$DIST_INTERNAL" -name "$dll" -print -quit | grep -q .; then
         echo -e "  ${RED}[WARN]${NC} $dll not found in build!"
         VC_MISSING=1

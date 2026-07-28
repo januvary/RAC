@@ -11,10 +11,13 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QSizePolicy,
     QFrame,
+    QLabel,
+    QWidget,
 )
 from PySide6.QtCore import Qt
 
-from andaime.widgets import SearchableComboBox, static_search_fn
+from andaime.widgets import SearchableComboBox
+from src.gui.brasao import get_brasao_pixmap, get_rac_pixmap
 from src.gui.widgets import (
     TipoButton,
     make_button,
@@ -36,17 +39,32 @@ from src.gui.constants import (
 from src.export.excel_exporter import ExcelExporter
 from src.models import Malote
 from src.utils.text_utils import format_malote_date, is_malote_past
+from src.gui.styles import colors
 
 
 class StartPage(BasePage):
+    # Constants for easier customization
+    BRASAO_HEIGHT = 42
+    RAC_HEIGHT = 42
+    SUBTITLE_FONT_SIZE = "10pt"
+    USAFA_FONT_SIZE = "9pt"
+    RAC_SPACING = 8
+    SUBTITLE_SPACING = 8
+    BRASAO_SPACING = 8
+    
     def __init__(self, main_window):
         super().__init__(main_window)
         self._pre_search_malote = None
         self._sep_line: QFrame | None = None
+        self._brasao_label: QLabel | None = None
+        self._rac_label: QLabel | None = None
+        self._subtitle_label: QLabel | None = None
+        self._usafa_label: QLabel | None = None
         self._build_ui()
 
     def _build_ui(self):
         layout = self._scaffold()
+        
         self._build_malote_header(layout)
         layout.addSpacing(20)
 
@@ -54,6 +72,17 @@ class StartPage(BasePage):
         layout.addSpacing(20)
 
         self._build_columns(layout)
+        
+        # Bottom container for brasao centering
+        bottom_container = QWidget()
+        bottom_layout = QVBoxLayout(bottom_container)
+        bottom_layout.setContentsMargins(0, 40, 0, 0)
+        bottom_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self._build_brasao(bottom_layout)
+        
+        layout.addWidget(bottom_container)
+        layout.addStretch(1)
 
     def _build_malote_header(self, layout: QVBoxLayout):
         h = make_hbox()
@@ -71,13 +100,59 @@ class StartPage(BasePage):
 
     def _build_search(self, layout: QVBoxLayout):
         self._search_combo = SearchableComboBox(
-            self._search_registros, "Nome do paciente..."
+            self._search_registros, "Buscar registro..."
         )
         self._search_combo.selection_changed.connect(self._on_search_select)
         layout.addWidget(self._search_combo)
         self._shortcut_searches = [
-            ("Nome do paciente...", self._search_combo._line_edit),
+            ("Buscar registro...", self._search_combo._line_edit),
         ]
+
+    def _build_brasao(self, layout: QVBoxLayout):
+        """Build brasao section with RAC logo, subtitles, and brasão."""
+        
+        # RAC logo (top)
+        layout.addSpacing(self.RAC_SPACING)
+        self._rac_label = QLabel()
+        self._rac_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._rac_label.setStyleSheet("border: none; background: transparent;")
+        layout.addWidget(self._rac_label)
+        
+        # Subtitles
+        layout.addSpacing(self.SUBTITLE_SPACING)
+        self._build_subtitles(layout)
+        
+        # Brasão (bottom)
+        layout.addSpacing(self.BRASAO_SPACING)
+        self._brasao_label = QLabel()
+        self._brasao_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._brasao_label.setStyleSheet("border: none; background: transparent;")
+        layout.addWidget(self._brasao_label)
+        
+        self._update_brasao()
+    
+    def _build_subtitles(self, layout: QVBoxLayout):
+        """Build subtitle labels with theme colors."""
+        from src.gui.styles import colors as _colors
+        
+        c = _colors()
+        subtitle_color = c.get('text_primary', c.get('text', '#000000'))
+        style_base = f"border: none; background: transparent; color: {subtitle_color};"
+        
+        # Division subtitle
+        self._subtitle_label = QLabel("Divisão de Assistência Farmacêutica - Praia Grande")
+        self._subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._subtitle_label.setStyleSheet(f"{style_base} font-size: {self.SUBTITLE_FONT_SIZE};")
+        layout.addWidget(self._subtitle_label)
+        
+        # USAFA name
+        usafa_name = self._mw.config.get("usafa_name") or "Sua unidade de saúde"
+        self._usafa_label = QLabel(usafa_name)
+        self._usafa_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._usafa_label.setStyleSheet(f"{style_base} font-size: {self.USAFA_FONT_SIZE};")
+        self._usafa_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._usafa_label.mousePressEvent = self._on_usafa_click
+        layout.addWidget(self._usafa_label)
 
     def _build_columns(self, layout: QVBoxLayout):
         from src.gui.styles import colors as _colors, faded_tipo_color
@@ -245,6 +320,47 @@ class StartPage(BasePage):
             self._sep_line.setStyleSheet(
                 f"color: {c['border']}; border: none; background: {c['border']}; max-width: 1px;"
             )
+        
+        self._update_brasao()
+
+    def _update_brasao(self):
+        """Update all logos and subtitle colors on theme change."""
+        if not all([self._brasao_label, self._rac_label, self._subtitle_label, self._usafa_label]):
+            return
+        
+        theme = self._mw.config.get("theme", "light")
+        dark_mode = (theme == "dark")
+        
+        # Update logos
+        brasao_pixmap = get_brasao_pixmap(height=self.BRASAO_HEIGHT, dark_mode=dark_mode)
+        if brasao_pixmap:
+            self._brasao_label.setPixmap(brasao_pixmap)
+        
+        rac_pixmap = get_rac_pixmap(height=self.RAC_HEIGHT, dark_mode=dark_mode)
+        if rac_pixmap:
+            self._rac_label.setPixmap(rac_pixmap)
+        
+        # Update subtitle colors
+        self._update_subtitle_colors()
+    
+    def _update_subtitle_colors(self):
+        """Update subtitle label colors on theme change."""
+        from src.gui.styles import colors as _colors
+        
+        c = _colors()
+        subtitle_color = c.get('text_primary', c.get('text', '#000000'))
+        style_base = f"border: none; background: transparent; color: {subtitle_color};"
+        
+        self._subtitle_label.setStyleSheet(f"{style_base} font-size: {self.SUBTITLE_FONT_SIZE};")
+        self._usafa_label.setStyleSheet(f"{style_base} font-size: {self.USAFA_FONT_SIZE};")
+    
+    def _on_usafa_click(self, event):
+        """Handle click on USAFA name to edit it."""
+        from main import _show_usafa_dialog
+        
+        new_name = _show_usafa_dialog(self._mw.config, parent=self.window())
+        if new_name:
+            self._usafa_label.setText(new_name)
 
     def set_shortcuts_visible(self, show: bool):
         super().set_shortcuts_visible(show)
