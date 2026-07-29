@@ -15,6 +15,7 @@ build_config/dist/
 build_config/dist_linux/
 build_config/dist_windows/
 build_config/_build_src/
+_update_staging/
 
 data/registros.db
 data/config.json
