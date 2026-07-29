@@ -121,6 +121,7 @@ fi
 echo "[4/6] Packaging..."
 rm -f "$ZIP_PATH"
 cd "$DIST_WINDOWS"
+rm -rf data/
 zip -r "$ZIP_PATH" RAC/ -q
 ZIP_SIZE=$(du -sh "$ZIP_PATH" | cut -f1)
 echo -e "  ${GREEN}${ZIP_NAME}${NC}: $ZIP_SIZE"
@@ -136,6 +137,19 @@ gh release create "$TAG" "$ZIP_PATH" \
     --repo "$REPO" \
     --title "$TAG" \
     --notes "$NOTES"
+echo ""
+
+echo "[7/7] Squashing dist history..."
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+SQUASH_BRANCH="__release_sync"
+git branch -D "$SQUASH_BRANCH" 2>/dev/null || true
+git checkout -b "$SQUASH_BRANCH"
+git reset --soft "$(git rev-list --max-parents=0 HEAD)"
+git commit -m "RAC ${TAG}" >/dev/null
+git push origin "$SQUASH_BRANCH:$CURRENT_BRANCH" --force
+git checkout "$CURRENT_BRANCH"
+git branch -D "$SQUASH_BRANCH" 2>/dev/null || true
+echo -e "  ${GREEN}$CURRENT_BRANCH${NC} squashed to ${TAG}"
 echo ""
 
 echo -e "${GREEN}Done!${NC} $ZIP_SIZE uploaded to:"

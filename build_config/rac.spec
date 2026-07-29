@@ -13,14 +13,17 @@ if os.path.exists(clean_src):
     shutil.rmtree(clean_src)
 shutil.copytree(src_dir, clean_src, ignore=shutil.ignore_patterns("__pycache__"))
 
-fonts_dir = os.path.join(here, "fonts")
-
-# Resolve andaime source (explicit repo path; case-sensitive)
-andaime_root = os.path.join(project_root, "..", "Andaime", "andaime")
-
 datas = [
     (clean_src, "src"),
 ]
+
+# Bundle Material Symbols icons used by the RAC UI
+material_icons_dir = os.path.join(project_root, "src", "gui", "img", "material-icons")
+if os.path.isdir(material_icons_dir):
+    datas.append((material_icons_dir, os.path.join("src", "gui", "img", "material-icons")))
+
+# Resolve andaime source (explicit repo path; case-sensitive)
+andaime_root = os.path.join(project_root, "..", "Andaime", "andaime")
 
 # Bundle icon.ico next to main.py (for taskbar identity + window icon)
 icon_ico = os.path.join(project_root, "icon.ico")
@@ -35,8 +38,17 @@ if os.path.isdir(andaime_data):
 if os.path.isdir(andaime_root):
     datas.append((andaime_root, "andaime"))
 
+fonts_dir = os.path.join(here, "fonts")
+
 if os.path.exists(fonts_dir):
     datas.append((fonts_dir, "fonts"))
+
+# Bundle static data files (holidays, etc.)
+data_dir = os.path.join(project_root, "data")
+if os.path.isdir(data_dir):
+    pontos_file = os.path.join(data_dir, "pontos_facultativos.json")
+    if os.path.exists(pontos_file):
+        datas.append((pontos_file, "."))
 
 icon_path = os.path.join(project_root, "RAC.ico")
 

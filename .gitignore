@@ -2,6 +2,9 @@ __pycache__/
 .mypy_cache/
 *.py[cod]
 *.pyo
+*.pyi
+*.pyd
+.Python
 build/
 dist/
 *.spec
@@ -25,13 +28,40 @@ data/backups/
 .vscode/
 *.swp
 *.swo
+*.log
 
 .env
+.env.local
 
 # Test/coverage artifacts
 .coverage
 .coverage.*
 htmlcov/
+.pytest_cache/
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+
+# Package managers
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Generated panel artifact
 panel/
