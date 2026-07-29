@@ -30,6 +30,11 @@ icon_ico = os.path.join(project_root, "icon.ico")
 if os.path.exists(icon_ico):
     datas.append((icon_ico, "."))
 
+# Bundle fonts from project root/fonts
+fonts_dir = os.path.join(project_root, "fonts")
+if os.path.exists(fonts_dir):
+    datas.append((fonts_dir, "fonts"))
+
 andaime_data = os.path.join(andaime_root, "data")
 if os.path.isdir(andaime_data):
     datas.append((andaime_data, os.path.join("andaime", "data")))
@@ -37,11 +42,6 @@ if os.path.isdir(andaime_data):
 # Bundle the andaime package itself (so its submodules are importable at runtime)
 if os.path.isdir(andaime_root):
     datas.append((andaime_root, "andaime"))
-
-fonts_dir = os.path.join(here, "fonts")
-
-if os.path.exists(fonts_dir):
-    datas.append((fonts_dir, "fonts"))
 
 # Bundle static data files (holidays, etc.)
 data_dir = os.path.join(project_root, "data")

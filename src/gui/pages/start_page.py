@@ -334,7 +334,7 @@ class StartPage(BasePage):
         dark_mode = (theme == "dark")
         for btn in self._tipo_btns:
             faded = faded_tipo_color(TIPO_HEX[btn.tipo_key])
-            icon = _load_material_icon(TIPO_SYMBOLS[btn.tipo_key], white=dark_mode)
+            icon = _load_material_icon(TIPO_SYMBOLS[btn.tipo_key], color=TIPO_HEX[btn.tipo_key])
             btn.setIcon(icon)
             btn.setStyleSheet(self._flat_btn_style(c, "left", faded))
         for btn in self._shortcut_widgets.values():
