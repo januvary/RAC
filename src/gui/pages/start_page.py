@@ -21,7 +21,6 @@ from src.gui.brasao import get_brasao_pixmap, get_rac_pixmap
 from src.gui.widgets import (
     TipoButton,
     IconButtonBase,
-    make_button,
     make_hbox,
     MaloteLabel,
     ThemeToggleButton,
@@ -42,7 +41,7 @@ from src.gui.constants import (
 from src.export.excel_exporter import ExcelExporter
 from src.models import Malote
 from src.utils.text_utils import format_malote_date, is_malote_past
-from src.gui.styles import colors, get_theme
+from src.gui.styles import get_theme
 
 
 from src import __version__

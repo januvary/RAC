@@ -153,6 +153,14 @@ if [ -d "$QT_BIN" ]; then
 
     # Remove redundant MSVC runtime DLLs (already in _internal/)
     rm -f "$QT_BIN"/MSVCP140*.dll "$QT_BIN"/VCRUNTIME140*.dll
+
+    # Remove duplicate VCRUNTIME DLLs from shiboken6 (already in _internal/)
+    if [ -d "$DIST_INTERNAL/shiboken6" ]; then
+        rm -f "$DIST_INTERNAL/shiboken6"/VCRUNTIME*.dll
+    fi
+
+    # Remove lowercase duplicate VCRUNTIME DLLs (Windows is case-insensitive)
+    rm -f "$DIST_INTERNAL"/vcruntime*.dll
 fi
 
 # --- Remove CJK codecs and readline ---

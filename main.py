@@ -194,7 +194,7 @@ def main():
 
     from src.gui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(app)
     if icon_path.exists():
         window.setWindowIcon(QIcon(str(icon_path)))
     window.init_backend()

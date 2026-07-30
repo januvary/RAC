@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QWidget,
 )
-from PySide6.QtGui import QIcon
 from src.gui.constants import TIPO_HEX, TIPO_SYMBOLS, TIPO_LABELS
 from src.gui.styles import colors
 from src.gui.widgets.base_page import make_hbox
