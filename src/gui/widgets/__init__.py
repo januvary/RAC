@@ -21,10 +21,12 @@ from src.gui.widgets.list_page import ListPage, ListColumn, ListRow
 from src.gui.widgets.dialogs import (
     confirm_delete_dialog,
     open_input_dialog,
+    open_select_dialog,
     delete_registro_with_undo,
     make_dialog_button_row,
     confirm_past_malote,
 )
+from src.gui.widgets.import_dialog import ImportPlanilhaDialog
 
 __all__ = [
     "TipoButton",
@@ -55,4 +57,6 @@ __all__ = [
     "delete_registro_with_undo",
     "make_dialog_button_row",
     "confirm_past_malote",
+    "open_select_dialog",
+    "ImportPlanilhaDialog",
 ]
