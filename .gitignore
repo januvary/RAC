@@ -1,5 +1,6 @@
 __pycache__/
 .mypy_cache/
+.codebase-memory/
 *.py[cod]
 *.pyo
 *.pyi
@@ -17,10 +18,10 @@ build_config/dist_windows/
 build_config/_build_src/
 _update_staging/
 
-data/registros.db
-data/config.json
-data/rac.log
-data/backups/
+data/*
+!data/pontos_facultativos.json
+!data/RAC.ico
+data/data/
 
 *.egg-info/
 .eggs/
