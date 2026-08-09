@@ -20,7 +20,6 @@ _update_staging/
 
 data/*
 !data/pontos_facultativos.json
-!data/RAC.ico
 data/data/
 
 *.egg-info/
@@ -72,5 +71,6 @@ cleanup_db.py
 generate_test_data.py
 quality_check.sh
 RAC.txt
+contador.html
 
 andaime
