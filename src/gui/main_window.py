@@ -6,7 +6,7 @@ Main Window — QStackedWidget page navigation
 
 from PySide6.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QSizePolicy
 
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Signal, QTimer
 from src.database.rac_database import RACDatabase
 from src.state.rac_state_manager import RACStateManager
 from andaime.config import ConfigManager
@@ -95,6 +95,8 @@ class MainWindow(QMainWindow):
     @property
     def services(self):
         if self._services is None:
+            assert self.state is not None, "State not initialized"
+            assert self.db is not None, "Database not initialized"
             from src.services.registro_service import RegistroService
             from src.services.paciente_service import PacienteService
             from src.services.malote_service import MaloteService
@@ -207,7 +209,7 @@ class MainWindow(QMainWindow):
 
         self.shortcuts.bind("Ctrl+S", self._shortcut_save)
         self.shortcuts.bind("Ctrl+E", self._shortcut_export)
-        self.shortcuts.bind(Qt.Key.Key_Escape, self._shortcut_back)
+        self.shortcuts.bind("Escape", self._shortcut_back)
         self.shortcuts.bind("Ctrl+D", self._shortcut_malote_dialog)
         self.shortcuts.bind("Ctrl+R", self._shortcut_focus_search)
         self.shortcuts.bind("Ctrl+G", self._shortcut_preview)
@@ -339,14 +341,58 @@ class MainWindow(QMainWindow):
         event.ignore()
 
     def dropEvent(self, event):
-        page = self._current_page()
-        if not isinstance(page, StartPage):
-            event.ignore()
-            return
+        paths = []
         for url in event.mimeData().urls():
             path = url.toLocalFile()
             if path.lower().endswith(self._XLSX_SUFFIXES):
-                page.open_import_dialog(path)
-                event.acceptProposedAction()
-                return
-        event.ignore()
+                paths.append(path)
+        if paths:
+            self._open_import_dialog(paths)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def _open_import_dialog(self, paths: list[str]) -> None:
+        from src.gui.widgets.import_dialog import ImportPlanilhaDialog
+        from src.importers.excel_importer import ExcelImporter
+
+        if self.db is None:
+            self.show_status("Banco de dados não inicializado", "warning")
+            return
+
+        db = self.db
+
+        importers = []
+        try:
+            importers = [ExcelImporter(p) for p in paths]
+        except Exception as e:
+            from andaime.error_handler import ErrorHandler, ErrorContext
+
+            for imp in importers:
+                imp.close()
+            ErrorHandler.handle_error(
+                e, context=ErrorContext.EXPORT, show_dialog=False
+            )
+            self.show_status(f"Erro ao abrir planilha: {e}", "negative")
+            return
+
+        def _do_import(result):
+            from src.services.malote_import_service import MaloteImportSummary
+
+            if isinstance(result, MaloteImportSummary):
+                msg = (
+                    f"{result.malotes} malote(s) · {result.registros_new} registro(s) "
+                    f"novo(s) · {result.registros_skipped} já existiam"
+                )
+                if result.unmatched:
+                    msg += f" · {len(result.unmatched)} medicamento(s) não encontrados"
+                kind = "positive" if not result.unmatched else "warning"
+                self.show_status(msg, kind)
+            else:
+                new, dup = db.import_pacientes(result)
+                self.show_status(
+                    f"{new} paciente(s) importado(s) · {dup} já existiam", "positive"
+                )
+
+        dlg = ImportPlanilhaDialog(self, importers, db, _do_import)
+        dlg.exec()
