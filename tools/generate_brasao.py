@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Gera os PNGs do brasão e RAC a partir dos SVGs, usando andaime.brasao."""
+"""Gera os PNGs do brasão e RAC a partir dos SVGs, usando andaime.qt.brasao."""
 
 import sys
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from andaime.brasao import render_brasao_silhouette, recolor_brasao
+from andaime.qt.brasao import render_brasao_silhouette, recolor_brasao
 from andaime.qt.theme import LIGHT as _SHARED_LIGHT, DARK as _SHARED_DARK
 
 

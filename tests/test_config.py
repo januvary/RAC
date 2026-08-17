@@ -40,6 +40,11 @@ class TestRACConfig:
         assert cfg.theme == "dark"
         assert cfg.last_malote_id is None
         assert cfg.save_path == Path.home() / "Downloads"
+        assert cfg.modo_medcasa is False
+
+    def test_validate_rejects_bad_modo_medcasa(self):
+        with pytest.raises(ValueError, match="modo_medcasa"):
+            RACConfig(modo_medcasa="yes")
 
     def test_validate_rejects_bad_theme(self):
         with pytest.raises(ValueError, match="theme"):
@@ -63,6 +68,12 @@ class TestRACConfig:
         assert d["theme"] == "light"
         assert d["stay_on_page"] is True
         assert d["save_path"] == str(Path.home() / "Downloads")
+        assert d["modo_medcasa"] is False
+
+    def test_modo_medcasa_roundtrip(self):
+        cfg = RACConfig(modo_medcasa=True)
+        assert cfg.to_dict()["modo_medcasa"] is True
+        assert RACConfig(**cfg.to_dict()).modo_medcasa is True
 
     def test_save_path_string_converted_to_path(self):
         cfg = RACConfig(save_path="/tmp/test")

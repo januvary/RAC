@@ -23,6 +23,25 @@ from andaime.dates import DateCalculator
 if TYPE_CHECKING:
     from src.database.rac_database import RACDatabase
 
+_MONTH_LEN = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+
+def add_months(d: date, n: int) -> date:
+    """Calendar-correct month arithmetic; day clamps to the target month."""
+    total = d.month - 1 + n
+    carry, m = divmod(total, 12)
+    m += 1
+    year = d.year + carry
+    ml = _MONTH_LEN[m - 1]
+    if m == 2 and (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)):
+        ml = 29
+    return date(year, m, min(d.day, ml))
+
+
+def month_idx(d: date) -> int:
+    """Total months since year 0 — lets months be compared/subtracted as ints."""
+    return d.year * 12 + d.month - 1
+
 
 def _next_monday(after: date) -> date:
     days_ahead = (7 - after.weekday()) % 7
@@ -180,7 +199,10 @@ def _next_malote_arrival_after(d: date) -> date:
         arrival = calculate_arrival_date(send)
         if arrival >= d:
             return arrival
-        ref = send + timedelta(days=1)
+        # Advance from the arrival, not from `send`: when the next Monday
+        # is a holiday (e.g. Finados on 02/11/2026), calculate_send_date
+        # skips back BELOW ref and ref = send + 1 oscillates forever.
+        ref = arrival + timedelta(days=1)
 
 
 def _get_malote_arrivals_near(
