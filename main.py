@@ -72,7 +72,6 @@ def _prompt_usafa_name(config, splash=None):
 def _start_update_check(window):
     from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
     from andaime.updater import UpdateCheckWorker, restart_app
-    from src import __version__
     from src.gui.widgets.buttons import make_button
     from src.gui.widgets.labels import HeadingLabel
     from src.gui.styles import colors
