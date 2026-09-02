@@ -7,11 +7,10 @@ Usage:
     python -m panel                                        # local plaintext painel.html
     RAC_PANEL_PASSWORD='...' python -m panel --locked      # encrypted index.html
     RAC_PANEL_PASSWORD='...' python -m panel --publish     # encrypt + push to gh-pages
-    python -m panel --from-collection --publish            # from collection branch (Action)
 
-The --from-collection mode skips the local DB entirely (no andaime/PySide6),
-reading encrypted snapshots from a GitHub branch instead. This is what the
-GitHub Action uses.
+Reads unit databases directly via the aggregator reader.  The root folder
+(the parent of all unit folders) is auto-detected from the project root,
+or can be specified with --root.
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from panel.render import render_html, render_locked_html  # noqa: E402
-from src.sync.merger import merge_snapshots  # noqa: E402
+from aggregator.reader import read_unit, aggregate  # noqa: E402
 
 
 def _get_password() -> str:
@@ -41,38 +40,36 @@ def _get_password() -> str:
     return getpass.getpass("Senha do painel: ")
 
 
-def _build_from_local():
-    import andaime
-    from andaime.config import ConfigManager
-    from src.database.rac_database import RACDatabase
-    from src.sync.provider import LocalSnapshotProvider
-    from src.utils.config import RACConfig
+def _build_from_local(root: Path | None = None):
+    """Read all unit databases under *root* and return AggregateStats.
 
-    andaime.init("RAC", "RAC", root=_PROJECT_ROOT)
-    ConfigManager.init(RACConfig)
-    config = ConfigManager()
+    If *root* is None, uses the project root (the folder containing this
+    project's data/ directory as a single-unit fallback).
+    """
+    if root is None:
+        root = _PROJECT_ROOT
 
-    db = RACDatabase()
-    try:
-        provider = LocalSnapshotProvider(
-            db,
-            config.get("usafa_id", "ocian"),
-            config.get("usafa_name", "USAFA OCIAN"),
-        )
-        return merge_snapshots(provider.snapshots())
-    finally:
-        db.close(skip_backup=True)
+    units = []
+    for child in sorted(root.iterdir()):
+        if not child.is_dir():
+            continue
+        db_path = child / "data" / "registros.db"
+        if not db_path.exists():
+            continue
+        stats = read_unit(child)
+        if stats is not None:
+            units.append(stats)
 
+    # Fallback: if no sub-unit folders found, try reading the root itself
+    # (single-unit mode, e.g. running from a unit's own folder).
+    if not units:
+        db_path = root / "data" / "registros.db"
+        if db_path.exists():
+            stats = read_unit(root)
+            if stats is not None:
+                units.append(stats)
 
-def _build_from_collection():
-    from src.sync.collection import CollectionSnapshotProvider
-
-    provider = CollectionSnapshotProvider(
-        repo=os.environ.get("COLLECTION_REPO", "januvary/RAC"),
-        branch=os.environ.get("COLLECTION_BRANCH", "collection"),
-        private_key_pem=os.environ["ADMIN_PRIVATE_KEY"],
-    )
-    return merge_snapshots(provider.snapshots())
+    return aggregate(units)
 
 
 def _publish_to_github_pages(html: str, repo: str = "januvary/RAC") -> str:
@@ -158,31 +155,29 @@ def main() -> None:
         help="Push encrypted page to GitHub Pages",
     )
     parser.add_argument(
-        "--from-collection",
-        action="store_true",
-        help="Pull from collection branch instead of local DB",
+        "--root",
+        type=Path,
+        default=None,
+        help="Pasta raiz contendo as pastas de cada unidade",
     )
     parser.add_argument("-o", "--output", type=Path, default=None, help="Output file")
     args = parser.parse_args()
 
-    if args.from_collection:
-        aggregate = _build_from_collection()
-    else:
-        aggregate = _build_from_local()
+    aggregate_stats = _build_from_local(args.root)
 
-    encrypt = args.locked or args.publish or args.from_collection
+    encrypt = args.locked or args.publish
     if encrypt:
         password = _get_password()
-        payload = json.dumps(dataclasses.asdict(aggregate), ensure_ascii=False).encode(
-            "utf-8"
-        )
+        payload = json.dumps(
+            dataclasses.asdict(aggregate_stats), ensure_ascii=False
+        ).encode("utf-8")
         from panel.crypto import encrypt_payload
 
         blob = encrypt_payload(payload, password)
         html = render_locked_html(blob)
         filename = "index.html"
     else:
-        html = render_html(aggregate)
+        html = render_html(aggregate_stats)
         filename = "painel.html"
 
     target = args.output or (_PROJECT_ROOT / filename)

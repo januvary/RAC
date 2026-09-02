@@ -15,7 +15,7 @@ from html import escape
 from typing import Any
 
 from src.constants import TIPO_HEX, TIPO_LABELS
-from src.sync.merger import AggregateStats
+from aggregator.models import AggregateStats
 
 _CSS = """
   :root {

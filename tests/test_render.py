@@ -1,4 +1,4 @@
-from src.sync.merger import AggregateStats, UsafaStats
+from aggregator.models import AggregateStats, UsafaStats
 from panel.render import render_html
 
 
@@ -19,7 +19,6 @@ def test_populated():
                 5,
                 2,
                 1,
-                {"entrada": 5},
             )
         ],
         total_registros=5,
@@ -41,7 +40,7 @@ def test_escapes_unsafe_content():
     agg = AggregateStats(
         total_usafas=1,
         top_items=[{"medicamento": "<script>x</script>", "registros": 1}],
-        usafas=[UsafaStats("a", "<b>Name</b>", "2026-01-01T00:00:00", 1, 1, 1, {})],
+        usafas=[UsafaStats("a", "<b>Name</b>", "2026-01-01T00:00:00", 1, 1, 1)],
     )
     html = render_html(agg)
     assert "<script>x</script>" not in html
